@@ -224,6 +224,10 @@ export default function GameTwoVsTwo() {
 
     setPointsTeam1(newT1);
     setPointsTeam2(newT2);
+
+    if (connection) {
+      connection.invoke('UpdatePoints2v2', roomName, newT1, newT2).catch(() => {});
+    }
   };
 
   // Función para descomprimir las cartas de InitHand
@@ -676,37 +680,112 @@ export default function GameTwoVsTwo() {
     }, 3800);
   };
 
-  // Resolver la mano y acumular piedras
+  // Resolver la mano y acumular piedras según las reglas oficiales de La Tumba
   const resolveHandWinner = (t1Tricks: number, t2Tricks: number) => {
     const handWinningTeam = t1Tricks > t2Tricks ? 1 : 2;
     const addedStones = currentStakeRef.current;
-
-    const newPointsT1 = handWinningTeam === 1 ? pointsTeam1Ref.current + addedStones : pointsTeam1Ref.current;
-    const newPointsT2 = handWinningTeam === 2 ? pointsTeam2Ref.current + addedStones : pointsTeam2Ref.current;
-
-    updatePoints(newPointsT1, newPointsT2);
-
     const myTeam = (mySeatIndexRef.current === 0 || mySeatIndexRef.current === 2) ? 1 : 2;
-    if (handWinningTeam === myTeam) {
-      triggerAnnouncement({
-        type: 'win_round',
-        title: '¡MANO GANADA!',
-        subtitle: `Tu equipo suma +${addedStones} piedra(s)`,
-        badge: `MARCADOR: ${newPointsT1} a ${newPointsT2}`
-      }, 3000);
-      speakPhrase(`¡Ganan la mano! Suman ${addedStones} piedras.`);
+
+    const oldT1 = pointsTeam1Ref.current;
+    const oldT2 = pointsTeam2Ref.current;
+
+    const wasInTumbaT1 = oldT1 >= 9 || (isTumbaDeParaAtrasT1Ref.current && oldT1 === 8);
+    const wasInTumbaT2 = oldT2 >= 9 || (isTumbaDeParaAtrasT2Ref.current && oldT2 === 8);
+    const isObligado = wasInTumbaT1 && wasInTumbaT2;
+
+    let isGameOver = false;
+    let winningTeamOfMatch = 0;
+
+    if (isObligado) {
+      // Estado Obligado: Ambos equipos en Tumba. Quien gane esta mano gana la partida
+      isGameOver = true;
+      winningTeamOfMatch = handWinningTeam;
+      if (handWinningTeam === 1) updatePoints(10, oldT2);
+      else updatePoints(oldT1, 10);
+    } else if (wasInTumbaT1) {
+      if (handWinningTeam === 1) {
+        // Equipo 1 estaba en Tumba y ganó la mano -> Gana la partida (Tumba completada)
+        isGameOver = true;
+        winningTeamOfMatch = 1;
+        updatePoints(10, oldT2);
+      } else {
+        // Equipo 1 estaba en Tumba y perdió la mano -> Cae en Tumba (-3 pts para él, +3 para Equipo 2)
+        const newT1 = Math.max(0, oldT1 - 3);
+        const newT2 = oldT2 + 3;
+        updatePoints(newT1, newT2);
+        triggerAnnouncement({
+          type: 'tumba',
+          title: '¡EQUIPO 1 CAYÓ EN TUMBA!',
+          subtitle: '-3 piedras para Equipo 1, +3 piedras para Equipo 2',
+          badge: `MARCADOR: ${newT1} a ${newT2}`
+        }, 3500);
+        speakPhrase("¡El Equipo 1 cayó en tumba! Pierde tres piedras.");
+      }
+    } else if (wasInTumbaT2) {
+      if (handWinningTeam === 2) {
+        // Equipo 2 estaba en Tumba y ganó la mano -> Gana la partida (Tumba completada)
+        isGameOver = true;
+        winningTeamOfMatch = 2;
+        updatePoints(oldT1, 10);
+      } else {
+        // Equipo 2 estaba en Tumba y perdió la mano -> Cae en Tumba (-3 pts para él, +3 para Equipo 1)
+        const newT2 = Math.max(0, oldT2 - 3);
+        const newT1 = oldT1 + 3;
+        updatePoints(newT1, newT2);
+        triggerAnnouncement({
+          type: 'tumba',
+          title: '¡EQUIPO 2 CAYÓ EN TUMBA!',
+          subtitle: '-3 piedras para Equipo 2, +3 piedras para Equipo 1',
+          badge: `MARCADOR: ${newT1} a ${newT2}`
+        }, 3500);
+        speakPhrase("¡El Equipo 2 cayó en tumba! Pierde tres piedras.");
+      }
     } else {
-      triggerAnnouncement({
-        type: 'opp_win_round',
-        title: 'MANO PERDIDA',
-        subtitle: `Los rivales suman +${addedStones} piedra(s)`,
-        badge: `MARCADOR: ${newPointsT1} a ${newPointsT2}`
-      }, 3000);
+      // Ninguno estaba en Tumba: se suma la apuesta
+      let newT1 = oldT1;
+      let newT2 = oldT2;
+      if (handWinningTeam === 1) {
+        newT1 = Math.min(9, oldT1 + addedStones);
+      } else {
+        newT2 = Math.min(9, oldT2 + addedStones);
+      }
+      updatePoints(newT1, newT2);
+
+      const enteredTumbaT1 = newT1 >= 9;
+      const enteredTumbaT2 = newT2 >= 9;
+
+      if (enteredTumbaT1 || enteredTumbaT2) {
+        triggerAnnouncement({
+          type: 'tumba',
+          title: '¡ENTRADA A TUMBA!',
+          subtitle: enteredTumbaT1 && enteredTumbaT2
+            ? '¡Ambos equipos entran a Tumba (Obligado)!'
+            : (enteredTumbaT1 ? '¡Equipo 1 entra en Tumba! Debe ganar la próxima mano.' : '¡Equipo 2 entra en Tumba! Debe ganar la próxima mano.'),
+          badge: 'ESTADO DE TUMBA'
+        }, 3500);
+        speakPhrase("¡Entrada en tumba! Deben ganar la próxima mano para coronarse campeones.");
+      } else {
+        if (handWinningTeam === myTeam) {
+          triggerAnnouncement({
+            type: 'win_round',
+            title: '¡MANO GANADA!',
+            subtitle: `Tu equipo suma +${addedStones} piedra(s)`,
+            badge: `MARCADOR: ${newT1} a ${newT2}`
+          }, 3000);
+          speakPhrase(`¡Ganan la mano! Suman ${addedStones} piedras.`);
+        } else {
+          triggerAnnouncement({
+            type: 'opp_win_round',
+            title: 'MANO PERDIDA',
+            subtitle: `Los rivales suman +${addedStones} piedra(s)`,
+            badge: `MARCADOR: ${newT1} a ${newT2}`
+          }, 3000);
+        }
+      }
     }
 
-    if (newPointsT1 >= 10 || newPointsT2 >= 10) {
-      const isPlayerTeamWinner = myTeam === 1 ? newPointsT1 >= 10 : newPointsT2 >= 10;
-      handleGameOver(isPlayerTeamWinner);
+    if (isGameOver) {
+      handleGameOver(winningTeamOfMatch === myTeam);
     } else {
       // Si soy el anfitrión (Asiento 0), solicito repartir la nueva mano rotando el turno
       if (mySeatIndexRef.current === 0 && connection) {
@@ -715,7 +794,7 @@ export default function GameTwoVsTwo() {
           connection.invoke('DealNewHand2v2', roomName, nextStarter).catch(err => {
             console.error('Error al repartir nueva mano:', err);
           });
-        }, 3000);
+        }, 3500);
       }
     }
   };
@@ -781,6 +860,24 @@ export default function GameTwoVsTwo() {
   // Mecánica de PEDIR (3, 6, 9) sincronizada en vivo
   const handlePedirClick = () => {
     if (isProcessingMoveRef.current || isCleaningTable) return;
+
+    // Si algún equipo está en Tumba, Pedir no está permitido
+    const isTumba = (pointsTeam1Ref.current >= 9 || (isTumbaDeParaAtrasT1Ref.current && pointsTeam1Ref.current === 8)) ||
+                    (pointsTeam2Ref.current >= 9 || (isTumbaDeParaAtrasT2Ref.current && pointsTeam2Ref.current === 8));
+    if (isTumba) {
+      speakPhrase("En tumba no se puede pedir.");
+      vibrateDevice('reject');
+      Swal.fire({
+        title: "¡ESTADO DE TUMBA!",
+        text: "En Tumba no está permitido pedir.",
+        icon: "warning",
+        confirmButtonColor: "#d97706",
+        background: "#1a0e06",
+        color: "#fff"
+      });
+      return;
+    }
+
     const current = currentStakeRef.current;
     const nextStake = current === 1 ? 3 : (current === 3 ? 6 : 9);
 
@@ -1433,21 +1530,30 @@ export default function GameTwoVsTwo() {
             </div>
 
             {/* Botón de PEDIR (3, 6, 9) - SIEMPRE VISIBLE EN LA ZONA DE JUEGO */}
-            <button
-              type="button"
-              onClick={handlePedirClick}
-              disabled={currentStake >= 9 || isProcessingMove || isCleaningTable}
-              className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-2xl font-black text-xs sm:text-sm uppercase tracking-wider flex items-center gap-1.5 border-2 transition-all shadow-xl active:scale-95 shrink-0 ${
-                currentStake >= 9
-                  ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black border-yellow-200 hover:brightness-110 shadow-yellow-500/25 cursor-pointer'
-              } ${fonts.bowlbyOneSC.className}`}
-            >
-              <span>🔥 PEDIR</span>
-              <span className="text-[10px] bg-black text-yellow-300 px-1.5 py-0.5 rounded-md font-extrabold">
-                {currentStake === 1 ? '3' : (currentStake === 3 ? '6' : '9')}
-              </span>
-            </button>
+            {(() => {
+              const isTumbaActive = (pointsTeam1 >= 9 || (isTumbaDeParaAtrasT1 && pointsTeam1 === 8)) ||
+                                    (pointsTeam2 >= 9 || (isTumbaDeParaAtrasT2 && pointsTeam2 === 8));
+              return (
+                <button
+                  type="button"
+                  onClick={handlePedirClick}
+                  disabled={currentStake >= 9 || isProcessingMove || isCleaningTable || isTumbaActive}
+                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-2xl font-black text-xs sm:text-sm uppercase tracking-wider flex items-center gap-1.5 border-2 transition-all shadow-xl active:scale-95 shrink-0 ${
+                    currentStake >= 9 || isTumbaActive
+                      ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black border-yellow-200 hover:brightness-110 shadow-yellow-500/25 cursor-pointer'
+                  } ${fonts.bowlbyOneSC.className}`}
+                  title={isTumbaActive ? 'En Tumba no se puede pedir' : 'Pedir aumento de apuesta'}
+                >
+                  <span>{isTumbaActive ? '🪦 EN TUMBA' : '🔥 PEDIR'}</span>
+                  {!isTumbaActive && (
+                    <span className="text-[10px] bg-black text-yellow-300 px-1.5 py-0.5 rounded-md font-extrabold">
+                      {currentStake === 1 ? '3' : (currentStake === 3 ? '6' : '9')}
+                    </span>
+                  )}
+                </button>
+              );
+            })()}
 
           </div>
 
