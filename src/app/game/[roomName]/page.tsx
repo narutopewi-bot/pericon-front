@@ -612,14 +612,20 @@ export default function Duel1vs1() {
     }, 1200);
 
 
-    if (turno == true) {
-      setPlayerCards([cpOne, cpTwo, cpThree]);
+    // 1. Asignación de cartas según la identidad del jugador (Player 1 o Player 2):
+    const isPlayerOne = (datos.current.flag === true);
+    const myHandCards = isPlayerOne
+      ? [cpOne, cpTwo, cpThree]
+      : [cpFour, cpFive, cpSix];
+    setPlayerCards(myHandCards);
+
+    // 2. Asignación del turno de salida de la ronda según 'turno':
+    if (turno === true) {
       changeturn.current = true;
       roundturn.current = true;
       switchturn.current = true;
       setIsMyTurn(true);
     } else {
-      setPlayerCards([cpFour, cpFive, cpSix]);
       changeturn.current = false;
       roundturn.current = false;
       switchturn.current = false;
