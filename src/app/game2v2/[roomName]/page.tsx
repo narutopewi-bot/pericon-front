@@ -65,9 +65,6 @@ const evaluatePericonCard = (cardId: number, lifeCardId: number): number => {
   // 3 del palo de la vida (El Gollero)
   if (lifeSuit >= 0 && cardSuit === lifeSuit && faceVal === 3) return 28;
 
-  // 3 de Oro (Gollero de Oro cuando la vida no es oro)
-  if (cardId === 2 && cardSuit !== lifeSuit) return 23;
-
   // 2 de la vida
   if (lifeSuit >= 0 && cardSuit === lifeSuit && faceVal === 2) return 24;
 

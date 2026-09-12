@@ -219,7 +219,7 @@ export const Baraja = (x : number, y: number) : Card => {
  */
 export const isTrumpCard = (cardId: number, lifeCardId: number): boolean => {
     if (cardId < 0 || lifeCardId < 0) return false;
-    if (cardId === 4 || cardId === 33 || cardId === 38 || cardId === 0 || cardId === 7 || cardId === 2) {
+    if (cardId === 4 || cardId === 33 || cardId === 38 || cardId === 0 || cardId === 7) {
         return true;
     }
     const lifeSuit = Math.floor(lifeCardId / 10);
