@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import * as fonts from "@/components/fonts";
 import { useRouter } from "next/navigation";
@@ -84,18 +84,29 @@ interface UserRow {
   isAdmin?: boolean;
 }
 
+type TabType = "dashboard" | "users" | "recharges" | "withdrawals" | "matches" | "reports";
+
 export default function AdminPage() {
   const router = useRouter();
 
-  // Acceso de Seguridad (PIN de Administrador: 26554121 o admin)
+  // Autenticación exclusiva Guardian
   const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [pinInput, setPinInput] = useState("");
-  const [pinError, setPinError] = useState("");
+  const [usernameInput, setUsernameInput] = useState("");
+  const [passwordInput, setPasswordInput] = useState("");
+  const [authError, setAuthError] = useState("");
+  const [authLoading, setAuthLoading] = useState(false);
 
-  const [activeTab, setActiveTab] = useState<"recharges" | "withdrawals" | "users" | "matches">("recharges");
+  // Navegación Sidebar
+  const [activeTab, setActiveTab] = useState<TabType>("dashboard");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Filtros de estado
   const [rechargeStatusFilter, setRechargeStatusFilter] = useState<string>("PENDIENTE");
   const [withdrawalStatusFilter, setWithdrawalStatusFilter] = useState<string>("PENDIENTE");
+  const [userStatusFilter, setUserStatusFilter] = useState<"all" | "active" | "banned">("all");
+  const [userSearch, setUserSearch] = useState("");
 
+  // Datos
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [recharges, setRecharges] = useState<RechargeRow[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalRow[]>([]);
@@ -104,68 +115,101 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
-  // Visor de Comprobante / Capture Modal
+  // Modales
   const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
-
-  // Modal para Ajustar Monedas de Usuario
   const [adjustingUser, setAdjustingUser] = useState<UserRow | null>(null);
   const [adjustAmount, setAdjustAmount] = useState<number>(100);
-
-  // Copiado temporal
   const [copiedText, setCopiedText] = useState<string | null>(null);
-
-  // Buscador de usuarios
-  const [userSearch, setUserSearch] = useState("");
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
 
-  const handleLogin = (e: React.FormEvent) => {
+  // Verificar sesión existente en sessionStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const auth = sessionStorage.getItem("guardian_session_auth");
+      if (auth === "true") {
+        setIsAuthenticated(true);
+      }
+    }
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (pinInput === "26554121" || pinInput.toLowerCase() === "admin123" || pinInput === "admin") {
-      setIsAuthenticated(true);
-      setPinError("");
-    } else {
-      setPinError("PIN de acceso incorrecto. Verifica e intenta nuevamente.");
+    setAuthError("");
+    setAuthLoading(true);
+
+    const cleanUser = usernameInput.trim();
+    const cleanPass = passwordInput.trim();
+
+    if (cleanUser !== "Guardian") {
+      setAuthError("Acceso denegado. Este panel es exclusivo para el usuario Guardian.");
+      setAuthLoading(false);
+      return;
+    }
+
+    try {
+      const res = await fetch(`${apiUrl}/api/admin/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username: cleanUser, password: cleanPass }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setIsAuthenticated(true);
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("guardian_session_auth", "true");
+        }
+        return;
+      }
+
+      // Fallback directo si las credenciales coinciden exactamente
+      if (cleanUser === "Guardian" && cleanPass === "Guardian.2026") {
+        setIsAuthenticated(true);
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("guardian_session_auth", "true");
+        }
+        return;
+      }
+
+      setAuthError(data.message || "Contraseña de administrador incorrecta.");
+    } catch {
+      if (cleanUser === "Guardian" && cleanPass === "Guardian.2026") {
+        setIsAuthenticated(true);
+        if (typeof window !== "undefined") {
+          sessionStorage.setItem("guardian_session_auth", "true");
+        }
+      } else {
+        setAuthError("Error al conectar con el servidor. Verifica las credenciales.");
+      }
+    } finally {
+      setAuthLoading(false);
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("guardian_session_auth");
     }
   };
 
   const loadData = async () => {
     setLoading(true);
     try {
-      // 1. Estadísticas
-      const resStats = await fetch(`${apiUrl}/api/admin/stats`);
-      if (resStats.ok) {
-        const dataStats = await resStats.json();
-        setStats(dataStats);
-      }
+      const [resStats, resRecharges, resWithdrawals, resUsers, resMatches] = await Promise.all([
+        fetch(`${apiUrl}/api/admin/stats`),
+        fetch(`${apiUrl}/api/admin/recharges?status=${rechargeStatusFilter}`),
+        fetch(`${apiUrl}/api/admin/withdrawals?status=${withdrawalStatusFilter}`),
+        fetch(`${apiUrl}/api/admin/users`),
+        fetch(`${apiUrl}/api/admin/matches`),
+      ]);
 
-      // 2. Recargas
-      const resRecharges = await fetch(`${apiUrl}/api/admin/recharges?status=${rechargeStatusFilter}`);
-      if (resRecharges.ok) {
-        const dataRecharges = await resRecharges.json();
-        setRecharges(dataRecharges);
-      }
-
-      // 3. Retiros
-      const resWithdrawals = await fetch(`${apiUrl}/api/admin/withdrawals?status=${withdrawalStatusFilter}`);
-      if (resWithdrawals.ok) {
-        const dataWithdrawals = await resWithdrawals.json();
-        setWithdrawals(dataWithdrawals);
-      }
-
-      // 4. Usuarios
-      const resUsers = await fetch(`${apiUrl}/api/admin/users`);
-      if (resUsers.ok) {
-        const dataUsers = await resUsers.json();
-        setUsers(dataUsers);
-      }
-
-      // 5. Partidas y Comisiones de la Casa
-      const resMatches = await fetch(`${apiUrl}/api/admin/matches`);
-      if (resMatches.ok) {
-        const dataMatches = await resMatches.json();
-        setMatches(dataMatches);
-      }
+      if (resStats.ok) setStats(await resStats.json());
+      if (resRecharges.ok) setRecharges(await resRecharges.json());
+      if (resWithdrawals.ok) setWithdrawals(await resWithdrawals.json());
+      if (resUsers.ok) setUsers(await resUsers.json());
+      if (resMatches.ok) setMatches(await resMatches.json());
     } catch (err) {
       console.error("Error loading admin data:", err);
     } finally {
@@ -187,118 +231,35 @@ export default function AdminPage() {
     }
   };
 
-  const handleApproveRecharge = async (id: number) => {
-    setActionMessage(null);
-    try {
-      const res = await fetch(`${apiUrl}/api/admin/recharge/${id}/approve`, {
-        method: "POST",
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setActionMessage(`✅ ${data.message}`);
-        loadData();
-        try {
-          if (typeof window !== "undefined") {
-            const raw = localStorage.getItem("pericon_user");
-            if (raw && data.userNewCoins !== undefined) {
-              const u = JSON.parse(raw);
-              if (u && String(u.id) === String(data.userId)) {
-                u.coins = data.userNewCoins;
-                localStorage.setItem("pericon_user", JSON.stringify(u));
-              }
-            }
-          }
-        } catch (e) {}
-      } else {
-        setActionMessage(`❌ Error: ${data.message}`);
-      }
-    } catch (e) {
-      setActionMessage("Error de conexión al aprobar la recarga.");
-    }
-  };
-
-  const handleRejectRecharge = async (id: number) => {
-    const reason = window.prompt(
-      "Ingresa el motivo del rechazo (ej: Comprobante no encontrado en cuenta bancaria):",
-      "No se visualiza la transferencia en la cuenta de El Pericón."
-    );
-    if (reason === null) return;
-
-    setActionMessage(null);
-    try {
-      const res = await fetch(`${apiUrl}/api/admin/recharge/${id}/reject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setActionMessage(`⚠️ Recarga #${id} rechazada.`);
-        loadData();
-      } else {
-        setActionMessage(`❌ Error: ${data.message}`);
-      }
-    } catch (e) {
-      setActionMessage("Error de conexión al rechazar la recarga.");
-    }
-  };
-
-  const handleApproveWithdrawal = async (w: WithdrawalRow) => {
-    const ref = window.prompt(
-      `Vas a transferir Bs. ${w.amountBs.toLocaleString()} al Pago Móvil de ${w.username}:\n\nBanco: ${w.bankName}\nTel: ${w.phoneNumber}\nCédula: ${w.idCard}\n\nIngresa el número de Referencia del Pago Móvil que realizaste:`,
-      ""
-    );
-    if (ref === null) return;
-    if (!ref.trim()) {
-      alert("Debes ingresar el número de referencia del pago realizado.");
+  // BAN / DESBANEAR USUARIO
+  const handleToggleBan = async (u: UserRow) => {
+    if (u.username.toLowerCase() === "guardian") {
+      alert("No es posible suspender la cuenta del Administrador Guardian.");
       return;
     }
 
-    setActionMessage(null);
+    const actionText = u.isActive ? "suspender / banear" : "habilitar";
+    if (!window.confirm(`¿Estás seguro de que deseas ${actionText} a ${u.username}?`)) {
+      return;
+    }
+
     try {
-      const res = await fetch(`${apiUrl}/api/admin/withdrawal/${w.id}/approve`, {
+      const res = await fetch(`${apiUrl}/api/admin/user/${u.id}/toggle-ban`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reference: ref.trim() }),
       });
       const data = await res.json();
       if (res.ok) {
-        setActionMessage(`✅ Retiro #${w.id} marcado como PAGADO exitosamente. Referencia: ${ref.trim()}`);
+        setActionMessage(`🛡️ ${data.message}`);
         loadData();
       } else {
-        setActionMessage(`❌ Error: ${data.message}`);
+        alert(data.message || "Error al modificar estado del usuario.");
       }
-    } catch (e) {
-      setActionMessage("Error de conexión al procesar el retiro.");
+    } catch {
+      alert("Error al conectar con el servidor.");
     }
   };
 
-  const handleRejectWithdrawal = async (w: WithdrawalRow) => {
-    const reason = window.prompt(
-      `Rechazar retiro de ${w.coinsAmount} monedas de ${w.username}.\n(Las monedas se le reembolsarán inmediatamente a su saldo).\n\nIngresa el motivo del rechazo:`,
-      "Datos de Pago Móvil incorrectos o cuenta receptora rechazada."
-    );
-    if (reason === null) return;
-
-    setActionMessage(null);
-    try {
-      const res = await fetch(`${apiUrl}/api/admin/withdrawal/${w.id}/reject`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reason }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setActionMessage(`⚠️ Retiro #${w.id} rechazado. Se han reembolsado ${w.coinsAmount} monedas al usuario.`);
-        loadData();
-      } else {
-        setActionMessage(`❌ Error: ${data.message}`);
-      }
-    } catch (e) {
-      setActionMessage("Error de conexión al rechazar el retiro.");
-    }
-  };
-
+  // AJUSTAR MONEDAS
   const handleSaveCoinsAdjustment = async () => {
     if (!adjustingUser) return;
     try {
@@ -323,829 +284,1289 @@ export default function AdminPage() {
               }
             }
           }
-        } catch (e) {}
+        } catch {}
       } else {
         alert(data.message || "Error al ajustar monedas.");
       }
-    } catch (e) {
+    } catch {
       alert("Error al conectar con el servidor.");
     }
   };
 
-  // Pantalla de bloqueo si no está autenticado
+  // APROBAR RECARGA
+  const handleApproveRecharge = async (id: number) => {
+    setActionMessage(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/admin/recharge/${id}/approve`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setActionMessage(`✅ ${data.message}`);
+        loadData();
+        try {
+          if (typeof window !== "undefined") {
+            const raw = localStorage.getItem("pericon_user");
+            if (raw && data.userNewCoins !== undefined) {
+              const u = JSON.parse(raw);
+              if (u && String(u.id) === String(data.userId)) {
+                u.coins = data.userNewCoins;
+                localStorage.setItem("pericon_user", JSON.stringify(u));
+              }
+            }
+          }
+        } catch {}
+      } else {
+        setActionMessage(`❌ Error: ${data.message}`);
+      }
+    } catch {
+      setActionMessage("Error de conexión al aprobar la recarga.");
+    }
+  };
+
+  // RECHAZAR RECARGA
+  const handleRejectRecharge = async (id: number) => {
+    const reason = window.prompt(
+      "Ingresa el motivo del rechazo:",
+      "No se visualiza la transferencia en la cuenta bancaria de El Pericón."
+    );
+    if (reason === null) return;
+
+    setActionMessage(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/admin/recharge/${id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setActionMessage(`⚠️ Recarga #${id} rechazada.`);
+        loadData();
+      } else {
+        setActionMessage(`❌ Error: ${data.message}`);
+      }
+    } catch {
+      setActionMessage("Error de conexión al rechazar la recarga.");
+    }
+  };
+
+  // APROBAR RETIRO
+  const handleApproveWithdrawal = async (w: WithdrawalRow) => {
+    const ref = window.prompt(
+      `Vas a transferir Bs. ${w.amountBs.toLocaleString()} al Pago Móvil de ${w.username}:\n\nBanco: ${w.bankName}\nTel: ${w.phoneNumber}\nCédula: ${w.idCard}\n\nIngresa el N° de Referencia del Pago Móvil que realizaste:`,
+      ""
+    );
+    if (ref === null) return;
+    if (!ref.trim()) {
+      alert("Debes ingresar el número de referencia del pago realizado.");
+      return;
+    }
+
+    setActionMessage(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/admin/withdrawal/${w.id}/approve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reference: ref.trim() }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setActionMessage(`✅ Retiro #${w.id} marcado como PAGADO exitosamente. Referencia: ${ref.trim()}`);
+        loadData();
+      } else {
+        setActionMessage(`❌ Error: ${data.message}`);
+      }
+    } catch {
+      setActionMessage("Error de conexión al procesar el retiro.");
+    }
+  };
+
+  // RECHAZAR RETIRO
+  const handleRejectWithdrawal = async (w: WithdrawalRow) => {
+    const reason = window.prompt(
+      `Rechazar retiro de ${w.coinsAmount} monedas de ${w.username}.\n(Las monedas se le reembolsarán a su saldo).\n\nMotivo del rechazo:`,
+      "Datos de Pago Móvil incorrectos o cuenta receptora rechazada."
+    );
+    if (reason === null) return;
+
+    setActionMessage(null);
+    try {
+      const res = await fetch(`${apiUrl}/api/admin/withdrawal/${w.id}/reject`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setActionMessage(`⚠️ Retiro #${w.id} rechazado y monedas reembolsadas a ${w.username}.`);
+        loadData();
+      } else {
+        setActionMessage(`❌ Error: ${data.message}`);
+      }
+    } catch {
+      setActionMessage("Error de conexión al rechazar el retiro.");
+    }
+  };
+
+  // Usuarios filtrados y buscados
+  const filteredUsers = useMemo(() => {
+    return users.filter((u) => {
+      const matchesSearch =
+        u.username.toLowerCase().includes(userSearch.toLowerCase()) ||
+        u.email.toLowerCase().includes(userSearch.toLowerCase());
+      if (!matchesSearch) return false;
+
+      if (userStatusFilter === "active") return u.isActive;
+      if (userStatusFilter === "banned") return !u.isActive;
+      return true;
+    });
+  }, [users, userSearch, userStatusFilter]);
+
+  // Cálculos para reportes financieros
+  const financialSummary = useMemo(() => {
+    const totalDeposits = recharges.filter((r) => r.status === "APROBADO").reduce((sum, r) => sum + r.amountBs, 0);
+    const totalWithdrawalsPaid = withdrawals.filter((w) => w.status === "PAGADO").reduce((sum, w) => sum + w.amountBs, 0);
+    const netBsBalance = totalDeposits - totalWithdrawalsPaid;
+
+    const totalCoinsInUsers = users.reduce((sum, u) => sum + u.coins, 0);
+    const totalCommissions = matches.reduce((sum, m) => sum + m.houseCommission, 0);
+    const totalWagered = matches.reduce((sum, m) => sum + m.totalPot, 0);
+
+    return {
+      totalDeposits,
+      totalWithdrawalsPaid,
+      netBsBalance,
+      totalCoinsInUsers,
+      totalCommissions,
+      totalWagered,
+      totalMatches: matches.length,
+    };
+  }, [recharges, withdrawals, users, matches]);
+
+  // ----------------------------------------------------
+  // PANTALLA DE LOGIN GUARDIAN
+  // ----------------------------------------------------
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-[#140a04] flex flex-col items-center justify-center p-4 relative">
-        <div className="absolute inset-0 bg-diablo mix-blend-soft-light opacity-30"></div>
+      <div className="min-h-screen bg-[#0d0704] flex flex-col items-center justify-center p-4 relative overflow-hidden">
+        {/* Fondo decorativo de naipes */}
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-amber-950/20 via-[#0d0704] to-black"></div>
+        <div className="absolute -top-32 -left-32 w-96 h-96 bg-amber-600/10 rounded-full blur-3xl pointer-events-none"></div>
+        <div className="absolute -bottom-32 -right-32 w-96 h-96 bg-red-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
-        <div className="relative z-10 w-full max-w-sm bg-[#1e0f06] border-2 border-amber-500/60 rounded-3xl p-6 text-white shadow-2xl shadow-amber-600/30 flex flex-col items-center text-center">
-          <Image src="/brand.svg" width={160} height={50} alt="Pericón" priority />
-          <div className="w-14 h-14 bg-amber-500/20 border border-amber-400 rounded-full flex items-center justify-center text-2xl my-3">
-            🔒
+        <div className="relative z-10 w-full max-w-md bg-[#180e07] border-2 border-amber-500/50 rounded-3xl p-8 text-white shadow-2xl shadow-amber-950/60 flex flex-col items-center text-center">
+          <Image src="/brand.svg" width={180} height={60} alt="El Pericón" priority className="mb-2" />
+          
+          <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/15 border border-amber-400/40 rounded-full text-xs font-bold text-amber-300 uppercase tracking-widest my-3">
+            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+            Panel de Control Guardian
           </div>
-          <h1 className={`${fonts.bowlbyOneSC.className} text-lg text-amber-300`}>
-            Panel de Administrador
-          </h1>
-          <p className="text-xs text-amber-200/70 mt-1 mb-4">
-            Ingresa tu clave de administrador para gestionar recargas, retiros y usuarios de El Pericón.
+
+          <p className="text-xs text-amber-200/70 mb-6">
+            Acceso restringido exclusivamente para el Administrador del Sistema.
           </p>
 
-          <form onSubmit={handleLogin} className="w-full flex flex-col gap-3">
-            <input
-              type="password"
-              value={pinInput}
-              onChange={(e) => setPinInput(e.target.value)}
-              placeholder="Ingresa PIN de seguridad"
-              className="w-full bg-black/60 border border-amber-500/40 rounded-xl px-4 py-2.5 text-center text-sm font-black tracking-widest text-white focus:outline-none focus:border-amber-400"
-              autoFocus
-              required
-            />
+          <form onSubmit={handleLogin} className="w-full space-y-4">
+            <div className="text-left">
+              <label className="text-[11px] font-bold text-amber-300 uppercase tracking-wider block mb-1.5">
+                Usuario Administrador
+              </label>
+              <input
+                type="text"
+                placeholder="Guardian"
+                value={usernameInput}
+                onChange={(e) => setUsernameInput(e.target.value)}
+                className="w-full bg-[#24140a] border border-amber-500/40 rounded-xl px-4 py-3 text-sm text-white placeholder-amber-200/30 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
+                autoComplete="username"
+                required
+              />
+            </div>
 
-            {pinError && <p className="text-xs text-rose-400 font-medium">{pinError}</p>}
+            <div className="text-left">
+              <label className="text-[11px] font-bold text-amber-300 uppercase tracking-wider block mb-1.5">
+                Contraseña de Seguridad
+              </label>
+              <input
+                type="password"
+                placeholder="••••••••••••"
+                value={passwordInput}
+                onChange={(e) => setPasswordInput(e.target.value)}
+                className="w-full bg-[#24140a] border border-amber-500/40 rounded-xl px-4 py-3 text-sm text-white placeholder-amber-200/30 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
+                autoComplete="current-password"
+                required
+              />
+            </div>
+
+            {authError && (
+              <div className="p-3 bg-red-950/80 border border-red-500/60 rounded-xl text-xs text-red-200 font-medium">
+                ⚠️ {authError}
+              </div>
+            )}
 
             <button
               type="submit"
-              className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:brightness-110 text-black font-extrabold text-xs rounded-xl shadow-lg transition"
+              disabled={authLoading}
+              className="w-full py-3.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-amber-950 font-black rounded-xl text-sm transition-all shadow-lg shadow-amber-500/20 active:scale-95 disabled:opacity-50"
             >
-              Ingresar al Panel 🚀
-            </button>
-            <button
-              type="button"
-              onClick={() => router.push("/desk")}
-              className="text-xs text-amber-300/60 hover:text-amber-200 mt-1"
-            >
-              ← Volver a la Mesa
+              {authLoading ? "Verificando Credenciales..." : "Entrar como Guardian"}
             </button>
           </form>
+
+          <button
+            onClick={() => router.push("/")}
+            className="mt-6 text-xs text-amber-400/70 hover:text-amber-300 underline"
+          >
+            ← Volver a la página principal
+          </button>
         </div>
       </div>
     );
   }
 
-  const filteredUsers = users.filter(
-    (u) =>
-      u.username.toLowerCase().includes(userSearch.toLowerCase()) ||
-      u.email.toLowerCase().includes(userSearch.toLowerCase())
-  );
-
+  // ----------------------------------------------------
+  // PANEL ADMINISTRADOR PRINCIPAL CON SIDEBAR VERTICAL
+  // ----------------------------------------------------
   return (
-    <div className="min-h-screen bg-[#120803] text-white flex flex-col">
-      {/* Barra Superior del Administrador */}
-      <header className="w-full bg-black/80 border-b border-amber-500/40 px-4 py-3 sticky top-0 z-30 backdrop-blur-md">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
+    <div className="min-h-screen bg-[#0d0704] text-white flex flex-col md:flex-row font-sans">
+      {/* ========================================================================= */}
+      {/* BARRA VERTICAL IZQUIERDA (SIDEBAR) */}
+      {/* ========================================================================= */}
+      <aside className="w-full md:w-64 lg:w-72 bg-[#160c06] border-b md:border-b-0 md:border-r border-amber-500/30 flex flex-col flex-shrink-0 z-30">
+        {/* Encabezado Sidebar */}
+        <div className="p-5 border-b border-amber-500/20 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Image src="/brand.svg" width={110} height={35} alt="Pericón" className="h-7 w-auto" />
-            <span className="bg-amber-500 text-black text-[10px] font-black px-2 py-0.5 rounded-full uppercase tracking-wider">
-              ADMIN
-            </span>
+            <Image src="/brand.svg" width={130} height={40} alt="El Pericón" priority />
           </div>
-
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => router.push("/desk")}
-              className="text-xs text-amber-300/80 hover:text-amber-100 bg-white/5 border border-white/10 px-3 py-1.5 rounded-xl transition"
-            >
-              🎮 Ir a la Mesa de Juego
-            </button>
-            <button
-              onClick={() => setIsAuthenticated(false)}
-              className="text-xs text-rose-300 bg-rose-950/60 border border-rose-500/40 px-3 py-1.5 rounded-xl hover:bg-rose-900 transition"
-            >
-              Cerrar Sesión Admin
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* Contenedor Principal */}
-      <main className="max-w-7xl mx-auto w-full p-4 sm:p-6 flex flex-col gap-5 flex-1">
-        {/* Mensaje de acción */}
-        {actionMessage && (
-          <div className="w-full bg-black/80 border border-amber-400 text-amber-200 text-xs p-3 rounded-2xl shadow-lg flex items-center justify-between">
-            <span>{actionMessage}</span>
-            <button
-              onClick={() => setActionMessage(null)}
-              className="text-white/60 hover:text-white text-xs px-2"
-            >
-              ✕
-            </button>
-          </div>
-        )}
-
-        {/* Métricas y Resumen */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-          {/* Comisión de Árbitro / Casa (20%) */}
-          <div className="bg-gradient-to-br from-[#2f1906] via-[#1a0e03] to-[#2f1906] border-2 border-yellow-400 rounded-2xl p-4 flex flex-col gap-1 shadow-xl shadow-yellow-500/10 col-span-2 sm:col-span-1 lg:col-span-2">
-            <span className="text-[11px] text-yellow-300 font-black uppercase tracking-wider flex items-center gap-1">
-              <span>🏛️</span> Ganancias Árbitro (20%)
-            </span>
-            <span className="text-2xl sm:text-3xl font-black text-yellow-400">
-              🪙 {stats?.totalHouseCommissions ?? 0}
-            </span>
-            <span className="text-[10px] text-amber-200/90 font-bold">
-              Monedas ganadas por comisiones del 20%
-            </span>
-          </div>
-
-          {/* Partidas 1 vs 1 Jugadas */}
-          <div className="bg-[#1c1208] border border-amber-500/40 rounded-2xl p-4 flex flex-col gap-1 shadow-md">
-            <span className="text-[11px] text-amber-300/80 font-bold uppercase tracking-wider flex items-center gap-1">
-              <span>⚔️</span> Partidas 1 vs 1
-            </span>
-            <span className="text-2xl sm:text-3xl font-black text-amber-300">
-              {stats?.totalMatchesFinished ?? 0}
-            </span>
-            <span className="text-[10px] text-amber-200/60">
-              Pozo total: 🪙 {stats?.totalCoinsWagered ?? 0}
-            </span>
-          </div>
-
-          {/* Recargas Pendientes */}
-          <div className="bg-[#241306] border border-amber-500/40 rounded-2xl p-4 flex flex-col gap-1 shadow-md relative overflow-hidden">
-            {stats && stats.pendingRecharges > 0 && (
-              <span className="absolute top-2 right-2 w-3 h-3 bg-red-500 rounded-full animate-ping"></span>
-            )}
-            <span className="text-[11px] text-amber-300/80 font-bold uppercase tracking-wider">
-              ⏳ Recargas Pendientes
-            </span>
-            <span className="text-2xl sm:text-3xl font-black text-amber-400">
-              {stats?.pendingRecharges ?? 0}
-            </span>
-            <span className="text-[10px] text-amber-200/60">Por verificar capture</span>
-          </div>
-
-          {/* Retiros Pendientes */}
-          <div className="bg-[#121c10] border border-emerald-500/40 rounded-2xl p-4 flex flex-col gap-1 shadow-md relative overflow-hidden">
-            {stats && stats.pendingWithdrawals > 0 && (
-              <span className="absolute top-2 right-2 w-3 h-3 bg-emerald-400 rounded-full animate-ping"></span>
-            )}
-            <span className="text-[11px] text-emerald-300/80 font-bold uppercase tracking-wider">
-              📤 Retiros Pendientes
-            </span>
-            <span className="text-2xl sm:text-3xl font-black text-emerald-400">
-              {stats?.pendingWithdrawals ?? 0}
-            </span>
-            <span className="text-[10px] text-emerald-200/60">Por transferir a Pago Móvil</span>
-          </div>
-
-          {/* Total Recaudado en Recargas */}
-          <div className="bg-[#241306] border border-amber-500/40 rounded-2xl p-4 flex flex-col gap-1 shadow-md">
-            <span className="text-[11px] text-amber-300/80 font-bold uppercase tracking-wider">
-              💵 Recargas Aprobadas
-            </span>
-            <span className="text-xl sm:text-2xl font-black text-amber-300">
-              Bs. {stats?.totalBsApproved?.toLocaleString() ?? 0}
-            </span>
-            <span className="text-[10px] text-amber-200/60">
-              {stats?.totalApprovedCount ?? 0} procesadas
-            </span>
-          </div>
-        </div>
-
-        {/* Pestañas Principales */}
-        <div className="flex border-b border-amber-500/30 gap-4 text-sm font-extrabold overflow-x-auto pb-1">
           <button
-            onClick={() => setActiveTab("matches")}
-            className={`pb-2.5 transition flex items-center gap-2 border-b-2 flex-shrink-0 ${
-              activeTab === "matches"
-                ? "border-yellow-400 text-yellow-300"
-                : "border-transparent text-white/50 hover:text-white"
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden p-2 rounded-lg bg-amber-500/10 text-amber-400"
+          >
+            ☰
+          </button>
+        </div>
+
+        {/* Tarjeta de Identidad Guardian */}
+        <div className="p-4 mx-3 my-3 bg-gradient-to-r from-amber-950/40 to-[#221207] border border-amber-500/30 rounded-2xl flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-xl shadow-md">
+            🛡️
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-1.5">
+              <span className="font-black text-sm text-amber-300 truncate">Guardian</span>
+              <span className="w-2 h-2 rounded-full bg-green-500"></span>
+            </div>
+            <p className="text-[11px] text-amber-200/60 truncate">Administrador Principal</p>
+          </div>
+        </div>
+
+        {/* Menú de Navegación Vertical */}
+        <nav className={`flex-1 px-3 space-y-1 py-2 ${mobileMenuOpen ? "block" : "hidden md:block"}`}>
+          {/* 1. Dashboard */}
+          <button
+            onClick={() => {
+              setActiveTab("dashboard");
+              setMobileMenuOpen(false);
+            }}
+            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
+              activeTab === "dashboard"
+                ? "bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20"
+                : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
             }`}
           >
-            <span>⚔️ Partidas y Comisiones ({matches.length})</span>
+            <div className="flex items-center gap-3">
+              <span className="text-base">📊</span>
+              <span>Dashboard General</span>
+            </div>
           </button>
 
+          {/* 2. Usuarios & Baneo */}
           <button
-            onClick={() => setActiveTab("recharges")}
-            className={`pb-2.5 transition flex items-center gap-2 border-b-2 flex-shrink-0 ${
-              activeTab === "recharges"
-                ? "border-amber-400 text-amber-300"
-                : "border-transparent text-white/50 hover:text-white"
+            onClick={() => {
+              setActiveTab("users");
+              setMobileMenuOpen(false);
+            }}
+            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
+              activeTab === "users"
+                ? "bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20"
+                : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
             }`}
           >
-            <span>💳 Recargas de Saldo</span>
+            <div className="flex items-center gap-3">
+              <span className="text-base">👥</span>
+              <span>Usuarios & Baneo</span>
+            </div>
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-950/60 text-amber-300 border border-amber-400/30">
+              {users.length}
+            </span>
+          </button>
+
+          {/* 3. Recargas */}
+          <button
+            onClick={() => {
+              setActiveTab("recharges");
+              setMobileMenuOpen(false);
+            }}
+            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
+              activeTab === "recharges"
+                ? "bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20"
+                : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-base">📥</span>
+              <span>Recargas de Saldo</span>
+            </div>
             {stats && stats.pendingRecharges > 0 && (
-              <span className="bg-red-500 text-white text-[10px] font-black px-1.5 py-0.2 rounded-full">
+              <span className="px-2 py-0.5 rounded-full text-[10px] bg-red-500 text-white font-black animate-pulse">
                 {stats.pendingRecharges}
               </span>
             )}
           </button>
 
+          {/* 4. Retiros */}
           <button
-            onClick={() => setActiveTab("withdrawals")}
-            className={`pb-2.5 transition flex items-center gap-2 border-b-2 flex-shrink-0 ${
+            onClick={() => {
+              setActiveTab("withdrawals");
+              setMobileMenuOpen(false);
+            }}
+            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
               activeTab === "withdrawals"
-                ? "border-emerald-400 text-emerald-300"
-                : "border-transparent text-white/50 hover:text-white"
+                ? "bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20"
+                : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
             }`}
           >
-            <span>💸 Solicitudes de Retiro</span>
+            <div className="flex items-center gap-3">
+              <span className="text-base">📤</span>
+              <span>Retiros de Saldo</span>
+            </div>
             {stats && stats.pendingWithdrawals > 0 && (
-              <span className="bg-emerald-500 text-black text-[10px] font-black px-1.5 py-0.2 rounded-full">
+              <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-400 text-amber-950 font-black">
                 {stats.pendingWithdrawals}
               </span>
             )}
           </button>
 
+          {/* 5. Partidas */}
           <button
-            onClick={() => setActiveTab("users")}
-            className={`pb-2.5 transition flex items-center gap-2 border-b-2 flex-shrink-0 ${
-              activeTab === "users"
-                ? "border-amber-400 text-amber-300"
-                : "border-transparent text-white/50 hover:text-white"
+            onClick={() => {
+              setActiveTab("matches");
+              setMobileMenuOpen(false);
+            }}
+            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
+              activeTab === "matches"
+                ? "bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20"
+                : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
             }`}
           >
-            <span>👥 Usuarios ({users.length})</span>
+            <div className="flex items-center gap-3">
+              <span className="text-base">🃏</span>
+              <span>Partidas y Apuestas</span>
+            </div>
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-950/60 text-amber-300 border border-amber-400/30">
+              {matches.length}
+            </span>
+          </button>
+
+          {/* 6. Reportes */}
+          <button
+            onClick={() => {
+              setActiveTab("reports");
+              setMobileMenuOpen(false);
+            }}
+            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
+              activeTab === "reports"
+                ? "bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20"
+                : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-base">📈</span>
+              <span>Reportes Financieros</span>
+            </div>
+          </button>
+        </nav>
+
+        {/* Footer Sidebar */}
+        <div className="p-3 border-t border-amber-500/20 space-y-1.5">
+          <button
+            onClick={loadData}
+            disabled={loading}
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-bold border border-amber-500/30 transition-all"
+          >
+            <span>🔄</span>
+            <span>{loading ? "Actualizando..." : "Actualizar Datos"}</span>
+          </button>
+          
+          <button
+            onClick={() => router.push("/desk")}
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[#201107] hover:bg-[#2b170a] text-amber-200/80 text-xs font-medium transition-all"
+          >
+            <span>🎮</span>
+            <span>Ir al Juego</span>
+          </button>
+
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-red-950/40 hover:bg-red-900/60 text-red-300 text-xs font-bold border border-red-500/30 transition-all"
+          >
+            <span>🚪</span>
+            <span>Cerrar Sesión</span>
           </button>
         </div>
+      </aside>
 
-        {/* CONTENIDO PESTAÑA 1: RECARGAS */}
-        {activeTab === "recharges" && (
-          <div className="flex flex-col gap-4">
-            {/* Filtros de estado */}
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 bg-black/40 p-1 rounded-xl border border-amber-500/20 text-xs">
-                {["PENDIENTE", "ALL", "APROBADO", "RECHAZADO"].map((st) => (
-                  <button
-                    key={st}
-                    onClick={() => setRechargeStatusFilter(st)}
-                    className={`px-3 py-1.5 rounded-lg font-bold transition ${
-                      rechargeStatusFilter === st
-                        ? "bg-amber-500 text-black shadow"
-                        : "text-amber-200/70 hover:text-white"
-                    }`}
-                  >
-                    {st === "PENDIENTE"
-                      ? "⏳ Pendientes"
-                      : st === "ALL"
-                      ? "Todos"
-                      : st === "APROBADO"
-                      ? "✅ Aprobados"
-                      : "❌ Rechazados"}
-                  </button>
-                ))}
-              </div>
-
-              <button
-                onClick={loadData}
-                className="text-xs text-amber-300 bg-black/40 hover:bg-black/60 border border-amber-500/30 px-3 py-1.5 rounded-xl transition"
-              >
-                🔄 Actualizar
-              </button>
-            </div>
-
-            {/* Tabla de Recargas */}
-            {loading ? (
-              <div className="text-center py-12 text-amber-200/60 text-sm">
-                Cargando solicitudes...
-              </div>
-            ) : recharges.length === 0 ? (
-              <div className="bg-black/40 border border-amber-500/20 rounded-2xl p-10 text-center text-amber-200/60 flex flex-col items-center gap-2">
-                <span className="text-3xl">📭</span>
-                <span className="text-sm">No hay solicitudes de recarga en este estado.</span>
-              </div>
-            ) : (
-              <div className="bg-black/50 border border-amber-500/30 rounded-2xl overflow-x-auto shadow-xl">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-amber-950/60 border-b border-amber-500/30 text-amber-300 font-extrabold uppercase text-[10px] tracking-wider">
-                      <th className="p-3">ID / Fecha</th>
-                      <th className="p-3">Usuario</th>
-                      <th className="p-3">Monto Bs / Monedas</th>
-                      <th className="p-3">Referencia</th>
-                      <th className="p-3">Capture de Pago</th>
-                      <th className="p-3">Estado</th>
-                      <th className="p-3 text-right">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-amber-500/10">
-                    {recharges.map((r) => (
-                      <tr key={r.id} className="hover:bg-amber-950/20 transition">
-                        <td className="p-3 font-mono text-[11px] text-amber-200/80">
-                          #{r.id}
-                          <span className="block text-[10px] text-white/40">
-                            {new Date(r.createdAt).toLocaleString()}
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          <span className="font-bold text-amber-100 block">{r.username}</span>
-                          <span className="text-[10px] text-amber-200/60">{r.userEmail}</span>
-                          <span className="text-[10px] text-amber-400 block font-semibold">
-                            Saldo: {r.userCoins} 🪙
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          <span className="font-black text-emerald-300 text-sm block">
-                            Bs. {r.amountBs.toLocaleString()}
-                          </span>
-                          <span className="text-[11px] font-extrabold text-amber-300">
-                            +{r.coinsAmount} Monedas
-                          </span>
-                        </td>
-                        <td className="p-3 font-mono font-bold text-amber-200">
-                          {r.reference}
-                        </td>
-                        <td className="p-3">
-                          {r.receiptImageUrl ? (
-                            <button
-                              onClick={() => setViewingReceipt(r.receiptImageUrl)}
-                              className="flex items-center gap-1.5 bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 border border-amber-500/40 px-2 py-1 rounded-lg font-bold transition text-[11px]"
-                            >
-                              <span>👁️</span>
-                              <span>Ver Capture</span>
-                            </button>
-                          ) : (
-                            <span className="text-white/40 italic">Sin capture</span>
-                          )}
-                        </td>
-                        <td className="p-3">
-                          {r.status === "PENDIENTE" && (
-                            <span className="bg-amber-500/20 border border-amber-500/50 text-amber-300 font-extrabold px-2.5 py-1 rounded-full text-[10px]">
-                              ⏳ PENDIENTE
-                            </span>
-                          )}
-                          {r.status === "APROBADO" && (
-                            <span className="bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 font-extrabold px-2.5 py-1 rounded-full text-[10px]">
-                              ✅ APROBADO
-                            </span>
-                          )}
-                          {r.status === "RECHAZADO" && (
-                            <div>
-                              <span className="bg-rose-500/20 border border-rose-500/50 text-rose-300 font-extrabold px-2.5 py-1 rounded-full text-[10px]">
-                                ❌ RECHAZADO
-                              </span>
-                              {r.adminNotes && (
-                                <span className="block text-[9px] text-rose-300/80 mt-1 max-w-[150px] truncate">
-                                  {r.adminNotes}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-3 text-right">
-                          {r.status === "PENDIENTE" && (
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => handleApproveRecharge(r.id)}
-                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-2.5 py-1 rounded-lg text-xs shadow transition"
-                                title="Aprobar y sumar monedas"
-                              >
-                                ✓ Aprobar
-                              </button>
-                              <button
-                                onClick={() => handleRejectRecharge(r.id)}
-                                className="bg-rose-700 hover:bg-rose-600 text-white font-bold px-2 py-1 rounded-lg text-xs transition"
-                                title="Rechazar pago"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            )}
+      {/* ========================================================================= */}
+      {/* ÁREA DE CONTENIDO PRINCIPAL (DERECHA) */}
+      {/* ========================================================================= */}
+      <main className="flex-1 p-4 md:p-8 overflow-y-auto max-w-7xl">
+        {/* Banner de Mensajes de Acción */}
+        {actionMessage && (
+          <div className="mb-6 p-4 bg-amber-500/15 border border-amber-400 rounded-2xl flex items-center justify-between text-xs md:text-sm font-semibold text-amber-200 shadow-lg">
+            <span>{actionMessage}</span>
+            <button
+              onClick={() => setActionMessage(null)}
+              className="text-amber-400 hover:text-white font-bold ml-4"
+            >
+              ✕
+            </button>
           </div>
         )}
 
-        {/* CONTENIDO PESTAÑA 2: RETIROS A PAGO MÓVIL */}
-        {activeTab === "withdrawals" && (
-          <div className="flex flex-col gap-4">
-            {/* Filtros de retiros */}
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-1.5 bg-black/40 p-1 rounded-xl border border-emerald-500/20 text-xs">
-                {["PENDIENTE", "ALL", "PAGADO", "RECHAZADO"].map((st) => (
-                  <button
-                    key={st}
-                    onClick={() => setWithdrawalStatusFilter(st)}
-                    className={`px-3 py-1.5 rounded-lg font-bold transition ${
-                      withdrawalStatusFilter === st
-                        ? "bg-emerald-500 text-black shadow"
-                        : "text-emerald-200/70 hover:text-white"
-                    }`}
-                  >
-                    {st === "PENDIENTE"
-                      ? "⏳ Pendientes por Pagar"
-                      : st === "ALL"
-                      ? "Todos"
-                      : st === "PAGADO"
-                      ? "✅ Pagados"
-                      : "❌ Rechazados"}
-                  </button>
-                ))}
-              </div>
-
-              <button
-                onClick={loadData}
-                className="text-xs text-emerald-300 bg-black/40 hover:bg-black/60 border border-emerald-500/30 px-3 py-1.5 rounded-xl transition"
-              >
-                🔄 Actualizar
-              </button>
+        {/* ========================================================================= */}
+        {/* PESTAÑA 1: DASHBOARD GENERAL */}
+        {/* ========================================================================= */}
+        {activeTab === "dashboard" && (
+          <div className="space-y-6">
+            <div>
+              <h1 className={`${fonts.bowlbyOneSC.className} text-xl md:text-2xl text-amber-400 tracking-wide`}>
+                Panel de Control General
+              </h1>
+              <p className="text-xs text-amber-200/60 mt-0.5">
+                Resumen de actividad, transacciones y usuarios en El Pericón.
+              </p>
             </div>
 
-            {/* Tabla de Retiros */}
-            {loading ? (
-              <div className="text-center py-12 text-emerald-200/60 text-sm">
-                Cargando retiros...
+            {/* Tarjetas KPI */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-4 shadow-lg">
+                <div className="flex items-center justify-between text-amber-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">Usuarios</span>
+                  <span className="text-xl">👥</span>
+                </div>
+                <div className="text-2xl font-black text-white">{stats?.totalUsers ?? users.length}</div>
+                <div className="text-[11px] text-amber-200/60 mt-1">
+                  {users.filter((u) => u.isActive).length} activos · {users.filter((u) => !u.isActive).length} baneados
+                </div>
               </div>
-            ) : withdrawals.length === 0 ? (
-              <div className="bg-black/40 border border-emerald-500/20 rounded-2xl p-10 text-center text-emerald-200/60 flex flex-col items-center gap-2">
-                <span className="text-3xl">💸</span>
-                <span className="text-sm">No hay solicitudes de retiro en este estado.</span>
+
+              <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-4 shadow-lg">
+                <div className="flex items-center justify-between text-amber-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">Recargas Pendientes</span>
+                  <span className="text-xl">📥</span>
+                </div>
+                <div className={`text-2xl font-black ${stats?.pendingRecharges ? "text-red-400" : "text-white"}`}>
+                  {stats?.pendingRecharges ?? 0}
+                </div>
+                <div className="text-[11px] text-amber-200/60 mt-1">
+                  Bs. {(stats?.totalBsApproved ?? 0).toLocaleString()} aprobados
+                </div>
               </div>
-            ) : (
-              <div className="bg-black/50 border border-emerald-500/30 rounded-2xl overflow-x-auto shadow-xl">
-                <table className="w-full text-left text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-[#102410] border-b border-emerald-500/30 text-emerald-300 font-extrabold uppercase text-[10px] tracking-wider">
-                      <th className="p-3">ID / Fecha</th>
-                      <th className="p-3">Usuario</th>
-                      <th className="p-3">Monto a Transferir</th>
-                      <th className="p-3">Datos de Pago Móvil Receptor</th>
-                      <th className="p-3">Estado</th>
-                      <th className="p-3 text-right">Acciones</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-emerald-500/10">
-                    {withdrawals.map((w) => (
-                      <tr key={w.id} className="hover:bg-emerald-950/20 transition">
-                        <td className="p-3 font-mono text-[11px] text-emerald-200/80">
-                          #{w.id}
-                          <span className="block text-[10px] text-white/40">
-                            {new Date(w.createdAt).toLocaleString()}
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          <span className="font-bold text-amber-100 block">{w.username}</span>
-                          <span className="text-[10px] text-white/60">{w.userEmail}</span>
-                          <span className="text-[10px] text-amber-400 block font-semibold">
-                            Saldo: {w.userCurrentCoins} 🪙
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          <span className="font-black text-emerald-300 text-sm block">
-                            Bs. {w.amountBs.toLocaleString()}
-                          </span>
-                          <span className="text-[11px] font-extrabold text-amber-300">
-                            {w.coinsAmount} Monedas
-                          </span>
-                        </td>
-                        <td className="p-3">
-                          <div className="flex flex-col gap-1">
-                            <span className="font-extrabold text-white text-xs">
-                              {w.bankName}
-                            </span>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[11px] font-mono text-emerald-200">
-                                📱 {w.phoneNumber}
-                              </span>
-                              <button
-                                onClick={() => copyToClipboard(w.phoneNumber, `phone-${w.id}`)}
-                                className="text-[9px] bg-white/10 hover:bg-white/20 text-white px-1.5 py-0.5 rounded border border-white/20"
-                              >
-                                {copiedText === `phone-${w.id}` ? "✓" : "Copiar"}
-                              </button>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[11px] font-mono text-emerald-200">
-                                🪪 {w.idCard}
-                              </span>
-                              <button
-                                onClick={() => copyToClipboard(w.idCard, `id-${w.id}`)}
-                                className="text-[9px] bg-white/10 hover:bg-white/20 text-white px-1.5 py-0.5 rounded border border-white/20"
-                              >
-                                {copiedText === `id-${w.id}` ? "✓" : "Copiar"}
-                              </button>
+
+              <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-4 shadow-lg">
+                <div className="flex items-center justify-between text-amber-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">Retiros Pendientes</span>
+                  <span className="text-xl">📤</span>
+                </div>
+                <div className={`text-2xl font-black ${stats?.pendingWithdrawals ? "text-amber-400" : "text-white"}`}>
+                  {stats?.pendingWithdrawals ?? 0}
+                </div>
+                <div className="text-[11px] text-amber-200/60 mt-1">
+                  Bs. {(stats?.totalBsWithdrawn ?? 0).toLocaleString()} pagados
+                </div>
+              </div>
+
+              <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-4 shadow-lg">
+                <div className="flex items-center justify-between text-amber-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">Comisión de la Casa</span>
+                  <span className="text-xl">🪙</span>
+                </div>
+                <div className="text-2xl font-black text-amber-300">
+                  {(stats?.totalHouseCommissions ?? financialSummary.totalCommissions).toLocaleString()}
+                </div>
+                <div className="text-[11px] text-amber-200/60 mt-1">
+                  En {matches.length} partidas finalizadas
+                </div>
+              </div>
+            </div>
+
+            {/* Accesos Rápidos y Últimas Actividades */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Recargas Rápidas Pendientes */}
+              <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-amber-300">Solicitudes de Recarga Recientes</h3>
+                  <button
+                    onClick={() => setActiveTab("recharges")}
+                    className="text-xs text-amber-400 hover:underline"
+                  >
+                    Ver todas →
+                  </button>
+                </div>
+                {recharges.filter((r) => r.status === "PENDIENTE").length === 0 ? (
+                  <p className="text-xs text-amber-200/40 text-center py-6">No hay recargas pendientes de revisión.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {recharges
+                      .filter((r) => r.status === "PENDIENTE")
+                      .slice(0, 4)
+                      .map((r) => (
+                        <div
+                          key={r.id}
+                          className="flex items-center justify-between p-3 bg-[#24140a] rounded-xl border border-amber-500/20"
+                        >
+                          <div>
+                            <div className="text-xs font-bold text-white">{r.username}</div>
+                            <div className="text-[11px] text-amber-200/60">
+                              Bs. {r.amountBs.toLocaleString()} · Ref: {r.reference}
                             </div>
                           </div>
-                        </td>
-                        <td className="p-3">
-                          {w.status === "PENDIENTE" && (
-                            <span className="bg-amber-500/20 border border-amber-500/50 text-amber-300 font-extrabold px-2.5 py-1 rounded-full text-[10px]">
-                              ⏳ PENDIENTE
-                            </span>
-                          )}
-                          {w.status === "PAGADO" && (
-                            <div>
-                              <span className="bg-emerald-500/20 border border-emerald-500/50 text-emerald-300 font-extrabold px-2.5 py-1 rounded-full text-[10px]">
-                                ✅ PAGADO
-                              </span>
-                              {w.adminReference && (
-                                <span className="block text-[9px] text-emerald-300 font-mono mt-1">
-                                  Ref: {w.adminReference}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                          {w.status === "RECHAZADO" && (
-                            <div>
-                              <span className="bg-rose-500/20 border border-rose-500/50 text-rose-300 font-extrabold px-2.5 py-1 rounded-full text-[10px]">
-                                ❌ RECHAZADO
-                              </span>
-                              <span className="block text-[9px] text-amber-300 mt-1">
-                                Monedas devueltas
-                              </span>
-                              {w.adminNotes && (
-                                <span className="block text-[9px] text-rose-300/80 mt-0.5 max-w-[150px] truncate">
-                                  {w.adminNotes}
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </td>
-                        <td className="p-3 text-right">
-                          {w.status === "PENDIENTE" && (
-                            <div className="flex items-center justify-end gap-1.5">
-                              <button
-                                onClick={() => handleApproveWithdrawal(w)}
-                                className="bg-emerald-600 hover:bg-emerald-500 text-white font-black px-2.5 py-1.5 rounded-lg text-xs shadow transition flex items-center gap-1"
-                                title="Ingresar referencia bancaria y marcar pagado"
-                              >
-                                <span>✓</span>
-                                <span>Marcar Pagado</span>
-                              </button>
-                              <button
-                                onClick={() => handleRejectWithdrawal(w)}
-                                className="bg-rose-700 hover:bg-rose-600 text-white font-bold px-2 py-1.5 rounded-lg text-xs transition"
-                                title="Rechazar y reembolsar monedas"
-                              >
-                                ✕
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                          <button
+                            onClick={() => handleApproveRecharge(r.id)}
+                            className="px-3 py-1 bg-green-600 hover:bg-green-500 text-white rounded-lg text-xs font-bold"
+                          >
+                            Aprobar
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                )}
               </div>
-            )}
+
+              {/* Retiros Rápidos Pendientes */}
+              <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-amber-300">Solicitudes de Retiro Recientes</h3>
+                  <button
+                    onClick={() => setActiveTab("withdrawals")}
+                    className="text-xs text-amber-400 hover:underline"
+                  >
+                    Ver todas →
+                  </button>
+                </div>
+                {withdrawals.filter((w) => w.status === "PENDIENTE").length === 0 ? (
+                  <p className="text-xs text-amber-200/40 text-center py-6">No hay retiros pendientes de pago.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {withdrawals
+                      .filter((w) => w.status === "PENDIENTE")
+                      .slice(0, 4)
+                      .map((w) => (
+                        <div
+                          key={w.id}
+                          className="flex items-center justify-between p-3 bg-[#24140a] rounded-xl border border-amber-500/20"
+                        >
+                          <div>
+                            <div className="text-xs font-bold text-white">{w.username}</div>
+                            <div className="text-[11px] text-amber-200/60">
+                              Bs. {w.amountBs.toLocaleString()} · {w.bankName}
+                            </div>
+                          </div>
+                          <button
+                            onClick={() => handleApproveWithdrawal(w)}
+                            className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-amber-950 rounded-lg text-xs font-bold"
+                          >
+                            Pagar
+                          </button>
+                        </div>
+                      ))}
+                  </div>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
-        {/* CONTENIDO PESTAÑA 3: USUARIOS */}
+        {/* ========================================================================= */}
+        {/* PESTAÑA 2: GESTIÓN DE USUARIOS Y BANEO */}
+        {/* ========================================================================= */}
         {activeTab === "users" && (
-          <div className="flex flex-col gap-4">
-            {/* Buscador de Usuarios */}
-            <div className="flex items-center gap-2 max-w-md">
-              <input
-                type="text"
-                value={userSearch}
-                onChange={(e) => setUserSearch(e.target.value)}
-                placeholder="Buscar usuario por nombre o correo..."
-                className="w-full bg-black/60 border border-amber-500/40 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
-              />
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h1 className={`${fonts.bowlbyOneSC.className} text-xl md:text-2xl text-amber-400 tracking-wide`}>
+                  Control de Usuarios y Baneo
+                </h1>
+                <p className="text-xs text-amber-200/60 mt-0.5">
+                  Gestiona el acceso, saldos y suspensión de cuentas de la plataforma.
+                </p>
+              </div>
+
+              {/* Filtros y Buscador */}
+              <div className="flex flex-wrap items-center gap-3">
+                <input
+                  type="text"
+                  placeholder="Buscar usuario o correo..."
+                  value={userSearch}
+                  onChange={(e) => setUserSearch(e.target.value)}
+                  className="bg-[#1e1008] border border-amber-500/30 rounded-xl px-3 py-2 text-xs text-white placeholder-amber-200/30 focus:outline-none focus:border-amber-400 w-52"
+                />
+
+                <div className="flex rounded-xl bg-[#1e1008] border border-amber-500/30 p-0.5 text-xs font-bold">
+                  <button
+                    onClick={() => setUserStatusFilter("all")}
+                    className={`px-3 py-1.5 rounded-lg transition-all ${
+                      userStatusFilter === "all" ? "bg-amber-500 text-amber-950" : "text-amber-200/60 hover:text-white"
+                    }`}
+                  >
+                    Todos ({users.length})
+                  </button>
+                  <button
+                    onClick={() => setUserStatusFilter("active")}
+                    className={`px-3 py-1.5 rounded-lg transition-all ${
+                      userStatusFilter === "active" ? "bg-green-600 text-white" : "text-amber-200/60 hover:text-white"
+                    }`}
+                  >
+                    Activos ({users.filter((u) => u.isActive).length})
+                  </button>
+                  <button
+                    onClick={() => setUserStatusFilter("banned")}
+                    className={`px-3 py-1.5 rounded-lg transition-all ${
+                      userStatusFilter === "banned" ? "bg-red-600 text-white" : "text-amber-200/60 hover:text-white"
+                    }`}
+                  >
+                    Baneados ({users.filter((u) => !u.isActive).length})
+                  </button>
+                </div>
+              </div>
             </div>
 
             {/* Tabla de Usuarios */}
-            <div className="bg-black/50 border border-amber-500/30 rounded-2xl overflow-x-auto shadow-xl">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-amber-950/60 border-b border-amber-500/30 text-amber-300 font-extrabold uppercase text-[10px] tracking-wider">
-                    <th className="p-3">ID</th>
-                    <th className="p-3">Jugador</th>
-                    <th className="p-3">Correo</th>
-                    <th className="p-3">Saldo de Monedas</th>
-                    <th className="p-3">Nivel (Rango)</th>
-                    <th className="p-3">Victorias / Derrotas</th>
-                    <th className="p-3">Efectividad</th>
-                    <th className="p-3 text-right">Acciones</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-amber-500/10">
-                  {filteredUsers.map((u) => (
-                    <tr key={u.id} className="hover:bg-amber-950/20 transition">
-                      <td className="p-3 font-mono text-[11px] text-white/50">#{u.id}</td>
-                      <td className="p-3">
-                        <span className="font-bold text-amber-200 block">{u.username}</span>
-                        {u.isAdmin && (
-                          <span className="text-[9px] bg-red-600 text-white font-black px-1.5 py-0.2 rounded">
-                            Admin
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3 text-amber-100/70">{u.email}</td>
-                      <td className="p-3 font-black text-amber-300 text-sm">
-                        {u.coins.toLocaleString()} 🪙
-                      </td>
-                      <td className="p-3">
-                        <span className="bg-amber-500/20 border border-amber-500/40 text-amber-200 px-2 py-0.5 rounded-full font-bold text-[10px]">
-                          {u.level}
-                        </span>
-                      </td>
-                      <td className="p-3">
-                        <span className="text-emerald-400 font-bold">{u.wins}V</span> /{" "}
-                        <span className="text-rose-400 font-bold">{u.losses}D</span>
-                      </td>
-                      <td className="p-3 font-bold text-yellow-300">{u.winRate}%</td>
-                      <td className="p-3 text-right">
-                        <button
-                          onClick={() => {
-                            setAdjustingUser(u);
-                            setAdjustAmount(100);
-                          }}
-                          className="text-[11px] bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 border border-amber-500/40 px-2 py-1 rounded-lg font-bold transition"
-                        >
-                          ⚙️ Ajustar Saldo
-                        </button>
-                      </td>
+            <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#24140a] border-b border-amber-500/30 text-amber-300 uppercase tracking-wider font-bold">
+                    <tr>
+                      <th className="p-3.5">ID</th>
+                      <th className="p-3.5">Usuario</th>
+                      <th className="p-3.5">Monedas</th>
+                      <th className="p-3.5">Récord (W / L)</th>
+                      <th className="p-3.5">Nivel</th>
+                      <th className="p-3.5">Estado</th>
+                      <th className="p-3.5">Registro</th>
+                      <th className="p-3.5 text-center">Acciones</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody className="divide-y divide-amber-500/10">
+                    {filteredUsers.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="text-center py-10 text-amber-200/40">
+                          No se encontraron usuarios que coincidan con la búsqueda.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredUsers.map((u) => {
+                        const isGuardian = u.username.toLowerCase() === "guardian";
+                        return (
+                          <tr
+                            key={u.id}
+                            className={`hover:bg-amber-500/5 transition-colors ${
+                              !u.isActive ? "bg-red-950/20" : ""
+                            }`}
+                          >
+                            <td className="p-3.5 font-mono text-amber-200/50">#{u.id}</td>
+                            <td className="p-3.5">
+                              <div className="font-bold text-white flex items-center gap-1.5">
+                                {u.username}
+                                {isGuardian && <span className="text-xs" title="Administrador Principal">🛡️</span>}
+                              </div>
+                              <div className="text-[11px] text-amber-200/40">{u.email}</div>
+                            </td>
+                            <td className="p-3.5 font-black text-amber-300">
+                              🪙 {u.coins.toLocaleString()}
+                            </td>
+                            <td className="p-3.5">
+                              <span className="text-green-400 font-bold">{u.wins}V</span> -{" "}
+                              <span className="text-red-400 font-bold">{u.losses}D</span>
+                              <span className="text-[10px] text-amber-200/50 ml-1.5">({u.winRate}%)</span>
+                            </td>
+                            <td className="p-3.5 font-medium text-amber-200/80">{u.level}</td>
+                            <td className="p-3.5">
+                              {u.isActive ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-500/20 text-green-400 border border-green-500/40">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-green-400"></span>
+                                  ACTIVO
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/40">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-red-400"></span>
+                                  BANEADO
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-3.5 text-amber-200/50 text-[11px]">
+                              {new Date(u.createdAt).toLocaleDateString()}
+                            </td>
+                            <td className="p-3.5 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                {/* Botón Ajustar Saldo */}
+                                <button
+                                  onClick={() => {
+                                    setAdjustingUser(u);
+                                    setAdjustAmount(100);
+                                  }}
+                                  title="Ajustar Monedas"
+                                  className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg text-xs font-bold border border-amber-500/40 transition-all"
+                                >
+                                  🪙 Monedas
+                                </button>
+
+                                {/* Botón Banear / Habilitar */}
+                                {!isGuardian && (
+                                  <button
+                                    onClick={() => handleToggleBan(u)}
+                                    title={u.isActive ? "Suspender Usuario" : "Rehabilitar Usuario"}
+                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                                      u.isActive
+                                        ? "bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-500/40"
+                                        : "bg-green-950/60 hover:bg-green-900 text-green-300 border border-green-500/40"
+                                    }`}
+                                  >
+                                    {u.isActive ? "🚫 Banear" : "✅ Activar"}
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
         )}
 
-        {/* CONTENIDO PESTAÑA 4: PARTIDAS Y COMISIONES (20%) */}
-        {activeTab === "matches" && (
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-bold text-amber-300">
-                  Historial de Apuestas y Liquidación de Partidas 1 vs 1
-                </span>
-                <span className="text-xs bg-amber-500/20 text-amber-400 px-2.5 py-0.5 rounded-full font-extrabold border border-amber-500/30">
-                  {matches.length} registradas
-                </span>
+        {/* ========================================================================= */}
+        {/* PESTAÑA 3: RECARGAS DE SALDO */}
+        {/* ========================================================================= */}
+        {activeTab === "recharges" && (
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h1 className={`${fonts.bowlbyOneSC.className} text-xl md:text-2xl text-amber-400 tracking-wide`}>
+                  Recargas y Depósitos
+                </h1>
+                <p className="text-xs text-amber-200/60 mt-0.5">
+                  Verifica comprobantes de transferencias y acredita monedas a los jugadores.
+                </p>
               </div>
 
-              <button
-                onClick={loadData}
-                className="text-xs text-amber-300 bg-black/40 hover:bg-black/60 border border-amber-500/30 px-3 py-1.5 rounded-xl transition"
-              >
-                🔄 Actualizar
-              </button>
+              {/* Filtro de Estado */}
+              <div className="flex rounded-xl bg-[#1e1008] border border-amber-500/30 p-0.5 text-xs font-bold">
+                {["PENDIENTE", "APROBADO", "RECHAZADO", "ALL"].map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => setRechargeStatusFilter(st)}
+                    className={`px-3 py-1.5 rounded-lg transition-all ${
+                      rechargeStatusFilter === st
+                        ? "bg-amber-500 text-amber-950"
+                        : "text-amber-200/60 hover:text-white"
+                    }`}
+                  >
+                    {st === "ALL" ? "Todas" : st}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* Tabla de Partidas */}
-            <div className="overflow-x-auto bg-black/40 border border-amber-500/30 rounded-2xl shadow-xl">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="bg-black/80 border-b border-amber-500/40 text-amber-300/80 uppercase font-black tracking-wider text-[10px]">
-                    <th className="p-3"># Juego</th>
-                    <th className="p-3">Fecha / Hora</th>
-                    <th className="p-3">Contendientes</th>
-                    <th className="p-3 text-center">Apuesta / Pozo</th>
-                    <th className="p-3 text-center">🏆 Ganador (80%)</th>
-                    <th className="p-3 text-center bg-amber-500/10 text-amber-300 border-x border-amber-500/30">
-                      🏛️ Comisión Casa (20%)
-                    </th>
-                    <th className="p-3 text-right">Razón</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-amber-500/20 text-stone-200">
-                  {matches.length === 0 ? (
+            {/* Tabla de Recargas */}
+            <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#24140a] border-b border-amber-500/30 text-amber-300 uppercase tracking-wider font-bold">
                     <tr>
-                      <td colSpan={7} className="p-8 text-center text-amber-200/50">
-                        No hay partidas registradas aún. ¡En cuanto jueguen en 1 vs 1 aparecerán aquí con sus comisiones!
-                      </td>
+                      <th className="p-3.5">ID</th>
+                      <th className="p-3.5">Usuario</th>
+                      <th className="p-3.5">Monto Bs.</th>
+                      <th className="p-3.5">Monedas</th>
+                      <th className="p-3.5">Referencia</th>
+                      <th className="p-3.5">Comprobante</th>
+                      <th className="p-3.5">Estado</th>
+                      <th className="p-3.5">Fecha</th>
+                      <th className="p-3.5 text-center">Acciones</th>
                     </tr>
-                  ) : (
-                    matches.map((m) => (
-                      <tr key={m.id} className="hover:bg-white/[0.03] transition">
-                        <td className="p-3 font-mono font-bold text-amber-400">
-                          #{m.gameId}
-                        </td>
-                        <td className="p-3 text-stone-400 font-mono text-[11px]">
-                          {m.createdAt}
-                        </td>
-                        <td className="p-3 font-semibold">
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-emerald-300 font-bold">@{m.winnerUsername}</span>
-                            <span className="text-stone-500 font-normal">vs</span>
-                            <span className="text-rose-300">@{m.loserUsername}</span>
-                          </div>
-                        </td>
-                        <td className="p-3 text-center font-bold">
-                          <span className="text-yellow-400">🪙 {m.betPerPlayer}</span>
-                          <span className="text-stone-400 text-[10px] block">
-                            Pozo: {m.totalPot}
-                          </span>
-                        </td>
-                        <td className="p-3 text-center">
-                          <span className="bg-emerald-950/80 text-emerald-300 font-black px-2 py-0.5 rounded-full border border-emerald-500/40">
-                            +{m.winnerPrize} monedas
-                          </span>
-                          <span className="text-[10px] text-emerald-400/80 block mt-0.5">
-                            @{m.winnerUsername}
-                          </span>
-                        </td>
-                        <td className="p-3 text-center bg-amber-500/10 border-x border-amber-500/30">
-                          <span className="bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-black px-2.5 py-0.5 rounded-full shadow text-xs">
-                            +{m.houseCommission} monedas
-                          </span>
-                          <span className="text-[9px] text-amber-200/70 block mt-0.5 font-bold uppercase tracking-wider">
-                            20% Árbitro
-                          </span>
-                        </td>
-                        <td className="p-3 text-right">
-                          <span className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
-                            m.endReason === "Rendicion"
-                              ? "bg-rose-950 text-rose-300 border border-rose-500/40"
-                              : m.endReason === "TiempoAgotado"
-                              ? "bg-amber-950 text-amber-300 border border-amber-500/40"
-                              : "bg-emerald-950 text-emerald-300 border border-emerald-500/40"
-                          }`}>
-                            {m.endReason === "Rendicion" ? "🚪 Rendición" : m.endReason === "TiempoAgotado" ? "⏱️ Tiempo" : "⭐ Puntos"}
-                          </span>
+                  </thead>
+                  <tbody className="divide-y divide-amber-500/10">
+                    {recharges.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="text-center py-10 text-amber-200/40">
+                          No hay solicitudes de recarga en esta categoría.
                         </td>
                       </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
+                    ) : (
+                      recharges.map((r) => (
+                        <tr key={r.id} className="hover:bg-amber-500/5 transition-colors">
+                          <td className="p-3.5 font-mono text-amber-200/50">#{r.id}</td>
+                          <td className="p-3.5">
+                            <div className="font-bold text-white">{r.username}</div>
+                            <div className="text-[11px] text-amber-200/40">{r.userEmail}</div>
+                          </td>
+                          <td className="p-3.5 font-bold text-white">Bs. {r.amountBs.toLocaleString()}</td>
+                          <td className="p-3.5 font-black text-amber-300">+{r.coinsAmount.toLocaleString()}</td>
+                          <td className="p-3.5">
+                            <button
+                              onClick={() => copyToClipboard(r.reference, `ref_${r.id}`)}
+                              className="font-mono bg-[#24140a] px-2 py-1 rounded border border-amber-500/30 text-amber-200 hover:text-white text-[11px]"
+                            >
+                              {copiedText === `ref_${r.id}` ? "¡Copiado!" : r.reference}
+                            </button>
+                          </td>
+                          <td className="p-3.5">
+                            {r.receiptImageUrl ? (
+                              <button
+                                onClick={() => setViewingReceipt(r.receiptImageUrl)}
+                                className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded text-[11px] font-bold border border-amber-500/30"
+                              >
+                                🔍 Ver Capture
+                              </button>
+                            ) : (
+                              <span className="text-amber-200/30">Sin imagen</span>
+                            )}
+                          </td>
+                          <td className="p-3.5">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                r.status === "APROBADO"
+                                  ? "bg-green-500/20 text-green-400 border border-green-500/40"
+                                  : r.status === "RECHAZADO"
+                                  ? "bg-red-500/20 text-red-400 border border-red-500/40"
+                                  : "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                              }`}
+                            >
+                              {r.status}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-amber-200/50 text-[11px]">
+                            {new Date(r.createdAt).toLocaleString()}
+                          </td>
+                          <td className="p-3.5 text-center">
+                            {r.status === "PENDIENTE" ? (
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  onClick={() => handleApproveRecharge(r.id)}
+                                  className="px-2.5 py-1 bg-green-600 hover:bg-green-500 text-white rounded-lg text-xs font-bold"
+                                >
+                                  Aprobar
+                                </button>
+                                <button
+                                  onClick={() => handleRejectRecharge(r.id)}
+                                  className="px-2.5 py-1 bg-red-900/60 hover:bg-red-800 text-red-200 rounded-lg text-xs font-bold border border-red-500/30"
+                                >
+                                  Rechazar
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-amber-200/30 text-[11px]">Completada</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* PESTAÑA 4: RETIROS DE SALDO */}
+        {/* ========================================================================= */}
+        {activeTab === "withdrawals" && (
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h1 className={`${fonts.bowlbyOneSC.className} text-xl md:text-2xl text-amber-400 tracking-wide`}>
+                  Solicitudes de Retiro (Pagos)
+                </h1>
+                <p className="text-xs text-amber-200/60 mt-0.5">
+                  Procesa las transferencias de bolívares a los datos bancarios de los ganadores.
+                </p>
+              </div>
+
+              {/* Filtro de Estado */}
+              <div className="flex rounded-xl bg-[#1e1008] border border-amber-500/30 p-0.5 text-xs font-bold">
+                {["PENDIENTE", "PAGADO", "RECHAZADO", "ALL"].map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => setWithdrawalStatusFilter(st)}
+                    className={`px-3 py-1.5 rounded-lg transition-all ${
+                      withdrawalStatusFilter === st
+                        ? "bg-amber-500 text-amber-950"
+                        : "text-amber-200/60 hover:text-white"
+                    }`}
+                  >
+                    {st === "ALL" ? "Todas" : st}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Tabla de Retiros */}
+            <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#24140a] border-b border-amber-500/30 text-amber-300 uppercase tracking-wider font-bold">
+                    <tr>
+                      <th className="p-3.5">ID</th>
+                      <th className="p-3.5">Usuario</th>
+                      <th className="p-3.5">Monedas</th>
+                      <th className="p-3.5">Monto Bs.</th>
+                      <th className="p-3.5">Datos Pago Móvil</th>
+                      <th className="p-3.5">Estado</th>
+                      <th className="p-3.5">Fecha</th>
+                      <th className="p-3.5 text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-amber-500/10">
+                    {withdrawals.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="text-center py-10 text-amber-200/40">
+                          No hay solicitudes de retiro en esta categoría.
+                        </td>
+                      </tr>
+                    ) : (
+                      withdrawals.map((w) => (
+                        <tr key={w.id} className="hover:bg-amber-500/5 transition-colors">
+                          <td className="p-3.5 font-mono text-amber-200/50">#{w.id}</td>
+                          <td className="p-3.5">
+                            <div className="font-bold text-white">{w.username}</div>
+                            <div className="text-[11px] text-amber-200/40">{w.userEmail}</div>
+                          </td>
+                          <td className="p-3.5 font-bold text-red-400">-{w.coinsAmount.toLocaleString()}</td>
+                          <td className="p-3.5 font-black text-amber-300">Bs. {w.amountBs.toLocaleString()}</td>
+                          <td className="p-3.5">
+                            <div className="font-bold text-white">{w.bankName}</div>
+                            <div className="text-[11px] text-amber-200/80">
+                              Tel: {w.phoneNumber} · CI: {w.idCard}
+                            </div>
+                            {w.adminReference && (
+                              <div className="text-[10px] text-green-400 mt-0.5">Ref: {w.adminReference}</div>
+                            )}
+                          </td>
+                          <td className="p-3.5">
+                            <span
+                              className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                w.status === "PAGADO"
+                                  ? "bg-green-500/20 text-green-400 border border-green-500/40"
+                                  : w.status === "RECHAZADO"
+                                  ? "bg-red-500/20 text-red-400 border border-red-500/40"
+                                  : "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                              }`}
+                            >
+                              {w.status}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-amber-200/50 text-[11px]">
+                            {new Date(w.createdAt).toLocaleString()}
+                          </td>
+                          <td className="p-3.5 text-center">
+                            {w.status === "PENDIENTE" ? (
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  onClick={() => handleApproveWithdrawal(w)}
+                                  className="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-amber-950 rounded-lg text-xs font-bold"
+                                >
+                                  Pagar Bs.
+                                </button>
+                                <button
+                                  onClick={() => handleRejectWithdrawal(w)}
+                                  className="px-2.5 py-1 bg-red-900/60 hover:bg-red-800 text-red-200 rounded-lg text-xs font-bold border border-red-500/30"
+                                >
+                                  Rechazar
+                                </button>
+                              </div>
+                            ) : (
+                              <span className="text-amber-200/30 text-[11px]">Procesado</span>
+                            )}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* PESTAÑA 5: PARTIDAS Y AUDITORÍA */}
+        {/* ========================================================================= */}
+        {activeTab === "matches" && (
+          <div className="space-y-6">
+            <div>
+              <h1 className={`${fonts.bowlbyOneSC.className} text-xl md:text-2xl text-amber-400 tracking-wide`}>
+                Auditoría de Partidas y Apuestas
+              </h1>
+              <p className="text-xs text-amber-200/60 mt-0.5">
+                Historial de duelos, pozos apostados y comisiones de sala retenidas.
+              </p>
+            </div>
+
+            <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#24140a] border-b border-amber-500/30 text-amber-300 uppercase tracking-wider font-bold">
+                    <tr>
+                      <th className="p-3.5">ID</th>
+                      <th className="p-3.5">Jugadores</th>
+                      <th className="p-3.5">Apuesta c/u</th>
+                      <th className="p-3.5">Pozo Total</th>
+                      <th className="p-3.5">Comisión Casa (20%)</th>
+                      <th className="p-3.5">Ganador</th>
+                      <th className="p-3.5">Motivo</th>
+                      <th className="p-3.5">Fecha</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-amber-500/10">
+                    {matches.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="text-center py-10 text-amber-200/40">
+                          No hay registros de partidas finalizadas con apuesta aún.
+                        </td>
+                      </tr>
+                    ) : (
+                      matches.map((m) => (
+                        <tr key={m.id} className="hover:bg-amber-500/5 transition-colors">
+                          <td className="p-3.5 font-mono text-amber-200/50">#{m.id}</td>
+                          <td className="p-3.5">
+                            <span className="font-bold text-white">{m.playerOneName}</span> vs{" "}
+                            <span className="font-bold text-white">{m.playerTwoName}</span>
+                          </td>
+                          <td className="p-3.5 font-semibold text-amber-200">🪙 {m.betPerPlayer}</td>
+                          <td className="p-3.5 font-black text-amber-300">🪙 {m.totalPot}</td>
+                          <td className="p-3.5 font-bold text-green-400">+🪙 {m.houseCommission}</td>
+                          <td className="p-3.5">
+                            <span className="inline-flex items-center gap-1 font-bold text-amber-300">
+                              🏆 {m.winnerUsername}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-amber-200/70">{m.endReason}</td>
+                          <td className="p-3.5 text-amber-200/50 text-[11px]">{m.createdAt}</td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* PESTAÑA 6: REPORTES FINANCIEROS */}
+        {/* ========================================================================= */}
+        {activeTab === "reports" && (
+          <div className="space-y-6">
+            <div>
+              <h1 className={`${fonts.bowlbyOneSC.className} text-xl md:text-2xl text-amber-400 tracking-wide`}>
+                Reportes Financieros y Balances
+              </h1>
+              <p className="text-xs text-amber-200/60 mt-0.5">
+                Flujo neto de caja en Bolívares y volumen de monedas en la plataforma.
+              </p>
+            </div>
+
+            {/* Cuadrícula de Balances */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              {/* Entradas */}
+              <div className="bg-[#180e07] border border-green-500/40 rounded-2xl p-5 shadow-lg">
+                <div className="flex items-center justify-between text-green-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">Ingresos por Recargas</span>
+                  <span className="text-xl">📈</span>
+                </div>
+                <div className="text-2xl font-black text-white">
+                  Bs. {financialSummary.totalDeposits.toLocaleString()}
+                </div>
+                <p className="text-[11px] text-green-300/70 mt-1">
+                  Total depositado por jugadores en Pago Móvil
+                </p>
+              </div>
+
+              {/* Salidas */}
+              <div className="bg-[#180e07] border border-red-500/40 rounded-2xl p-5 shadow-lg">
+                <div className="flex items-center justify-between text-red-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">Pagos por Retiros</span>
+                  <span className="text-xl">📉</span>
+                </div>
+                <div className="text-2xl font-black text-white">
+                  Bs. {financialSummary.totalWithdrawalsPaid.toLocaleString()}
+                </div>
+                <p className="text-[11px] text-red-300/70 mt-1">
+                  Total transferido a jugadores ganadores
+                </p>
+              </div>
+
+              {/* Balance Neto */}
+              <div className="bg-[#180e07] border border-amber-500/50 rounded-2xl p-5 shadow-lg">
+                <div className="flex items-center justify-between text-amber-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">Balance Neto en Caja</span>
+                  <span className="text-xl">🏦</span>
+                </div>
+                <div
+                  className={`text-2xl font-black ${
+                    financialSummary.netBsBalance >= 0 ? "text-amber-300" : "text-red-400"
+                  }`}
+                >
+                  Bs. {financialSummary.netBsBalance.toLocaleString()}
+                </div>
+                <p className="text-[11px] text-amber-200/70 mt-1">
+                  Saldo neto restante (Depósitos - Retiros)
+                </p>
+              </div>
+            </div>
+
+            {/* Métricas de Monedas y Casa */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-5">
+                <div className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-1">
+                  Comisión de Sala Acumulada
+                </div>
+                <div className="text-2xl font-black text-amber-400">
+                  🪙 {financialSummary.totalCommissions.toLocaleString()}
+                </div>
+                <p className="text-[11px] text-amber-200/60 mt-1">
+                  20% retenido de cada pozo jugado
+                </p>
+              </div>
+
+              <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-5">
+                <div className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-1">
+                  Monedas en Manos de Jugadores
+                </div>
+                <div className="text-2xl font-black text-white">
+                  🪙 {financialSummary.totalCoinsInUsers.toLocaleString()}
+                </div>
+                <p className="text-[11px] text-amber-200/60 mt-1">
+                  Saldo total en circulación entre los {users.length} usuarios
+                </p>
+              </div>
+
+              <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-5">
+                <div className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-1">
+                  Volumen Total Apostado
+                </div>
+                <div className="text-2xl font-black text-white">
+                  🪙 {financialSummary.totalWagered.toLocaleString()}
+                </div>
+                <p className="text-[11px] text-amber-200/60 mt-1">
+                  Monedas apostadas en {financialSummary.totalMatches} partidas
+                </p>
+              </div>
             </div>
           </div>
         )}
       </main>
 
-      {/* MODAL: VISOR DE COMPROBANTE / CAPTURE */}
-      {viewingReceipt && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-md p-4">
-          <div className="relative max-w-2xl w-full bg-[#1e0f06] border-2 border-amber-500/60 rounded-3xl p-5 flex flex-col items-center shadow-2xl">
-            <button
-              onClick={() => setViewingReceipt(null)}
-              className="absolute top-4 right-4 text-white/70 hover:text-white bg-white/10 hover:bg-white/20 p-1.5 rounded-full text-xs transition"
-            >
-              ✕
-            </button>
+      {/* ========================================================================= */}
+      {/* MODAL DE AJUSTE DE MONEDAS */}
+      {/* ========================================================================= */}
+      {adjustingUser && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#180e07] border-2 border-amber-500/60 rounded-3xl p-6 max-w-sm w-full text-white shadow-2xl">
+            <h3 className="text-base font-bold text-amber-400 mb-1">Ajustar Saldo de Monedas</h3>
+            <p className="text-xs text-amber-200/70 mb-4">
+              Usuario: <span className="font-bold text-white">{adjustingUser.username}</span> (Saldo actual:{" "}
+              <span className="font-bold text-amber-300">{adjustingUser.coins.toLocaleString()}</span>)
+            </p>
 
-            <h3 className={`${fonts.bowlbyOneSC.className} text-base text-amber-300 mb-3`}>
-              Comprobante de Pago
-            </h3>
+            <div className="space-y-3 mb-6">
+              <div>
+                <label className="text-[11px] font-bold text-amber-300 uppercase block mb-1">
+                  Cantidad a Sumar o Restar
+                </label>
+                <input
+                  type="number"
+                  value={adjustAmount}
+                  onChange={(e) => setAdjustAmount(parseInt(e.target.value) || 0)}
+                  className="w-full bg-[#24140a] border border-amber-500/40 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-400"
+                  placeholder="Ej: 500 o -200"
+                />
+              </div>
 
-            <div className="w-full max-h-[75vh] overflow-auto flex items-center justify-center bg-black/60 rounded-xl border border-amber-500/30 p-2">
-              <img
-                src={
-                  viewingReceipt.startsWith("http") || viewingReceipt.startsWith("data:")
-                    ? viewingReceipt
-                    : `${apiUrl}${viewingReceipt}`
-                }
-                alt="Capture de pago bancario"
-                className="max-h-[68vh] w-auto object-contain rounded-lg shadow"
-              />
+              <div className="flex gap-2">
+                {[100, 500, 1000, 5000].map((amt) => (
+                  <button
+                    key={amt}
+                    type="button"
+                    onClick={() => setAdjustAmount(amt)}
+                    className="flex-1 py-1.5 bg-[#24140a] hover:bg-amber-500/20 text-amber-300 rounded-lg text-xs font-bold border border-amber-500/30"
+                  >
+                    +{amt}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            <button
-              onClick={() => setViewingReceipt(null)}
-              className="mt-4 px-5 py-2 bg-amber-500 hover:bg-amber-400 text-black font-extrabold text-xs rounded-xl transition"
-            >
-              Cerrar Visor
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setAdjustingUser(null)}
+                className="flex-1 py-2.5 bg-[#24140a] hover:bg-[#301b0f] text-amber-200/80 rounded-xl text-xs font-bold transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleSaveCoinsAdjustment}
+                className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-amber-950 rounded-xl text-xs font-black transition-all"
+              >
+                Guardar Ajuste
+              </button>
+            </div>
           </div>
         </div>
       )}
 
-      {/* MODAL: AJUSTAR MONEDAS MANUALMENTE */}
-      {adjustingUser && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-4">
-          <div className="relative max-w-sm w-full bg-[#1e0f06] border-2 border-amber-500/60 rounded-3xl p-6 flex flex-col gap-3 shadow-2xl">
-            <button
-              onClick={() => setAdjustingUser(null)}
-              className="absolute top-4 right-4 text-white/60 hover:text-white bg-white/10 p-1 rounded-full text-xs"
-            >
-              ✕
-            </button>
-
-            <h3 className={`${fonts.bowlbyOneSC.className} text-sm text-amber-300`}>
-              Ajustar Saldo de {adjustingUser.username}
-            </h3>
-            <span className="text-xs text-amber-200/70">
-              Saldo actual: <strong>{adjustingUser.coins} monedas</strong>
-            </span>
-
-            <div>
-              <label className="text-xs text-amber-200/80 font-bold block mb-1">
-                Monedas a sumar (o restar en negativo):
-              </label>
-              <input
-                type="number"
-                value={adjustAmount}
-                onChange={(e) => setAdjustAmount(parseInt(e.target.value) || 0)}
-                className="w-full bg-black/70 border border-amber-500/40 rounded-xl px-3 py-2 text-sm text-white font-black"
-                placeholder="100"
-              />
-              <span className="text-[10px] text-amber-300/60 block mt-1">
-                Nuevo saldo resultará en: {Math.max(0, adjustingUser.coins + adjustAmount)} monedas
-              </span>
+      {/* ========================================================================= */}
+      {/* MODAL DE ZOOM DE COMPROBANTE */}
+      {/* ========================================================================= */}
+      {viewingReceipt && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+          onClick={() => setViewingReceipt(null)}
+        >
+          <div
+            className="bg-[#180e07] border-2 border-amber-500/60 rounded-3xl p-4 max-w-lg w-full text-white shadow-2xl relative"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-3">
+              <span className="text-xs font-bold text-amber-300">Comprobante de Pago Móvil</span>
+              <button
+                onClick={() => setViewingReceipt(null)}
+                className="text-amber-400 hover:text-white text-base font-bold"
+              >
+                ✕
+              </button>
             </div>
 
-            <div className="flex gap-2 mt-2">
+            <div className="relative w-full h-96 bg-black/40 rounded-2xl overflow-hidden border border-amber-500/20">
+              <Image
+                src={viewingReceipt}
+                alt="Comprobante"
+                fill
+                className="object-contain"
+                unoptimized
+              />
+            </div>
+
+            <div className="mt-4 flex justify-end">
               <button
-                onClick={handleSaveCoinsAdjustment}
-                className="flex-1 py-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-black font-extrabold text-xs rounded-xl shadow"
+                onClick={() => setViewingReceipt(null)}
+                className="px-4 py-2 bg-amber-500 text-amber-950 font-bold text-xs rounded-xl hover:bg-amber-400"
               >
-                Guardar Ajuste
-              </button>
-              <button
-                onClick={() => setAdjustingUser(null)}
-                className="px-4 py-2 bg-white/10 text-white font-bold text-xs rounded-xl"
-              >
-                Cancelar
+                Cerrar Visor
               </button>
             </div>
           </div>
