@@ -230,7 +230,7 @@ export default function Desk() {
             setDataplayer(playerObj);
 
             // Sincronizar estadísticas desde la API
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
             fetch(`${apiUrl}/api/user/${playerObj.id}/profile`)
               .then((res) => (res.ok ? res.json() : null))
               .then((data) => {

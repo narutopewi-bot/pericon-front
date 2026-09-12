@@ -117,7 +117,7 @@ export default function AdminPage() {
   // Buscador de usuarios
   const [userSearch, setUserSearch] = useState("");
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();

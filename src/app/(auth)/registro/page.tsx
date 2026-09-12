@@ -85,7 +85,7 @@ export default function SignUp() {
     setServerError(null);
     setLoading(true);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
       const response = await fetch(`${apiUrl}/api/auth/register`, {
         method: "POST",
         headers: {

@@ -38,7 +38,7 @@ export default function GoogleButton({ onLoading }: GoogleButtonProps) {
     setLoading(true);
     if (onLoading) onLoading(true);
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
       const response = await fetch(`${apiUrl}/api/auth/google`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

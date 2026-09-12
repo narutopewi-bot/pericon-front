@@ -574,10 +574,9 @@ export default function Duel1vs1() {
     setTumbaCountdown(null);
 
     setPlayed(modelo);
-    if (bandera == false) {
-      //        let bandi : boolean = (playerturn.current == "1") ? false : true;
-      idGame.current = modelo.game; pointOne.current = 0; pointTwo.current = 0;
-    }
+    idGame.current = modelo.game; 
+    pointOne.current = 0; 
+    pointTwo.current = 0;
     const cpOne: Card = Baraja(Porcion(modelo.content, 0), 0);
     const cpTwo: Card = Baraja(Porcion(modelo.content, 1), 1);
     const cpThree: Card = Baraja(Porcion(modelo.content, 2), 2);
@@ -805,6 +804,12 @@ export default function Duel1vs1() {
         setTimeLeft(30);
         hasTimedOut.current = false;
       }
+
+      if (numOrder === 0) {
+        console.warn("handleCardClick: Not player's turn to play (numOrder is 0)");
+        return;
+      }
+
       setPlayerCards(prevCards => prevCards.filter(card => card.id != cardZero.id));
       console.log("handleCardClick: roundturn a final:", roundturn.current);
       try {
@@ -1073,6 +1078,8 @@ export default function Duel1vs1() {
         const cardZero: Card = Baraja(parseInt(Trozo(modelo.content, 1)), 0);
         const Razon: string = Trozo(modelo.content, 3);
         const Orden: string = Trozo(modelo.content, 4);
+        isProcessingRef.current = true;
+        setIsProcessingMove(true);
         playCardSound();
         setTableCards([cpEightRef.current, cpownRef.current, cardZero]);
         let xcad: string = "";
@@ -1142,7 +1149,11 @@ export default function Duel1vs1() {
                 setTimeLeft(30);
                 hasTimedOut.current = false;
                 setTableCards(prev => [cpEightRef.current]);
+                isProcessingRef.current = false;
+                setIsProcessingMove(false);
               } else if (Orden == "3") {
+                pointOne.current = 0;
+                pointTwo.current = 0;
                 switchturn.current = false;
                 setIsMyTurn(false);
                 setTimeLeft(30);
@@ -1212,7 +1223,11 @@ export default function Duel1vs1() {
                 setTimeLeft(30);
                 hasTimedOut.current = false;
                 setTableCards(prev => [cpEightRef.current]);
+                isProcessingRef.current = false;
+                setIsProcessingMove(false);
               } else if (Orden == "2") {
+                pointOne.current = 0;
+                pointTwo.current = 0;
                 switchturn.current = false;
                 setIsMyTurn(false);
                 setTimeLeft(30);
@@ -1278,6 +1293,8 @@ export default function Duel1vs1() {
     if (!connection) return;
     connection.on('ReasonRound1vs1', (modelo: string) => {
       console.log("ReasonRound1vs1", modelo);
+      isProcessingRef.current = true;
+      setIsProcessingMove(true);
       let xcad: string = "";
       const Razon: string = Trozo(modelo, 0);
       const Orden: string = Trozo(modelo, 1);
@@ -1348,7 +1365,11 @@ export default function Duel1vs1() {
               setTimeLeft(30);
               hasTimedOut.current = false;
               setTableCards(prev => [cpEightRef.current]);
+              isProcessingRef.current = false;
+              setIsProcessingMove(false);
             } else if (Orden == "2") {
+              pointOne.current = 0;
+              pointTwo.current = 0;
               switchturn.current = false;
               setIsMyTurn(false);
               setTimeLeft(30);
@@ -1418,7 +1439,11 @@ export default function Duel1vs1() {
               setTimeLeft(30);
               hasTimedOut.current = false;
               setTableCards(prev => [cpEightRef.current]);
+              isProcessingRef.current = false;
+              setIsProcessingMove(false);
             } else if (Orden == "3") {
+              pointOne.current = 0;
+              pointTwo.current = 0;
               switchturn.current = false;
               setIsMyTurn(false);
               setTimeLeft(30);
