@@ -248,6 +248,28 @@ export default function Desk() {
                   };
                   dispatch(setGamePlayer(updated));
                   setDataplayer(updated);
+
+                  // Guardar inmediatamente en localStorage para persistir saldo
+                  try {
+                    const rawStored = localStorage.getItem("pericon_user");
+                    const prevStored = rawStored ? JSON.parse(rawStored) : {};
+                    localStorage.setItem(
+                      "pericon_user",
+                      JSON.stringify({
+                        ...prevStored,
+                        id: updated.id,
+                        username: updated.name,
+                        email: updated.email,
+                        coins: updated.coins,
+                        wins: updated.wins,
+                        losses: updated.losses,
+                        level: updated.level,
+                        avatarUrl: updated.avatarUrl,
+                      })
+                    );
+                  } catch (err) {
+                    console.error("Error al persistir pericon_user en localStorage:", err);
+                  }
                 }
               })
               .catch((err) => console.warn("Sync profile notice:", err));
@@ -280,7 +302,7 @@ export default function Desk() {
         ...modelo,
         id: prev.id && !isNaN(Number(prev.id)) ? prev.id : (modelo.id && !isNaN(Number(modelo.id)) ? modelo.id : prev.id),
         name: prev.name && prev.name !== "nulo" ? prev.name : modelo.name,
-        coins: prev.coins > 0 ? prev.coins : modelo.coins,
+        coins: typeof prev.coins === "number" && prev.coins >= 0 ? prev.coins : modelo.coins,
       }));
     });
     return () => {

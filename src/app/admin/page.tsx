@@ -197,6 +197,18 @@ export default function AdminPage() {
       if (res.ok) {
         setActionMessage(`✅ ${data.message}`);
         loadData();
+        try {
+          if (typeof window !== "undefined") {
+            const raw = localStorage.getItem("pericon_user");
+            if (raw && data.userNewCoins !== undefined) {
+              const u = JSON.parse(raw);
+              if (u && String(u.id) === String(data.userId)) {
+                u.coins = data.userNewCoins;
+                localStorage.setItem("pericon_user", JSON.stringify(u));
+              }
+            }
+          }
+        } catch (e) {}
       } else {
         setActionMessage(`❌ Error: ${data.message}`);
       }
@@ -300,6 +312,18 @@ export default function AdminPage() {
         setActionMessage(`✅ ${data.message}`);
         setAdjustingUser(null);
         loadData();
+        try {
+          if (typeof window !== "undefined") {
+            const raw = localStorage.getItem("pericon_user");
+            if (raw && data.coins !== undefined) {
+              const u = JSON.parse(raw);
+              if (u && (String(u.id) === String(adjustingUser.id) || u.username === adjustingUser.username)) {
+                u.coins = data.coins;
+                localStorage.setItem("pericon_user", JSON.stringify(u));
+              }
+            }
+          }
+        } catch (e) {}
       } else {
         alert(data.message || "Error al ajustar monedas.");
       }
