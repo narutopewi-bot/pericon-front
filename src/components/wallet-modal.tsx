@@ -6,6 +6,7 @@ import * as fonts from "@/components/fonts";
 import { useDispatch, useSelector } from "react-redux";
 import { setGamePlayer } from "@/store/slices/gameplayerSlice";
 import { RootState } from "@/store/store";
+import { playCoinWinSound } from "@/lib/soundEffects";
 
 interface WalletModalProps {
   isOpen: boolean;
@@ -64,11 +65,17 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
   const dispatch = useDispatch();
   const reduxPlayer = useSelector((state: RootState) => state.gameplayer);
 
-  const [activeTab, setActiveTab] = useState<"recharge" | "withdraw" | "history">("recharge");
+  const [activeTab, setActiveTab] = useState<"recharge" | "withdraw" | "promo" | "history">("recharge");
   const [historyTab, setHistoryTab] = useState<"recharges" | "withdrawals">("recharges");
   const [loading, setLoading] = useState(false);
   const [bonusMessage, setBonusMessage] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  // Cupones Promocionales
+  const [promoCodeInput, setPromoCodeInput] = useState<string>("");
+  const [promoLoading, setPromoLoading] = useState<boolean>(false);
+  const [promoSuccess, setPromoSuccess] = useState<string | null>(null);
+  const [promoError, setPromoError] = useState<string | null>(null);
 
   // Formulario de Recarga (con soporte para borrar sin trabarse en 1)
   const [amountBs, setAmountBs] = useState<string>("100");
@@ -244,6 +251,57 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
       setBonusMessage("Error de conexión al reclamar el bono.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRedeemPromo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!promoCodeInput.trim()) return;
+
+    const validId = getValidNumericUserId();
+    if (!validId) {
+      setPromoError("Debes iniciar sesión para canjear un código promocional.");
+      return;
+    }
+
+    setPromoLoading(true);
+    setPromoError(null);
+    setPromoSuccess(null);
+
+    try {
+      const res = await fetch(`${apiUrl}/api/user/redeem-promo`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: validId,
+          code: promoCodeInput.trim()
+        })
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setPromoSuccess(data.message);
+        setPromoCodeInput("");
+        playCoinWinSound();
+
+        if (typeof data.newBalance === "number") {
+          dispatch(setGamePlayer({ coins: data.newBalance }));
+          if (typeof window !== "undefined") {
+            const raw = localStorage.getItem("pericon_user");
+            if (raw) {
+              const u = JSON.parse(raw);
+              u.coins = data.newBalance;
+              localStorage.setItem("pericon_user", JSON.stringify(u));
+            }
+          }
+        }
+      } else {
+        setPromoError(data.message || "Código inválido o ya canjeado.");
+      }
+    } catch {
+      setPromoError("Error al conectar con el servidor.");
+    } finally {
+      setPromoLoading(false);
     }
   };
 
@@ -464,8 +522,8 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
           </div>
         )}
 
-        {/* Pestañas Principales: Recargar / Retirar / Mis Solicitudes */}
-        <div className="grid grid-cols-3 gap-1.5 w-full bg-black/50 p-1 rounded-xl border border-amber-500/30 mb-3 text-xs">
+        {/* Pestañas Principales: Recargar / Retirar / Cupón / Mis Solicitudes */}
+        <div className="grid grid-cols-4 gap-1 w-full bg-black/50 p-1 rounded-xl border border-amber-500/30 mb-3 text-xs">
           <button
             onClick={() => setActiveTab("recharge")}
             className={`py-1.5 rounded-lg font-bold transition flex items-center justify-center gap-1 ${
@@ -475,7 +533,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
             }`}
           >
             <span>💳</span>
-            <span>Recargar</span>
+            <span>Recarga</span>
           </button>
           <button
             onClick={() => setActiveTab("withdraw")}
@@ -486,7 +544,18 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
             }`}
           >
             <span>💸</span>
-            <span>Retirar</span>
+            <span>Retiro</span>
+          </button>
+          <button
+            onClick={() => setActiveTab("promo")}
+            className={`py-1.5 rounded-lg font-bold transition flex items-center justify-center gap-1 ${
+              activeTab === "promo"
+                ? "bg-amber-500 text-black shadow"
+                : "text-amber-200/70 hover:text-white"
+            }`}
+          >
+            <span>🎟️</span>
+            <span>Cupón</span>
           </button>
           <button
             onClick={() => setActiveTab("history")}
@@ -497,7 +566,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
             }`}
           >
             <span>📋</span>
-            <span>Solicitudes</span>
+            <span>Historial</span>
           </button>
         </div>
 
@@ -786,7 +855,66 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
           </div>
         )}
 
-        {/* PESTAÑA 3: MIS SOLICITUDES (RECARGAS Y RETIROS) */}
+        {/* PESTAÑA 3: CANJEAR CUPÓN PROMOCIONAL */}
+        {activeTab === "promo" && (
+          <div className="w-full flex flex-col gap-3 min-h-[220px]">
+            <div className="bg-gradient-to-b from-[#1c1007] to-[#120803] border-2 border-amber-500/40 rounded-2xl p-4 shadow-lg flex flex-col gap-3">
+              <div className="flex items-center gap-2 border-b border-amber-500/20 pb-2">
+                <span className="text-xl">🎟️</span>
+                <div>
+                  <h3 className="text-xs font-black text-amber-300 uppercase tracking-wide">
+                    Canjear Código Promocional
+                  </h3>
+                  <p className="text-[10px] text-amber-200/60">
+                    Ingresa un cupón de regalo o cortesía para recibir monedas gratis al instante.
+                  </p>
+                </div>
+              </div>
+
+              {promoSuccess && (
+                <div className="p-3 bg-green-950/80 border border-green-500 rounded-xl text-xs text-green-200 font-medium">
+                  {promoSuccess}
+                </div>
+              )}
+
+              {promoError && (
+                <div className="p-3 bg-red-950/80 border border-red-500 rounded-xl text-xs text-red-200 font-medium">
+                  ⚠️ {promoError}
+                </div>
+              )}
+
+              <form onSubmit={handleRedeemPromo} className="space-y-3">
+                <div>
+                  <label className="text-[10px] font-bold text-amber-300 uppercase block mb-1">
+                    Código de Cupón
+                  </label>
+                  <input
+                    type="text"
+                    value={promoCodeInput}
+                    onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
+                    placeholder="Ej. PERICON2026"
+                    className="w-full bg-black/70 border border-amber-500/40 rounded-xl px-4 py-2.5 text-sm font-black text-amber-300 placeholder-amber-200/30 tracking-widest uppercase focus:outline-none focus:border-amber-400"
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={promoLoading || !promoCodeInput.trim()}
+                  className="w-full py-2.5 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-600 hover:brightness-110 text-amber-950 font-black text-xs rounded-xl shadow-lg transition disabled:opacity-50"
+                >
+                  {promoLoading ? "Verificando..." : "Reclamar Monedas Gratis 🎁"}
+                </button>
+              </form>
+
+              <div className="p-2.5 bg-amber-500/10 rounded-xl border border-amber-500/20 text-[11px] text-amber-200/70 text-center">
+                💡 Síguenos en nuestras redes sociales y eventos en vivo para obtener cupones exclusivos.
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* PESTAÑA 4: MIS SOLICITUDES (RECARGAS Y RETIROS) */}
         {activeTab === "history" && (
           <div className="w-full flex flex-col gap-2.5 min-h-[240px]">
             {/* Mensaje de confirmación reciente si existe */}

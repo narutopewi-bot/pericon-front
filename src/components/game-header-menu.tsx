@@ -21,6 +21,7 @@ interface GameHeaderMenuProps {
   onOpenProfile: () => void;
   onOpenWallet: () => void;
   onOpenTutorial: () => void;
+  onOpenLeaderboard?: () => void;
 }
 
 export default function GameHeaderMenu({
@@ -28,6 +29,7 @@ export default function GameHeaderMenu({
   onOpenProfile,
   onOpenWallet,
   onOpenTutorial,
+  onOpenLeaderboard,
 }: GameHeaderMenuProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const router = useRouter();
@@ -102,6 +104,18 @@ export default function GameHeaderMenu({
             </span>
           </button>
 
+          {/* Botón Ranking Top 10 */}
+          {onOpenLeaderboard && (
+            <button
+              onClick={onOpenLeaderboard}
+              title="Top 10 Mejores Jugadores"
+              className="flex items-center gap-1.5 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 border border-yellow-500/50 rounded-full py-1 px-2.5 text-xs font-bold transition shadow-sm"
+            >
+              <span>🏆</span>
+              <span className="hidden md:inline">Ranking</span>
+            </button>
+          )}
+
           {/* Botón Tutorial de la Cabrita (Siempre disponible) */}
           <button
             onClick={onOpenTutorial}
@@ -134,6 +148,19 @@ export default function GameHeaderMenu({
               {player.name || "Jugador"} ({levelInfo.level})
             </span>
           </div>
+
+          {onOpenLeaderboard && (
+            <button
+              onClick={() => {
+                setMenuOpen(false);
+                onOpenLeaderboard();
+              }}
+              className="w-full text-left px-3 py-2 text-xs rounded-xl hover:bg-yellow-500/20 text-yellow-300 flex items-center gap-2 font-bold transition"
+            >
+              <span>🏆</span>
+              <span>Ranking Top 10 Jugadores</span>
+            </button>
+          )}
 
           <button
             onClick={() => {

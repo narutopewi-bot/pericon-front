@@ -17,6 +17,9 @@ import Link from 'next/link';
 import Swal from 'sweetalert2';
 import 'sweetalert2/src/sweetalert2.scss';
 import { playCardSound, playSwooshSound, vibrateDevice, playSynthSound, speakPhrase, playVoiceAudio } from '@/lib/gameEffects';
+import { playCardDealSound, playCardDropSound, playCoinWinSound, playCantoSound, playChatPopSound } from '@/lib/soundEffects';
+import GameTurnTimer from '@/components/game-turn-timer';
+import { QuickChatButton, QuickChatBubble } from '@/components/quick-chat';
 import { GameAnnouncement, AnnouncementData, AnnouncementType } from '@/components/game-announcement';
 import styles from './page.module.css';
 
@@ -220,6 +223,36 @@ export default function Duel1vs1() {
                    !isWaitingOppTumba &&
                    tumbaCountdown === null &&
                    pedirChallenge === null;
+
+  // Frases Rápidas Llaneras (0: Jugador local, 1: Rival)
+  const [activePhrases, setActivePhrases] = useState<{ [seat: number]: { phrase: string; senderName: string } }>({});
+
+  const handleSendQuickPhrase1v1 = (phrase: string) => {
+    if (!connection) return;
+    const myName = user?.name && user.name !== 'nulo' ? user.name : 'Tú';
+    const rName = Array.isArray(roomName) ? roomName[0] : (roomName || '');
+    connection.invoke('SendQuickPhrase', rName, myName, phrase, 0).catch(err => {
+      console.error('Error al enviar frase rápida 1v1:', err);
+    });
+  };
+
+  const handleTurnTimeout1v1 = () => {
+    if (!switchturn.current || isProcessingMove || isDealing || playerCards.length === 0) return;
+    let chosen = playerCards[0];
+    const currentLifeId = cpEightRef.current?.id ?? -1;
+    const isOppLead = roundturn.current === false && switchturn.current === true;
+    const isOppTrump = isOppLead && (cpoppRef.current?.id !== undefined && cpoppRef.current.id !== -1)
+      ? isTrumpCard(cpoppRef.current.id, currentLifeId)
+      : false;
+    const playerHasTrump = playerCards.some(c => isTrumpCard(c.id, currentLifeId));
+
+    if (isOppTrump && playerHasTrump) {
+      const trump = playerCards.find(c => isTrumpCard(c.id, currentLifeId));
+      if (trump) chosen = trump;
+    }
+
+    handleCardClick(chosen);
+  };
 
   const handleTimeoutForfeit = async () => {
     if (hasTimedOut.current) return;
@@ -504,12 +537,38 @@ export default function Duel1vs1() {
   useEffect(() => {
     if (!connection) return;
     connection.on('setInitHand', (modelo: Message) => {
+      playCardDealSound();
       execHand(modelo, false);
     });
     return () => {
       connection.off('setInitHand');
     };
   }, [connection]);
+
+  useEffect(() => {
+    if (!connection) return;
+    const handleQuickPhrase = (senderName: string, phrase: string, seatIndex: number) => {
+      console.log('[ReceiveQuickPhrase 1v1]', { senderName, phrase, seatIndex });
+      playChatPopSound();
+      const seat = (user?.name && senderName === user.name) ? 0 : 1;
+      setActivePhrases(prev => ({
+        ...prev,
+        [seat]: { phrase, senderName }
+      }));
+      setTimeout(() => {
+        setActivePhrases(prev => {
+          const copy = { ...prev };
+          delete copy[seat];
+          return copy;
+        });
+      }, 4000);
+    };
+
+    connection.on('ReceiveQuickPhrase', handleQuickPhrase);
+    return () => {
+      connection.off('ReceiveQuickPhrase', handleQuickPhrase);
+    };
+  }, [connection, user]);
 
   useEffect(() => {
     if (!connection) return;
@@ -770,6 +829,7 @@ export default function Duel1vs1() {
   const handleCardClick = async (cardZero: Card) => {
     if (!connection || isDealing || isReturningToDeck || isProcessingMove || isProcessingRef.current || isWaitingOppTumba || tumbaCountdown !== null) return;
     if (connection) {
+      playCardDropSound();
       playCardSound();
       setSelectedCard(cardZero);
 
@@ -883,6 +943,7 @@ export default function Duel1vs1() {
     playVoiceAudio(audioKey, phrase);
     vibrateDevice('pedir');
     playSynthSound('canto');
+    playCantoSound();
     triggerAnnouncement({
       type: annType,
       title: phrase.toUpperCase(),
@@ -1684,6 +1745,9 @@ export default function Duel1vs1() {
       }
 
       const title = data.isWinner ? "🏆 ¡VICTORIA CONFIRMADA!" : "💔 PARTIDA FINALIZADA";
+      if (data.isWinner) {
+        playCoinWinSound();
+      }
       const htmlContent = `
         <div style="font-family: inherit; font-size: 13px; text-align: left; padding: 4px 0;">
           <p style="margin-bottom: 12px; font-weight: bold; color: ${data.isWinner ? '#4ade80' : '#f87171'}; font-size: 14px; text-align: center;">
@@ -2217,8 +2281,34 @@ export default function Duel1vs1() {
 
 
 
-                {/* Botón de Pedir y Tumbar (Ubicado en el lateral en móviles para no colisionar con las cartas) */}
+                {/* Burbuja de Chat Rápido en 1v1 */}
+                {activePhrases[1] && (
+                  <QuickChatBubble
+                    phrase={activePhrases[1].phrase}
+                    senderName={activePhrases[1].senderName}
+                    className='fixed top-20 left-1/2 -translate-x-1/2 z-40'
+                  />
+                )}
+                {activePhrases[0] && (
+                  <QuickChatBubble
+                    phrase={activePhrases[0].phrase}
+                    senderName={activePhrases[0].senderName}
+                    className='fixed bottom-24 right-4 sm:right-8 z-40'
+                  />
+                )}
+
+                {/* Botones de Acción, Temporizador y Chat Rápido */}
                 <div className='fixed right-2 top-[52%] -translate-y-1/2 sm:top-auto sm:translate-y-0 sm:bottom-6 sm:right-6 z-30 flex flex-col sm:flex-row items-end gap-1.5'>
+                  {/* Temporizador de 30s con Auto-juego */}
+                  <GameTurnTimer
+                    isMyTurn={switchturn.current && !isProcessingMove && !isDealing && playerCards.length > 0 && tumbaCountdown === null && !isWaitingOppTumba}
+                    onTimeout={handleTurnTimeout1v1}
+                    maxSeconds={30}
+                  />
+
+                  {/* Botón de Frases Llaneras */}
+                  <QuickChatButton onSendPhrase={handleSendQuickPhrase1v1} />
+
                   <button
                     className='bg-amber-600 hover:bg-amber-500 text-black font-extrabold py-1.5 px-3.5 sm:py-2 sm:px-4 rounded-full shadow-lg transition-transform duration-150 scale-100 hover:scale-95 disabled:opacity-40 disabled:pointer-events-none text-xs sm:text-sm border border-amber-400/40'
                     onClick={() => {

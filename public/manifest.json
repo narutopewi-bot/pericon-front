@@ -1,0 +1,24 @@
+{
+  "name": "El Pericón - Juego de Cartas Venezolano",
+  "short_name": "El Pericón",
+  "description": "El legendario juego de naipes del llano venezolano en vivo. Partidas 1 vs 1 y 2 vs 2 con amigos.",
+  "start_url": "/desk",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d0704",
+  "theme_color": "#140a04",
+  "icons": [
+    {
+      "src": "/brand.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/brand.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

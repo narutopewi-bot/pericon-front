@@ -11,6 +11,9 @@ import { Baraja } from '@/lib/library';
 import Stone from '@/components/stone-meter';
 import { GameAnnouncement, AnnouncementData } from '@/components/game-announcement';
 import { playCardSound, playSwooshSound, vibrateDevice, playSynthSound, speakPhrase } from '@/lib/gameEffects';
+import { playCardDealSound, playCardDropSound, playCoinWinSound, playCantoSound, playChatPopSound } from '@/lib/soundEffects';
+import GameTurnTimer from '@/components/game-turn-timer';
+import { QuickChatButton, QuickChatBubble } from '@/components/quick-chat';
 import * as fonts from '@/components/fonts';
 import { Copy, Check, Share2, Users, Clock, Sparkles } from 'lucide-react';
 import Swal from 'sweetalert2';
@@ -192,6 +195,17 @@ export default function GameTwoVsTwo() {
     message: string;
   } | null>(null);
 
+  // Frases Rápidas Llaneras por Asiento
+  const [activePhrases, setActivePhrases] = useState<{ [seatIndex: number]: { phrase: string; senderName: string } }>({});
+
+  const handleSendQuickPhrase = (phrase: string) => {
+    if (!connection) return;
+    const myName = user?.name && user.name !== 'nulo' ? user.name : (players[mySeatIndexRef.current]?.name || 'Jugador');
+    connection.invoke('SendQuickPhrase', roomName, myName, phrase, mySeatIndexRef.current).catch(err => {
+      console.error('Error al enviar frase rápida:', err);
+    });
+  };
+
   const triggerAnnouncement = (data: AnnouncementData, durationMs: number = 2200) => {
     if (announcementTimer.current) clearTimeout(announcementTimer.current);
     setAnnouncement(data);
@@ -348,6 +362,23 @@ export default function GameTwoVsTwo() {
       handleRemoteStakeAnswered(data.seatIndex, data.accepted);
     });
 
+    // Evento de Frases Rápidas Llaneras
+    connection.on('ReceiveQuickPhrase', (senderName: string, phrase: string, seatIndex: number) => {
+      console.log('[ReceiveQuickPhrase recibido]', { senderName, phrase, seatIndex });
+      playChatPopSound();
+      setActivePhrases(prev => ({
+        ...prev,
+        [seatIndex]: { phrase, senderName }
+      }));
+      setTimeout(() => {
+        setActivePhrases(prev => {
+          const copy = { ...prev };
+          delete copy[seatIndex];
+          return copy;
+        });
+      }, 4000);
+    });
+
     return () => {
       connection.off('RoomUpdate2v2');
       connection.off('GameStarted2v2');
@@ -359,6 +390,7 @@ export default function GameTwoVsTwo() {
       connection.off('GameReconnectedState2v2');
       connection.off('StakeAsked2v2');
       connection.off('StakeAnswered2v2');
+      connection.off('ReceiveQuickPhrase');
       connection.invoke('LeaveRoom2v2', roomName).catch(() => {});
     };
   }, [connection, roomName, user, searchParams]);
@@ -366,6 +398,7 @@ export default function GameTwoVsTwo() {
   // Manejar el inicio formal de la partida
   const handleGameStarted = (data: any) => {
     setIsDealing(true);
+    playCardDealSound();
     playCardSound();
     playedCardsRef.current = [];
     setPlayedCards([]);
@@ -411,6 +444,7 @@ export default function GameTwoVsTwo() {
   // Manejar el reparto de una nueva mano
   const handleNewHandDealt = (data: any) => {
     setIsDealing(true);
+    playCardDealSound();
     playCardSound();
     playedCardsRef.current = [];
     setPlayedCards([]);
@@ -538,6 +572,7 @@ export default function GameTwoVsTwo() {
 
     isProcessingMoveRef.current = true;
     setIsProcessingMove(true);
+    playCardDropSound();
 
     if (connection) {
       connection.invoke('PlayCard2v2', roomName, mySeatIndexRef.current, card.id).catch((err) => {
@@ -548,9 +583,29 @@ export default function GameTwoVsTwo() {
     }
   };
 
+  // Auto-juego cuando se agotan los 30s del turno
+  const handleTurnTimeout = () => {
+    if (currentTurnRef.current !== mySeatIndexRef.current || isProcessingMoveRef.current || isCleaningTable) return;
+    if (myCards.length === 0) return;
+
+    let chosenCard = myCards[0];
+    if (playedCardsRef.current.length > 0) {
+      const leadCardId = playedCardsRef.current[0].card.id;
+      const lifeId = lifeCardRef.current.id;
+      const isLeadTrump = evaluatePericonCard(leadCardId, lifeId) >= 11;
+      const playerHasTrump = myCards.some(c => evaluatePericonCard(c.id, lifeId) >= 11);
+      if (isLeadTrump && playerHasTrump) {
+        const trump = myCards.find(c => evaluatePericonCard(c.id, lifeId) >= 11);
+        if (trump) chosenCard = trump;
+      }
+    }
+    handlePlayMyCard(chosenCard);
+  };
+
   // Procesar carta recibida desde SignalR (para ti y para los otros 3 jugadores)
   const handleRemoteCardPlayed = (seatIndex: number, cardId: number) => {
     const card = Baraja(cardId, 0);
+    playCardDropSound();
     playCardSound();
 
     if (seatIndex === mySeatIndexRef.current) {
@@ -809,6 +864,7 @@ export default function GameTwoVsTwo() {
     if (isPlayerTeamWinner) {
       vibrateDevice('winMatch');
       playSynthSound('win');
+      playCoinWinSound();
       speakPhrase('¡Felicidades! Tu equipo ha ganado la partida de dos contra dos.');
 
       const newCoins = (user?.coins || 100) + (myShare - betAmount);
@@ -1322,11 +1378,20 @@ export default function GameTwoVsTwo() {
               <span className="text-[8px] text-blue-300 uppercase font-black">Compañero (Azul)</span>
             </div>
             {currentTurn === 2 && (
-              <span className="text-[9px] bg-blue-500 text-white font-black px-2 py-0.5 rounded-full shadow">
+              <span className="text-[8px] bg-blue-500 text-white font-extrabold px-1.5 py-0.5 rounded-full">
                 TURNO
               </span>
             )}
           </div>
+
+          {/* Burbuja de Chat del Compañero */}
+          {activePhrases[2] && (
+            <QuickChatBubble
+              phrase={activePhrases[2].phrase}
+              senderName={activePhrases[2].senderName}
+              className="absolute -bottom-10 left-1/2 -translate-x-1/2 z-30"
+            />
+          )}
 
           {/* Cartas ocultas del Compañero */}
           <div className="flex items-center -space-x-4 mt-1">
@@ -1342,7 +1407,14 @@ export default function GameTwoVsTwo() {
         <div className="w-full flex items-center justify-between relative my-auto">
           
           {/* IZQUIERDA: PUESTO 1 - RIVAL 1 (EQUIPO 2 - ROJO) */}
-          <div className="flex flex-col items-center justify-center z-10 w-20 sm:w-28">
+          <div className="flex flex-col items-center justify-center z-10 w-20 sm:w-28 relative">
+            {activePhrases[1] && (
+              <QuickChatBubble
+                phrase={activePhrases[1].phrase}
+                senderName={activePhrases[1].senderName}
+                className="absolute -top-12 left-0 z-30"
+              />
+            )}
             <div className="bg-gradient-to-b from-red-950/90 to-rose-950/90 border-2 border-red-500/60 p-1.5 rounded-2xl flex flex-col items-center text-center shadow-lg shadow-red-500/20 w-full">
               <div className="w-7 h-7 rounded-full bg-red-600 text-white flex items-center justify-center text-xs font-bold border border-red-200">
                 ⚔️
@@ -1469,7 +1541,14 @@ export default function GameTwoVsTwo() {
           </div>
 
           {/* DERECHA: PUESTO 3 - RIVAL 2 (EQUIPO 2 - ROJO) */}
-          <div className="flex flex-col items-center justify-center z-10 w-20 sm:w-28">
+          <div className="flex flex-col items-center justify-center z-10 w-20 sm:w-28 relative">
+            {activePhrases[3] && (
+              <QuickChatBubble
+                phrase={activePhrases[3].phrase}
+                senderName={activePhrases[3].senderName}
+                className="absolute -top-12 right-0 z-30"
+              />
+            )}
             <div className="bg-gradient-to-b from-red-950/90 to-rose-950/90 border-2 border-red-500/60 p-1.5 rounded-2xl flex flex-col items-center text-center shadow-lg shadow-red-500/20 w-full">
               <div className="w-7 h-7 rounded-full bg-red-600 text-white flex items-center justify-center text-xs font-bold border border-red-200">
                 ⚔️
@@ -1497,8 +1576,16 @@ export default function GameTwoVsTwo() {
 
         {/* ABAJO: PUESTO 0 - TÚ (EQUIPO 1 - AZUL) Y CONTROLES */}
         <div className="w-full flex flex-col items-center justify-center relative z-20 mt-auto pb-1">
+          {/* Burbuja de chat para ti */}
+          {activePhrases[mySeatIndex] && (
+            <QuickChatBubble
+              phrase={activePhrases[mySeatIndex].phrase}
+              senderName={activePhrases[mySeatIndex].senderName}
+              className="absolute -top-12 left-1/2 -translate-x-1/2 z-30"
+            />
+          )}
           
-          {/* Barra de Acciones del Jugador: Identidad, Estado de Turno y Botón de PEDIR (Directamente visible SOBRE las cartas) */}
+          {/* Barra de Acciones del Jugador: Identidad, Estado de Turno y Botón de PEDIR */}
           <div className="w-full max-w-md flex items-center justify-between gap-2 mb-1.5 px-2">
             
             {/* Identidad del Jugador Local */}
@@ -1516,12 +1603,14 @@ export default function GameTwoVsTwo() {
               </div>
             </div>
 
-            {/* Banner de Turno Compacto y Destacado */}
-            <div className="flex-1 flex justify-center">
-              {currentTurn === mySeatIndex ? (
-                <span className="bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-black text-[11px] sm:text-xs px-3 py-1 rounded-full shadow-lg shadow-yellow-500/30 ring-1 ring-yellow-300 animate-pulse whitespace-nowrap">
-                  👉 ¡TU TURNO!
-                </span>
+            {/* Banner de Turno con Temporizador de 30s y Auto-juego */}
+            <div className="flex-1 flex items-center justify-center">
+              {currentTurn === mySeatIndex && !isProcessingMove && !isCleaningTable && myCards.length > 0 ? (
+                <GameTurnTimer
+                  isMyTurn={true}
+                  onTimeout={handleTurnTimeout}
+                  maxSeconds={30}
+                />
               ) : (
                 <span className="bg-black/60 border border-slate-700 text-slate-300 font-bold text-[10px] sm:text-xs px-2.5 py-1 rounded-full truncate max-w-[130px]">
                   Turno: <strong className="text-amber-300">{players[currentTurn]?.name || 'Jugador'}</strong>
@@ -1529,31 +1618,35 @@ export default function GameTwoVsTwo() {
               )}
             </div>
 
-            {/* Botón de PEDIR (3, 6, 9) - SIEMPRE VISIBLE EN LA ZONA DE JUEGO */}
-            {(() => {
-              const isTumbaActive = (pointsTeam1 >= 9 || (isTumbaDeParaAtrasT1 && pointsTeam1 === 8)) ||
-                                    (pointsTeam2 >= 9 || (isTumbaDeParaAtrasT2 && pointsTeam2 === 8));
-              return (
-                <button
-                  type="button"
-                  onClick={handlePedirClick}
-                  disabled={currentStake >= 9 || isProcessingMove || isCleaningTable || isTumbaActive}
-                  className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-2xl font-black text-xs sm:text-sm uppercase tracking-wider flex items-center gap-1.5 border-2 transition-all shadow-xl active:scale-95 shrink-0 ${
-                    currentStake >= 9 || isTumbaActive
-                      ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
-                      : 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black border-yellow-200 hover:brightness-110 shadow-yellow-500/25 cursor-pointer'
-                  } ${fonts.bowlbyOneSC.className}`}
-                  title={isTumbaActive ? 'En Tumba no se puede pedir' : 'Pedir aumento de apuesta'}
-                >
-                  <span>{isTumbaActive ? '🪦 EN TUMBA' : '🔥 PEDIR'}</span>
-                  {!isTumbaActive && (
-                    <span className="text-[10px] bg-black text-yellow-300 px-1.5 py-0.5 rounded-md font-extrabold">
-                      {currentStake === 1 ? '3' : (currentStake === 3 ? '6' : '9')}
-                    </span>
-                  )}
-                </button>
-              );
-            })()}
+            {/* Botón de Frases Rápidas y Botón de PEDIR */}
+            <div className="flex items-center gap-1.5 shrink-0">
+              <QuickChatButton onSendPhrase={handleSendQuickPhrase} />
+
+              {(() => {
+                const isTumbaActive = (pointsTeam1 >= 9 || (isTumbaDeParaAtrasT1 && pointsTeam1 === 8)) ||
+                                      (pointsTeam2 >= 9 || (isTumbaDeParaAtrasT2 && pointsTeam2 === 8));
+                return (
+                  <button
+                    type="button"
+                    onClick={handlePedirClick}
+                    disabled={currentStake >= 9 || isProcessingMove || isCleaningTable || isTumbaActive}
+                    className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-2xl font-black text-xs sm:text-sm uppercase tracking-wider flex items-center gap-1.5 border-2 transition-all shadow-xl active:scale-95 shrink-0 ${
+                      currentStake >= 9 || isTumbaActive
+                        ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
+                        : 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black border-yellow-200 hover:brightness-110 shadow-yellow-500/25 cursor-pointer'
+                    } ${fonts.bowlbyOneSC.className}`}
+                    title={isTumbaActive ? 'En Tumba no se puede pedir' : 'Pedir aumento de apuesta'}
+                  >
+                    <span>{isTumbaActive ? '🪦 EN TUMBA' : '🔥 PEDIR'}</span>
+                    {!isTumbaActive && (
+                      <span className="text-[10px] bg-black text-yellow-300 px-1.5 py-0.5 rounded-md font-extrabold">
+                        {currentStake === 1 ? '3' : (currentStake === 3 ? '6' : '9')}
+                      </span>
+                    )}
+                  </button>
+                );
+              })()}
+            </div>
 
           </div>
 

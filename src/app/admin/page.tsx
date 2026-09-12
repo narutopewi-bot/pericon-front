@@ -84,7 +84,18 @@ interface UserRow {
   isAdmin?: boolean;
 }
 
-type TabType = "dashboard" | "users" | "recharges" | "withdrawals" | "matches" | "reports";
+interface PromoCodeRow {
+  id: number;
+  code: string;
+  coinsReward: number;
+  maxUses: number;
+  currentUses: number;
+  isActive: boolean;
+  createdAt: string;
+  expiresAt?: string | null;
+}
+
+type TabType = "dashboard" | "users" | "recharges" | "withdrawals" | "matches" | "reports" | "promos";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -112,8 +123,20 @@ export default function AdminPage() {
   const [withdrawals, setWithdrawals] = useState<WithdrawalRow[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [matches, setMatches] = useState<MatchRow[]>([]);
+  const [promos, setPromos] = useState<PromoCodeRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
+
+  // Anuncio Global en Vivo
+  const [broadcastTitle, setBroadcastTitle] = useState("📢 COMUNICADO OFICIAL");
+  const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [broadcasting, setBroadcasting] = useState(false);
+
+  // Formulario de Creación de Cupón
+  const [newPromoCode, setNewPromoCode] = useState("");
+  const [newPromoCoins, setNewPromoCoins] = useState(200);
+  const [newPromoMaxUses, setNewPromoMaxUses] = useState(1000);
+  const [creatingPromo, setCreatingPromo] = useState(false);
 
   // Modales
   const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
@@ -197,12 +220,13 @@ export default function AdminPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [resStats, resRecharges, resWithdrawals, resUsers, resMatches] = await Promise.all([
+      const [resStats, resRecharges, resWithdrawals, resUsers, resMatches, resPromos] = await Promise.all([
         fetch(`${apiUrl}/api/admin/stats`),
         fetch(`${apiUrl}/api/admin/recharges?status=${rechargeStatusFilter}`),
         fetch(`${apiUrl}/api/admin/withdrawals?status=${withdrawalStatusFilter}`),
         fetch(`${apiUrl}/api/admin/users`),
         fetch(`${apiUrl}/api/admin/matches`),
+        fetch(`${apiUrl}/api/admin/promos`),
       ]);
 
       if (resStats.ok) setStats(await resStats.json());
@@ -210,10 +234,218 @@ export default function AdminPage() {
       if (resWithdrawals.ok) setWithdrawals(await resWithdrawals.json());
       if (resUsers.ok) setUsers(await resUsers.json());
       if (resMatches.ok) setMatches(await resMatches.json());
+      if (resPromos.ok) setPromos(await resPromos.json());
     } catch (err) {
       console.error("Error loading admin data:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // Helper para descarga de archivos CSV compatibles con Microsoft Excel (UTF-8 con BOM)
+  const downloadCSV = (filename: string, headers: string[], rows: (string | number)[][]) => {
+    const escapeCell = (cell: string | number) => {
+      const str = cell !== null && cell !== undefined ? String(cell) : "";
+      return `"${str.replace(/"/g, '""')}"`;
+    };
+    const csvContent =
+      "\uFEFF" +
+      [
+        headers.map(escapeCell).join(";"),
+        ...rows.map((row) => row.map(escapeCell).join(";")),
+      ].join("\r\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
+  // Exportar Usuarios a Excel/CSV
+  const exportUsersCSV = () => {
+    const headers = ["ID", "Usuario", "Email", "Monedas", "Victorias", "Derrotas", "Total Partidas", "% Victorias", "Nivel", "Estado", "Fecha Registro"];
+    const rows = filteredUsers.map((u) => [
+      u.id,
+      u.username,
+      u.email,
+      u.coins,
+      u.wins,
+      u.losses,
+      u.totalMatches,
+      `${u.winRate}%`,
+      u.level,
+      u.isActive ? "ACTIVO" : "BANEADO",
+      u.createdAt,
+    ]);
+    downloadCSV(`usuarios_pericon_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+  };
+
+  // Exportar Recargas a Excel/CSV
+  const exportRechargesCSV = () => {
+    const headers = ["ID", "Usuario", "Email", "Monto Bs", "Monedas", "Referencia", "Estado", "Fecha Creacion", "Fecha Procesado"];
+    const rows = recharges.map((r) => [
+      r.id,
+      r.username,
+      r.userEmail,
+      r.amountBs,
+      r.coinsAmount,
+      r.reference,
+      r.status,
+      r.createdAt,
+      r.processedAt || "",
+    ]);
+    downloadCSV(`recargas_pericon_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+  };
+
+  // Exportar Retiros a Excel/CSV
+  const exportWithdrawalsCSV = () => {
+    const headers = ["ID", "Usuario", "Email", "Monedas", "Monto Bs", "Banco", "Telefono", "Cedula", "Estado", "Ref Admin", "Fecha"];
+    const rows = withdrawals.map((w) => [
+      w.id,
+      w.username,
+      w.userEmail,
+      w.coinsAmount,
+      w.amountBs,
+      w.bankName,
+      w.phoneNumber,
+      w.idCard,
+      w.status,
+      w.adminReference || "",
+      w.createdAt,
+    ]);
+    downloadCSV(`retiros_pericon_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+  };
+
+  // Exportar Partidas a Excel/CSV
+  const exportMatchesCSV = () => {
+    const headers = ["ID", "Jugador 1", "Jugador 2", "Apuesta/Jugador", "Pozo Total", "Comision Casa", "Ganador", "Premio", "Fin", "Fecha"];
+    const rows = matches.map((m) => [
+      m.id,
+      m.playerOneName,
+      m.playerTwoName,
+      m.betPerPlayer,
+      m.totalPot,
+      m.houseCommission,
+      m.winnerUsername,
+      m.winnerPrize,
+      m.endReason,
+      m.createdAt,
+    ]);
+    downloadCSV(`partidas_pericon_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+  };
+
+  // Exportar Cupones a Excel/CSV
+  const exportPromosCSV = () => {
+    const headers = ["ID", "Codigo", "Monedas Otorgadas", "Usos Actuales", "Limite Usos", "Estado", "Fecha Creacion", "Vencimiento"];
+    const rows = promos.map((p) => [
+      p.id,
+      p.code,
+      p.coinsReward,
+      p.currentUses,
+      p.maxUses,
+      p.isActive ? "ACTIVO" : "INACTIVO",
+      p.createdAt,
+      p.expiresAt || "Sin Vencimiento",
+    ]);
+    downloadCSV(`cupones_pericon_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+  };
+
+  // Exportar Reporte Financiero a Excel/CSV
+  const exportFinancialReportCSV = () => {
+    const headers = ["Metrica Financiera", "Valor"];
+    const rows = [
+      ["Total Ingresos por Recargas (Bs.)", `Bs. ${financialSummary.totalDeposits.toLocaleString()}`],
+      ["Total Pagos por Retiros (Bs.)", `Bs. ${financialSummary.totalWithdrawalsPaid.toLocaleString()}`],
+      ["Balance Neto en Caja (Bs.)", `Bs. ${financialSummary.netBsBalance.toLocaleString()}`],
+      ["Comisión de Sala Acumulada (Monedas)", `🪙 ${financialSummary.totalCommissions.toLocaleString()}`],
+      ["Monedas en Manos de Jugadores", `🪙 ${financialSummary.totalCoinsInUsers.toLocaleString()}`],
+      ["Volumen Total Apostado en Duelos", `🪙 ${financialSummary.totalWagered.toLocaleString()}`],
+      ["Total Partidas Registradas", String(financialSummary.totalMatches)],
+      ["Total Usuarios Registrados", String(users.length)],
+      ["Fecha de Generación del Reporte", new Date().toLocaleString()],
+    ];
+    downloadCSV(`reporte_financiero_pericon_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+  };
+
+  // Transmitir Anuncio Global en Vivo
+  const handleBroadcastAnnouncement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!broadcastMessage.trim()) return;
+    setBroadcasting(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/admin/broadcast-announcement`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: broadcastTitle.trim() || "📢 COMUNICADO OFICIAL",
+          message: broadcastMessage.trim(),
+          type: "info",
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setActionMessage(`📢 ${data.message}`);
+        setBroadcastMessage("");
+      } else {
+        alert(data.message || "Error al transmitir anuncio.");
+      }
+    } catch {
+      alert("Error de conexión con el servidor.");
+    } finally {
+      setBroadcasting(false);
+    }
+  };
+
+  // Crear Nuevo Cupón Promocional
+  const handleCreatePromo = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPromoCode.trim() || newPromoCoins <= 0) return;
+    setCreatingPromo(true);
+    try {
+      const res = await fetch(`${apiUrl}/api/admin/promos`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          code: newPromoCode.trim().toUpperCase(),
+          coinsReward: newPromoCoins,
+          maxUses: newPromoMaxUses,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setActionMessage(`🎟️ ${data.message}`);
+        setNewPromoCode("");
+        loadData();
+      } else {
+        alert(data.message || "Error al crear cupón.");
+      }
+    } catch {
+      alert("Error al conectar con el servidor.");
+    } finally {
+      setCreatingPromo(false);
+    }
+  };
+
+  // Activar o Pausar Cupón
+  const handleTogglePromo = async (id: number) => {
+    try {
+      const res = await fetch(`${apiUrl}/api/admin/promos/${id}/toggle`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setActionMessage(`🎟️ ${data.message}`);
+        loadData();
+      } else {
+        alert(data.message || "Error al modificar cupón.");
+      }
+    } catch {
+      alert("Error al conectar con el servidor.");
     }
   };
 
@@ -685,6 +917,27 @@ export default function AdminPage() {
               <span>Reportes Financieros</span>
             </div>
           </button>
+
+          {/* 7. Cupones Promocionales */}
+          <button
+            onClick={() => {
+              setActiveTab("promos");
+              setMobileMenuOpen(false);
+            }}
+            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
+              activeTab === "promos"
+                ? "bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20"
+                : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-base">🎟️</span>
+              <span>Cupones de Monedas</span>
+            </div>
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-950/60 text-amber-300 border border-amber-400/30">
+              {promos.length}
+            </span>
+          </button>
         </nav>
 
         {/* Footer Sidebar */}
@@ -884,6 +1137,51 @@ export default function AdminPage() {
                 )}
               </div>
             </div>
+
+            {/* Widget de Transmisión de Anuncio Global en Vivo */}
+            <div className="bg-gradient-to-r from-[#201007] via-[#1a0c05] to-[#201007] border-2 border-amber-500/50 rounded-2xl p-5 shadow-xl">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xl">📢</span>
+                <h3 className="text-sm font-black text-amber-300 uppercase tracking-wider">
+                  Transmitir Anuncio Global en Vivo a Jugadores
+                </h3>
+              </div>
+              <p className="text-xs text-amber-200/70 mb-4">
+                Envía un comunicado urgente en tiempo real que aparecerá instantáneamente en pantalla a todos los jugadores que estén jugando o en el lobby.
+              </p>
+
+              <form onSubmit={handleBroadcastAnnouncement} className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <input
+                    type="text"
+                    value={broadcastTitle}
+                    onChange={(e) => setBroadcastTitle(e.target.value)}
+                    placeholder="Título (ej: 📢 TORNEO HOY A LAS 8PM)"
+                    className="md:col-span-1 bg-[#2a160a] border border-amber-500/40 rounded-xl px-3.5 py-2 text-xs text-white placeholder-amber-200/30 focus:outline-none focus:border-amber-400"
+                  />
+                  <input
+                    type="text"
+                    value={broadcastMessage}
+                    onChange={(e) => setBroadcastMessage(e.target.value)}
+                    placeholder="Escribe el mensaje para todos los jugadores..."
+                    className="md:col-span-2 bg-[#2a160a] border border-amber-500/40 rounded-xl px-3.5 py-2 text-xs text-white placeholder-amber-200/30 focus:outline-none focus:border-amber-400"
+                    required
+                  />
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    type="submit"
+                    disabled={broadcasting || !broadcastMessage.trim()}
+                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-black text-xs hover:brightness-110 shadow-lg shadow-amber-500/20 active:scale-95 disabled:opacity-50 transition flex items-center gap-1.5"
+                  >
+                    <span>📢</span>
+                    <span>{broadcasting ? "Transmitiendo..." : "Transmitir en Vivo"}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
           </div>
         )}
 
@@ -902,7 +1200,7 @@ export default function AdminPage() {
                 </p>
               </div>
 
-              {/* Filtros y Buscador */}
+              {/* Filtros, Buscador y Exportación Excel */}
               <div className="flex flex-wrap items-center gap-3">
                 <input
                   type="text"
@@ -938,6 +1236,15 @@ export default function AdminPage() {
                     Baneados ({users.filter((u) => !u.isActive).length})
                   </button>
                 </div>
+
+                <button
+                  onClick={exportUsersCSV}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition shadow"
+                  title="Exportar usuarios a archivo CSV/Excel"
+                >
+                  <span>📥</span>
+                  <span>Exportar Excel</span>
+                </button>
               </div>
             </div>
 
@@ -1063,21 +1370,32 @@ export default function AdminPage() {
                 </p>
               </div>
 
-              {/* Filtro de Estado */}
-              <div className="flex rounded-xl bg-[#1e1008] border border-amber-500/30 p-0.5 text-xs font-bold">
-                {["PENDIENTE", "APROBADO", "RECHAZADO", "ALL"].map((st) => (
-                  <button
-                    key={st}
-                    onClick={() => setRechargeStatusFilter(st)}
-                    className={`px-3 py-1.5 rounded-lg transition-all ${
-                      rechargeStatusFilter === st
-                        ? "bg-amber-500 text-amber-950"
-                        : "text-amber-200/60 hover:text-white"
-                    }`}
-                  >
-                    {st === "ALL" ? "Todas" : st}
-                  </button>
-                ))}
+              {/* Filtro de Estado y Exportación */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex rounded-xl bg-[#1e1008] border border-amber-500/30 p-0.5 text-xs font-bold">
+                  {["PENDIENTE", "APROBADO", "RECHAZADO", "ALL"].map((st) => (
+                    <button
+                      key={st}
+                      onClick={() => setRechargeStatusFilter(st)}
+                      className={`px-3 py-1.5 rounded-lg transition-all ${
+                        rechargeStatusFilter === st
+                          ? "bg-amber-500 text-amber-950"
+                          : "text-amber-200/60 hover:text-white"
+                      }`}
+                    >
+                      {st === "ALL" ? "Todas" : st}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={exportRechargesCSV}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition shadow"
+                  title="Exportar recargas a archivo CSV/Excel"
+                >
+                  <span>📥</span>
+                  <span>Exportar Excel</span>
+                </button>
               </div>
             </div>
 
@@ -1196,21 +1514,32 @@ export default function AdminPage() {
                 </p>
               </div>
 
-              {/* Filtro de Estado */}
-              <div className="flex rounded-xl bg-[#1e1008] border border-amber-500/30 p-0.5 text-xs font-bold">
-                {["PENDIENTE", "PAGADO", "RECHAZADO", "ALL"].map((st) => (
-                  <button
-                    key={st}
-                    onClick={() => setWithdrawalStatusFilter(st)}
-                    className={`px-3 py-1.5 rounded-lg transition-all ${
-                      withdrawalStatusFilter === st
-                        ? "bg-amber-500 text-amber-950"
-                        : "text-amber-200/60 hover:text-white"
-                    }`}
-                  >
-                    {st === "ALL" ? "Todas" : st}
-                  </button>
-                ))}
+              {/* Filtro de Estado y Exportación */}
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="flex rounded-xl bg-[#1e1008] border border-amber-500/30 p-0.5 text-xs font-bold">
+                  {["PENDIENTE", "PAGADO", "RECHAZADO", "ALL"].map((st) => (
+                    <button
+                      key={st}
+                      onClick={() => setWithdrawalStatusFilter(st)}
+                      className={`px-3 py-1.5 rounded-lg transition-all ${
+                        withdrawalStatusFilter === st
+                          ? "bg-amber-500 text-amber-950"
+                          : "text-amber-200/60 hover:text-white"
+                      }`}
+                    >
+                      {st === "ALL" ? "Todas" : st}
+                    </button>
+                  ))}
+                </div>
+
+                <button
+                  onClick={exportWithdrawalsCSV}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition shadow"
+                  title="Exportar retiros a archivo CSV/Excel"
+                >
+                  <span>📥</span>
+                  <span>Exportar Excel</span>
+                </button>
               </div>
             </div>
 
@@ -1307,13 +1636,24 @@ export default function AdminPage() {
         {/* ========================================================================= */}
         {activeTab === "matches" && (
           <div className="space-y-6">
-            <div>
-              <h1 className={`${fonts.bowlbyOneSC.className} text-xl md:text-2xl text-amber-400 tracking-wide`}>
-                Auditoría de Partidas y Apuestas
-              </h1>
-              <p className="text-xs text-amber-200/60 mt-0.5">
-                Historial de duelos, pozos apostados y comisiones de sala retenidas.
-              </p>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h1 className={`${fonts.bowlbyOneSC.className} text-xl md:text-2xl text-amber-400 tracking-wide`}>
+                  Auditoría de Partidas y Apuestas
+                </h1>
+                <p className="text-xs text-amber-200/60 mt-0.5">
+                  Historial de duelos, pozos apostados y comisiones de sala retenidas.
+                </p>
+              </div>
+
+              <button
+                onClick={exportMatchesCSV}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition shadow self-start md:self-auto"
+                title="Exportar partidas a archivo CSV/Excel"
+              >
+                <span>📥</span>
+                <span>Exportar Excel</span>
+              </button>
             </div>
 
             <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
@@ -1371,13 +1711,24 @@ export default function AdminPage() {
         {/* ========================================================================= */}
         {activeTab === "reports" && (
           <div className="space-y-6">
-            <div>
-              <h1 className={`${fonts.bowlbyOneSC.className} text-xl md:text-2xl text-amber-400 tracking-wide`}>
-                Reportes Financieros y Balances
-              </h1>
-              <p className="text-xs text-amber-200/60 mt-0.5">
-                Flujo neto de caja en Bolívares y volumen de monedas en la plataforma.
-              </p>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h1 className={`${fonts.bowlbyOneSC.className} text-xl md:text-2xl text-amber-400 tracking-wide`}>
+                  Reportes Financieros y Balances
+                </h1>
+                <p className="text-xs text-amber-200/60 mt-0.5">
+                  Flujo neto de caja en Bolívares y volumen de monedas en la plataforma.
+                </p>
+              </div>
+
+              <button
+                onClick={exportFinancialReportCSV}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition shadow self-start md:self-auto"
+                title="Descargar reporte financiero en formato CSV/Excel"
+              >
+                <span>📥</span>
+                <span>Exportar Balance Excel</span>
+              </button>
             </div>
 
             {/* Cuadrícula de Balances */}
@@ -1465,6 +1816,189 @@ export default function AdminPage() {
                 <p className="text-[11px] text-amber-200/60 mt-1">
                   Monedas apostadas en {financialSummary.totalMatches} partidas
                 </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* PESTAÑA 7: CUPONES PROMOCIONALES */}
+        {/* ========================================================================= */}
+        {activeTab === "promos" && (
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h1 className={`${fonts.bowlbyOneSC.className} text-xl md:text-2xl text-amber-400 tracking-wide`}>
+                  Cupones y Códigos Promocionales
+                </h1>
+                <p className="text-xs text-amber-200/60 mt-0.5">
+                  Genera códigos de monedas de regalo para promociones en redes sociales y transmisiones en vivo.
+                </p>
+              </div>
+
+              <button
+                onClick={exportPromosCSV}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition shadow self-start md:self-auto"
+                title="Descargar cupones en archivo CSV/Excel"
+              >
+                <span>📥</span>
+                <span>Exportar Cupones Excel</span>
+              </button>
+            </div>
+
+            {/* Formulario de Creación de Cupón */}
+            <div className="bg-[#180e07] border border-amber-500/40 rounded-2xl p-5 shadow-lg">
+              <h3 className="text-sm font-black text-amber-300 uppercase tracking-wider mb-3 flex items-center gap-2">
+                <span>➕</span>
+                <span>Crear Nuevo Código Promocional</span>
+              </h3>
+
+              <form onSubmit={handleCreatePromo} className="grid grid-cols-1 sm:grid-cols-4 gap-3 items-end">
+                <div>
+                  <label className="text-[11px] font-bold text-amber-300 uppercase tracking-wider block mb-1">
+                    Código Promocional
+                  </label>
+                  <input
+                    type="text"
+                    value={newPromoCode}
+                    onChange={(e) => setNewPromoCode(e.target.value.toUpperCase())}
+                    placeholder="Ej: LLANERO2026"
+                    className="w-full bg-[#24140a] border border-amber-500/40 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-amber-200/30 font-mono font-bold uppercase focus:outline-none focus:border-amber-400"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-amber-300 uppercase tracking-wider block mb-1">
+                    Monedas de Regalo
+                  </label>
+                  <input
+                    type="number"
+                    min="10"
+                    max="100000"
+                    step="10"
+                    value={newPromoCoins}
+                    onChange={(e) => setNewPromoCoins(parseInt(e.target.value) || 0)}
+                    className="w-full bg-[#24140a] border border-amber-500/40 rounded-xl px-3.5 py-2.5 text-xs text-amber-300 font-bold focus:outline-none focus:border-amber-400"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label className="text-[11px] font-bold text-amber-300 uppercase tracking-wider block mb-1">
+                    Límite de Canjes (Usos)
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    max="100000"
+                    value={newPromoMaxUses}
+                    onChange={(e) => setNewPromoMaxUses(parseInt(e.target.value) || 1)}
+                    className="w-full bg-[#24140a] border border-amber-500/40 rounded-xl px-3.5 py-2.5 text-xs text-white font-bold focus:outline-none focus:border-amber-400"
+                    required
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={creatingPromo || !newPromoCode.trim()}
+                  className="w-full py-2.5 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-black font-black rounded-xl text-xs shadow-lg shadow-amber-500/20 active:scale-95 disabled:opacity-50 transition"
+                >
+                  {creatingPromo ? "Creando..." : "Crear Cupón"}
+                </button>
+              </form>
+            </div>
+
+            {/* Tabla de Cupones */}
+            <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#24140a] border-b border-amber-500/30 text-amber-300 uppercase tracking-wider font-bold">
+                    <tr>
+                      <th className="p-3.5">ID</th>
+                      <th className="p-3.5">Código</th>
+                      <th className="p-3.5">Recompensa</th>
+                      <th className="p-3.5">Canjes / Límite</th>
+                      <th className="p-3.5">Estado</th>
+                      <th className="p-3.5">Fecha Creación</th>
+                      <th className="p-3.5 text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-amber-500/10">
+                    {promos.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center py-10 text-amber-200/40">
+                          No hay cupones promocionales registrados aún.
+                        </td>
+                      </tr>
+                    ) : (
+                      promos.map((p) => (
+                        <tr key={p.id} className="hover:bg-amber-500/5 transition">
+                          <td className="p-3.5 text-amber-200/60 font-mono">#{p.id}</td>
+                          <td className="p-3.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono font-black text-amber-300 bg-amber-950/60 border border-amber-500/40 px-2.5 py-1 rounded-lg">
+                                {p.code}
+                              </span>
+                              <button
+                                onClick={() => copyToClipboard(p.code, `promo-${p.id}`)}
+                                className="text-[10px] text-amber-400/80 hover:text-white"
+                                title="Copiar código"
+                              >
+                                {copiedText === `promo-${p.id}` ? "✓" : "📋"}
+                              </button>
+                            </div>
+                          </td>
+                          <td className="p-3.5">
+                            <span className="font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30">
+                              🪙 +{p.coinsReward.toLocaleString()}
+                            </span>
+                          </td>
+                          <td className="p-3.5">
+                            <div className="flex flex-col gap-1 min-w-[110px]">
+                              <div className="flex justify-between text-[11px] font-bold">
+                                <span>{p.currentUses.toLocaleString()}</span>
+                                <span className="text-amber-200/60">/ {p.maxUses.toLocaleString()}</span>
+                              </div>
+                              <div className="w-full bg-black/50 h-1.5 rounded-full overflow-hidden border border-amber-500/20">
+                                <div
+                                  className="bg-amber-400 h-full rounded-full transition-all"
+                                  style={{
+                                    width: `${Math.min(100, (p.currentUses / Math.max(1, p.maxUses)) * 100)}%`,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                          </td>
+                          <td className="p-3.5">
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold ${
+                                p.isActive
+                                  ? "bg-green-950/80 text-green-300 border border-green-500/40"
+                                  : "bg-red-950/80 text-red-300 border border-red-500/40"
+                              }`}
+                            >
+                              {p.isActive ? "ACTIVO" : "PAUSADO"}
+                            </span>
+                          </td>
+                          <td className="p-3.5 text-amber-200/60 font-mono text-[11px]">{p.createdAt}</td>
+                          <td className="p-3.5 text-center">
+                            <button
+                              onClick={() => handleTogglePromo(p.id)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition shadow ${
+                                p.isActive
+                                  ? "bg-amber-950/60 hover:bg-amber-900 text-amber-300 border border-amber-500/40"
+                                  : "bg-green-600 hover:bg-green-500 text-white"
+                              }`}
+                            >
+                              {p.isActive ? "Pausar" : "Reactivar"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>

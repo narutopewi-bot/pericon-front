@@ -17,6 +17,8 @@ import GameHeaderMenu from "@/components/game-header-menu";
 import ProfileModal from "@/components/profile-modal";
 import WalletModal from "@/components/wallet-modal";
 import PericonTutorialModal from "@/components/pericon-tutorial-modal";
+import LeaderboardModal from "@/components/leaderboard-modal";
+import { playChatPopSound } from "@/lib/soundEffects";
 import Swal from "sweetalert2";
 
 export default function Desk() {
@@ -161,10 +163,12 @@ export default function Desk() {
     });
   };
 
-  // Estados de Modales: Perfil, Monedero y Tutorial
+  // Estados de Modales: Perfil, Monedero, Tutorial y Ranking
   const [profileOpen, setProfileOpen] = useState(false);
   const [walletOpen, setWalletOpen] = useState(false);
   const [tutorialOpen, setTutorialOpen] = useState(false);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  const [globalAnnouncement, setGlobalAnnouncement] = useState<{ message: string; createdAt: string } | null>(null);
 
   const [dataplayer, setDataplayer] = React.useState<GamePlayer>({
     id: "",
@@ -305,8 +309,16 @@ export default function Desk() {
         coins: typeof prev.coins === "number" && prev.coins >= 0 ? prev.coins : modelo.coins,
       }));
     });
+
+    connection.on('GlobalAnnouncement', (data: { message: string; createdAt: string }) => {
+      console.log('[GlobalAnnouncement recibido]', data);
+      setGlobalAnnouncement(data);
+      playChatPopSound();
+    });
+
     return () => {
       connection.off('GetPlayer');
+      connection.off('GlobalAnnouncement');
     };
   }, [connection]); 
 
@@ -336,7 +348,27 @@ export default function Desk() {
         onOpenProfile={() => setProfileOpen(true)}
         onOpenWallet={() => setWalletOpen(true)}
         onOpenTutorial={() => setTutorialOpen(true)}
+        onOpenLeaderboard={() => setLeaderboardOpen(true)}
       />
+
+      {/* Banner de Anuncio Global en Vivo */}
+      {globalAnnouncement && (
+        <div className="w-full bg-gradient-to-r from-amber-600 via-yellow-400 to-amber-600 text-black px-4 py-2 flex items-center justify-between shadow-xl z-30 animate-in slide-in-from-top duration-300">
+          <div className="flex items-center gap-2 max-w-4xl mx-auto flex-1 text-center justify-center">
+            <span className="text-base animate-bounce">📢</span>
+            <span className="font-black text-xs sm:text-sm tracking-wide">
+              {globalAnnouncement.message}
+            </span>
+          </div>
+          <button
+            onClick={() => setGlobalAnnouncement(null)}
+            className="text-black hover:text-amber-950 font-black text-xs px-2.5 py-1 rounded-lg bg-black/10 hover:bg-black/20 transition"
+            title="Cerrar anuncio"
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {/* Dynamic Game Modes Content: Grid 2x2 Gamer Pro */}
       <div className="flex-1 flex flex-col items-center justify-center p-3 sm:p-6 relative z-10 w-full min-h-[calc(88vh-80px)]">
@@ -459,12 +491,21 @@ export default function Desk() {
               <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-ping"></span>
               <span className="font-bold text-slate-200">Servidores activos</span>
             </div>
-            <button
-              onClick={() => setTutorialOpen(true)}
-              className="text-amber-400 hover:text-amber-300 font-extrabold underline flex items-center gap-1"
-            >
-              📖 Tutorial y Reglas
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => setLeaderboardOpen(true)}
+                className="text-yellow-400 hover:text-yellow-300 font-extrabold flex items-center gap-1 bg-yellow-500/15 border border-yellow-500/40 px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs transition shadow-sm hover:scale-105"
+              >
+                <span>🏆</span>
+                <span>Top 10</span>
+              </button>
+              <button
+                onClick={() => setTutorialOpen(true)}
+                className="text-amber-400 hover:text-amber-300 font-extrabold underline flex items-center gap-1"
+              >
+                📖 Tutorial y Reglas
+              </button>
+            </div>
           </div>
 
         </div>
@@ -489,6 +530,12 @@ export default function Desk() {
         onClose={() => setWalletOpen(false)}
         userId={dataplayer.id && !isNaN(Number(dataplayer.id)) ? dataplayer.id : (gamep.id || "")}
         coins={dataplayer.coins}
+      />
+
+      {/* Modal del Ranking Top 10 */}
+      <LeaderboardModal
+        isOpen={leaderboardOpen}
+        onClose={() => setLeaderboardOpen(false)}
       />
 
       {/* Modal del Tutorial Animado (Flotación suave del Chivo) */}
