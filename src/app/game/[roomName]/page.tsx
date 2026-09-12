@@ -465,13 +465,13 @@ export default function Duel1vs1() {
           datos.current = obj;
           const turny: string = obj.flag == true ? "1" : "0";
           playerturn.current = turny;
-          changeturn.current = obj.flag;
-          roundturn.current = obj.flag;
-          switchturn.current = obj.flag;
-          setIsMyTurn(obj.flag);
+          changeturn.current = false;
+          roundturn.current = false;
+          switchturn.current = false;
+          setIsMyTurn(false);
           setTimeLeft(30);
           hasTimedOut.current = false;
-          console.log("runStart. Playerturn: ", playerturn.current, " changeturn: ", changeturn.current, " roundturn: ", roundturn.current);
+          console.log("runStart. Playerturn: ", playerturn.current);
           setStateown(obj.flag);
           if (obj.flag == true) {
             playerown.current = obj.userone;
@@ -480,6 +480,16 @@ export default function Duel1vs1() {
             playerown.current = obj.usertwo;
             playeropp.current = obj.userone;
           }
+
+          const myName = obj.flag == true ? obj.nameone : obj.nametwo;
+          if (myName) {
+            try {
+              await connection.invoke("IdentifyPlayer", myName, "", obj.coins || 0);
+            } catch (e) {
+              console.error("Error al identificar jugador en juego:", e);
+            }
+          }
+
           const juego: number = obj.id;
           await connection.invoke("GetInitHand", juego, obj.flag);
           hasConnected.current = true;
