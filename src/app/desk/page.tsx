@@ -219,7 +219,7 @@ export default function Desk() {
               id: u.id?.toString() || "1",
               name: u.username,
               email: u.email || "",
-              coins: u.coins ?? 100,
+              coins: u.coins ?? 1000,
               wins: u.wins ?? 0,
               losses: u.losses ?? 0,
               level: u.level || "Novato",

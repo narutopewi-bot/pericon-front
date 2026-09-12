@@ -28,7 +28,7 @@ export default function Home() {
                 id: u.id?.toString() || "1",
                 name: u.username,
                 email: u.email || "",
-                coins: u.coins ?? 100,
+                coins: u.coins ?? 1000,
                 active: true,
               })
             );
