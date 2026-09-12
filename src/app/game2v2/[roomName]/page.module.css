@@ -1,0 +1,16 @@
+.customtitle {
+  font-size: 18px !important;  
+  font-family: Arial, Helvetica, sans-serif !important;
+}
+
+.custompopup {
+  height: auto;
+  position: fixed !important;
+  bottom: 35px !important;
+  left: 50% !important; 
+  transform: translateX(-50%) !important; 
+  align-items: flex-end !important;
+  width: 90%;
+  max-width: 500px;
+  z-index: 1050;  
+}

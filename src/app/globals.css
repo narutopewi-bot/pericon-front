@@ -1,0 +1,225 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+
+/* Color variables */
+:root {
+  --color-yellow: #daaa00;
+  --color-brown: #5e3c1b;
+  --color-white: #fff;
+}
+
+.bg-table {
+  background-image: url("/table.png");
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-position: center;
+}
+
+.bg-tablev {
+  background-image: url("/tablev.png");
+  background-repeat: no-repeat;
+  background-size: contain;
+  background-position: center;
+}
+
+.bg-diablo {
+  background-image: url("/diablo.png");
+  background-repeat: no-repeat;
+  mix-blend-mode: soft-light;
+}
+
+.bg-goat {
+  position: absolute;
+  inset: 0;
+  background-image: url("/goat.svg");
+  background-position: center;
+  background-size: 400px 400px;
+  background-repeat: no-repeat;
+  mix-blend-mode: soft-light;
+  z-index: -1;
+}
+
+@keyframes blink {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0;
+  }
+}
+
+.animate-blink {
+  animation: blink 1.5s infinite;
+}
+
+.vs-transition {
+  animation: fadeIn 5s ease-in-out;
+}
+
+.oponent-transition {
+  animation: fadeIn 3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes gradient {
+  0% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+.gradient-text {
+  background: linear-gradient(90deg, red, yellow, green, yellow, red);
+  background-size: 200% 200%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradient 3s linear infinite;
+}
+
+body {
+  font-family: Arial, Helvetica, sans-serif;
+  background-image: url(/bg.jpg);
+  background-position: center;
+  background-size: cover;
+  background-attachment: fixed;
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: -1;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+/* Custom sweetalert */
+.swal2-confirm {
+  background-color: var(--color-brown) !important;
+  color: var(--color-white) !important;
+}
+
+/* Card 3D Animation Utilities */
+.perspective-table {
+  perspective: 1200px;
+}
+
+.card-3d {
+  transform-style: preserve-3d;
+  will-change: transform, opacity;
+}
+
+.card-face {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.card-back {
+  transform: rotateY(180deg);
+}
+
+.shadow-ground {
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
+}
+
+.shadow-flying {
+  box-shadow: 0 20px 35px rgba(0, 0, 0, 0.65), 0 8px 16px rgba(0, 0, 0, 0.45);
+}
+
+@keyframes pulseGoldLife {
+  0%, 100% { box-shadow: 0 0 10px rgba(234, 179, 8, 0.5); }
+  50% { box-shadow: 0 0 24px rgba(234, 179, 8, 0.95); }
+}
+
+.glow-gold-life {
+  animation: pulseGoldLife 2s infinite ease-in-out;
+}
+
+/* Smooth slow card animations (Mobile optimized 60fps) */
+.card-glide-in-opp {
+  animation: glideInOpp 750ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.card-glide-in-player {
+  animation: glideInPlayer 750ms cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  will-change: transform, opacity;
+}
+
+.card-glide-to-deck {
+  transition: transform 850ms cubic-bezier(0.4, 0, 0.2, 1), opacity 850ms ease, scale 850ms ease !important;
+  transform: translate3d(-140px, 0, 0) scale(0.45) rotate(-18deg) !important;
+  opacity: 0 !important;
+  pointer-events: none;
+}
+
+@keyframes glideInOpp {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -90px, 0) scale(0.8) rotate(-10deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1) rotate(3deg);
+  }
+}
+
+@keyframes glideInPlayer {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 90px, 0) scale(0.8) rotate(10deg);
+  }
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1) rotate(-3deg);
+  }
+}
+
+/* Mobile responsive card sizes */
+.card-responsive {
+  width: 52px;
+  height: 76px;
+}
+@media (min-width: 640px) {
+  .card-responsive {
+    width: 72px;
+    height: 104px;
+  }
+}
+
+/* Mobile touch feedback */
+.touch-card {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}

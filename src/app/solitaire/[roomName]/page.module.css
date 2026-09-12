@@ -1,0 +1,18 @@
+.customtitle {
+  font-size: 18px !important;  
+  font-family: Arial, Helvetica, sans-serif !important;
+}
+
+.custompopup {
+/*  max-width: 400px;
+  padding: 20px;*/
+  height: auto;
+  position: fixed !important;  /* Asegura que el modal se mantenga en la posición correcta */
+  bottom: 35px !important; /* Ajusta la distancia desde el fondo */
+  left: 50% !important; 
+  transform: translateX(-50%) !important; 
+  align-items: flex-end !important;
+  width: '50%';
+  max-width: 500px;
+  z-index: 1050;  
+}

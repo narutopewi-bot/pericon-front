@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>El Pericón - Animación de Mesa</title>
+  <script src="https://www.gstatic.com/antigravity/web/dev/tailwindcss.min.js"></script>
+  <style>
+    .perspective-table {
+      perspective: 1200px;
+    }
+
+    .card-3d {
+      transform-style: preserve-3d;
+      will-change: transform, left, top;
+    }
+
+    .card-face {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      backface-visibility: hidden;
+      -webkit-backface-visibility: hidden;
+      border-radius: 8px;
+      overflow: hidden;
+    }
+
+    .card-back {
+      transform: rotateY(180deg);
+    }
+
+    .shadow-ground {
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.45);
+    }
+
+    .shadow-flying {
+      box-shadow: 0 22px 40px rgba(0, 0, 0, 0.7), 0 8px 18px rgba(0, 0, 0, 0.5);
+    }
+
+    @keyframes pulseGold {
+      0%, 100% { box-shadow: 0 0 15px rgba(234, 179, 8, 0.6); }
+      50% { box-shadow: 0 0 32px rgba(234, 179, 8, 0.95); }
+    }
+    .glow-gold {
+      animation: pulseGold 2s infinite ease-in-out;
+    }
+
+    .table-felt {
+      background: radial-gradient(circle at center, #1b532e 0%, #0e3d1f 65%, #072210 100%);
+      border: 12px solid #3c1e08;
+      box-shadow: inset 0 0 70px rgba(0,0,0,0.85), 0 15px 35px rgba(0,0,0,0.7);
+    }
+
+    /* Elevación interactiva de la carta en mano */
+    .player-card {
+      transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1), box-shadow 0.22s ease;
+    }
+    .player-card:hover {
+      transform: translateY(-26px) scale(1.1) !important;
+      z-index: 40 !important;
+      box-shadow: 0 18px 30px rgba(245, 158, 11, 0.5) !important;
+    }
+
+    .turn-active {
+      border-color: #f59e0b !important;
+      box-shadow: 0 0 15px rgba(245, 158, 11, 0.5);
+    }
+  </style>
+</head>
+<body class="bg-[#0e0702] text-amber-100 min-h-screen flex flex-col items-center justify-center p-2 sm:p-4 font-sans select-none overflow-x-hidden">
+
+  <!-- MESA DE JUEGO LIMPIA (SIN BOTONES EXTRAÑOS) -->
+  <main class="relative w-full max-w-4xl h-[560px] sm:h-[620px] table-felt rounded-3xl overflow-hidden perspective-table shadow-2xl flex flex-col justify-between p-3 sm:p-5">
+    
+    <!-- MARCA DE AGUA -->
+    <div class="absolute inset-0 flex items-center justify-center opacity-10 pointer-events-none">
+      <span class="text-7xl sm:text-9xl font-black text-amber-300 tracking-tighter">EL PERICÓN</span>
+    </div>
+
+    <!-- ZONA SUPERIOR: OPONENTE -->
+    <div class="relative z-10 flex justify-between items-start w-full px-2">
+      <!-- Puntos del Rival -->
+      <div class="flex flex-col items-center gap-1">
+        <span id="oponent-score-tag" class="text-xs font-black text-rose-300 bg-black/70 px-3 py-1 rounded-full border border-rose-500/40 shadow">
+          Rival: 0 ganadas
+        </span>
+      </div>
+
+      <!-- Avatar y Mano del Rival -->
+      <div class="flex flex-col items-center">
+        <div id="oponent-badge" class="flex items-center gap-2 bg-black/70 border border-amber-500/40 px-4 py-1 rounded-full text-xs text-amber-200 font-bold mb-1 shadow transition-all">
+          <span>👤 Rival (@CompadreRival)</span>
+          <span id="oponent-cards-count" class="bg-amber-500 text-black px-1.5 py-0.2 rounded-full font-black text-[10px]">3 cartas</span>
+        </div>
+        <div id="oponent-hand" class="flex justify-center items-center h-24 gap-2 relative">
+          <!-- Cartas del rival boca abajo -->
+        </div>
+      </div>
+
+      <!-- Contador de tirada actual -->
+      <div class="flex flex-col items-end gap-1">
+        <div class="bg-black/70 border border-amber-500/40 px-3 py-1 rounded-xl text-right shadow">
+          <span id="round-tirada-num" class="text-xs font-black text-amber-300">Tirada 1 de 3</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ZONA CENTRAL: EL MAZO + ÁREA DE DUELO (SOLO 2 CARTAS) + CARTA DE LA VIDA -->
+    <div class="relative z-10 flex items-center justify-between w-full px-2 sm:px-8">
+      
+      <!-- EL MAZO A LA IZQUIERDA (Toca para repartir de nuevo) -->
+      <div class="flex flex-col items-center gap-1">
+        <div id="deck-anchor" class="relative w-16 sm:w-20 h-24 sm:h-28 rounded-xl cursor-pointer" onclick="dealNewRound()" title="Toca el mazo para repartir nueva mano">
+          <div class="absolute inset-0 bg-[#3a1a05] rounded-xl transform translate-x-1 translate-y-1 shadow-lg border border-amber-900"></div>
+          <div class="absolute inset-0 bg-[#4e2307] rounded-xl transform translate-x-0.5 translate-y-0.5 border border-amber-800"></div>
+          <div class="absolute inset-0 bg-blue-900 border-2 border-amber-400/80 rounded-xl overflow-hidden shadow-2xl flex items-center justify-center hover:brightness-110 transition">
+            <img src="http://localhost:3000/card_back.png" alt="Mazo" class="w-full h-full object-cover" onerror="this.src='https://raw.githubusercontent.com/htr-tech/assets/main/card_back.png'">
+          </div>
+          <span class="absolute -bottom-5 left-1/2 -translate-x-1/2 text-[9px] font-extrabold text-amber-300 uppercase tracking-wider whitespace-nowrap bg-black/80 px-2 py-0.5 rounded border border-amber-500/40 shadow">
+            Mazo 🃏
+          </span>
+        </div>
+      </div>
+
+      <!-- ÁREA DE DUELO CENTRAL (EXACTAMENTE 2 CARTAS) -->
+      <div class="flex-1 flex flex-col items-center justify-center px-2">
+        <div class="border-2 border-dashed border-amber-400/30 rounded-2xl w-64 sm:w-80 h-32 sm:h-36 flex items-center justify-center relative p-2 bg-black/20">
+          
+          <span id="duel-label" class="text-[11px] text-amber-200/40 font-bold uppercase tracking-widest text-center pointer-events-none">
+            Mesa de Juego<br>
+            <span class="text-[9px] text-amber-300/60 font-normal">2 cartas • El ganador las devuelve al mazo</span>
+          </span>
+
+          <!-- Contenedor donde se posicionan las 2 cartas lanzadas -->
+          <div id="table-dropzone" class="absolute inset-0 flex items-center justify-center gap-4 sm:gap-6">
+            <!-- Solo 2 cartas coexisten aquí -->
+          </div>
+        </div>
+
+        <!-- Notificación en vivo -->
+        <div id="trick-status-container" class="mt-2 text-center">
+          <span id="trick-status" class="text-[11px] sm:text-xs font-black text-amber-300 bg-black/80 px-4 py-1.5 rounded-full border border-amber-500/50 shadow-lg inline-block">
+            Mano lista • Repartiendo cartas...
+          </span>
+        </div>
+      </div>
+
+      <!-- CARTA DE LA VIDA A LA DERECHA -->
+      <div class="flex flex-col items-center gap-1">
+        <div id="life-card-slot" class="w-16 sm:w-20 h-24 sm:h-28 border-2 border-amber-400/40 border-dashed rounded-xl flex items-center justify-center relative">
+          <span class="text-[9px] text-amber-300/50 uppercase font-bold text-center">La Vida</span>
+        </div>
+        <span class="text-[9px] font-extrabold text-amber-400 uppercase tracking-wide bg-black/80 px-2 py-0.5 rounded border border-amber-500/40 shadow">
+          👑 Triunfo (Oro)
+        </span>
+      </div>
+
+    </div>
+
+    <!-- ZONA INFERIOR: MANO DEL JUGADOR -->
+    <div class="relative z-10 flex justify-between items-end w-full px-2">
+      <!-- Puntos del Jugador -->
+      <div class="flex flex-col items-center gap-1">
+        <span id="player-score-tag" class="text-xs font-black text-emerald-300 bg-black/70 px-3 py-1 rounded-full border border-emerald-500/40 shadow">
+          Tú: 0 ganadas
+        </span>
+      </div>
+
+      <!-- Mano del Jugador -->
+      <div class="flex flex-col items-center">
+        <div id="player-badge" class="flex items-center gap-2 bg-black/70 border border-emerald-500/40 px-4 py-1 rounded-full text-xs text-emerald-300 font-bold mb-2 shadow transition-all">
+          <span>👤 Tu Mano</span>
+          <span id="player-instruction" class="text-[10px] text-amber-300 font-normal">(Toca una carta para lanzarla)</span>
+        </div>
+
+        <div id="player-hand" class="flex justify-center items-end h-28 sm:h-32 gap-3 sm:gap-4 relative pb-1">
+          <!-- Cartas del jugador -->
+        </div>
+      </div>
+
+      <!-- Botón sutil para reiniciar mano si el usuario quiere -->
+      <div class="flex flex-col items-end gap-1">
+        <button onclick="dealNewRound()" class="bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 text-[11px] font-bold px-3 py-1 rounded-xl border border-amber-500/40 transition">
+          🔄 Repartir
+        </button>
+      </div>
+    </div>
+
+    <!-- CAPA DE ANIMACIÓN FLOTANTE -->
+    <div id="animation-layer" class="absolute inset-0 pointer-events-none z-50"></div>
+
+  </main>
+
+  <!-- SCRIPT CON LA LÓGICA DE DEVUELTA AL MAZO -->
+  <script>
+    let audioCtx = null;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+    }
+
+    function playSwooshSound() {
+      initAudio();
+      if (!audioCtx) return;
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(460, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.16);
+        gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.16);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.16);
+      } catch (e) {}
+    }
+
+    function playTapSound() {
+      initAudio();
+      if (!audioCtx) return;
+      try {
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'triangle';
+        osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+        osc.frequency.exponentialRampToValueAtTime(45, audioCtx.currentTime + 0.12);
+        gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.12);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.12);
+      } catch (e) {}
+    }
+
+    const LIFE_SUIT = 'gold';
+
+    // Modelos de cartas de prueba
+    const initialPlayerCards = [
+      { id: 'p1', name: '10 de Oro', suit: 'gold', val: 10, isLife: true, img: 'http://localhost:3000/cards/10_gold.png' },
+      { id: 'p2', name: '1 de Oro (La Vida)', suit: 'gold', val: 14, isLife: true, img: 'http://localhost:3000/cards/1_gold.png' },
+      { id: 'p3', name: '12 de Copas (Rey)', suit: 'cups', val: 12, isLife: false, img: 'http://localhost:3000/cards/12_cups.png' }
+    ];
+
+    const initialOponentCards = [
+      { id: 'o1', name: '1 de Espadas (As)', suit: 'swords', val: 14, isLife: false, img: 'http://localhost:3000/cards/1_swords.png' },
+      { id: 'o2', name: '7 de Oro', suit: 'gold', val: 7, isLife: true, img: 'http://localhost:3000/cards/7_gold.png' },
+      { id: 'o3', name: '7 de Espadas', suit: 'swords', val: 7, isLife: false, img: 'http://localhost:3000/cards/7_swords.png' }
+    ];
+
+    const sampleLifeCard = {
+      name: '1 de Oro (La Vida)',
+      img: 'http://localhost:3000/cards/1_gold.png'
+    };
+
+    let playerCards = [];
+    let oponentCards = [];
+    let tableCards = []; // MÁXIMO 2 cartas
+    let isDealing = false;
+    let isProcessingTrick = false;
+
+    let turn = 'player'; // 'player' o 'oponent' (quién tiene la mano para lanzar primero)
+    let trickNumber = 1; // 1, 2 o 3
+    let playerTricksWon = 0;
+    let oponentTricksWon = 0;
+
+    const speed = 780;
+    const timing = 'cubic-bezier(0.25, 1, 0.5, 1)';
+
+
+    // 1. REPARTO DE CARTAS
+    async function dealNewRound() {
+      if (isDealing) return;
+      isDealing = true;
+      isProcessingTrick = false;
+
+      trickNumber = 1;
+      playerTricksWon = 0;
+      oponentTricksWon = 0;
+      turn = 'player';
+      tableCards = [];
+
+      updateScores();
+      document.getElementById('player-hand').innerHTML = '';
+      document.getElementById('oponent-hand').innerHTML = '';
+      document.getElementById('table-dropzone').innerHTML = '';
+      document.getElementById('life-card-slot').innerHTML = '';
+      document.getElementById('trick-status').textContent = 'Repartiendo cartas desde el mazo... 🃏';
+
+      playerCards = JSON.parse(JSON.stringify(initialPlayerCards));
+      oponentCards = JSON.parse(JSON.stringify(initialOponentCards));
+
+      const deckRect = document.getElementById('deck-anchor').getBoundingClientRect();
+      const animLayer = document.getElementById('animation-layer');
+
+      function flyCard(destElem, faceUp, delay, onComplete) {
+        setTimeout(() => {
+          playSwooshSound();
+          const destRect = destElem.getBoundingClientRect();
+          const deltaX = destRect.left - deckRect.left;
+          const deltaY = destRect.top - deckRect.top;
+
+          const flying = document.createElement('div');
+          flying.className = 'absolute w-16 sm:w-20 h-24 sm:h-28 card-3d shadow-flying pointer-events-none z-50';
+          flying.style.left = `${deckRect.left}px`;
+          flying.style.top = `${deckRect.top}px`;
+          flying.style.transform = 'rotateY(180deg) scale(0.9)';
+          flying.style.transition = `all ${speed}ms ${timing}`;
+
+          flying.innerHTML = `
+            <div class="card-face bg-white border-2 border-amber-300 rounded-xl overflow-hidden p-0.5">
+              <img src="${destElem.dataset.img || 'http://localhost:3000/cards/1_gold.png'}" class="w-full h-full object-contain">
+            </div>
+            <div class="card-face card-back bg-blue-950 border-2 border-amber-400 rounded-xl overflow-hidden">
+              <img src="http://localhost:3000/card_back.png" class="w-full h-full object-cover">
+            </div>
+          `;
+
+          animLayer.appendChild(flying);
+
+          requestAnimationFrame(() => {
+            const rotY = faceUp ? 'rotateY(0deg)' : 'rotateY(180deg)';
+            const rotZ = (Math.random() * 6 - 3).toFixed(1);
+            flying.style.transform = `translate(${deltaX}px, ${deltaY}px) ${rotY} rotateZ(${rotZ}deg) scale(1)`;
+          });
+
+          setTimeout(() => {
+            playTapSound();
+            flying.remove();
+            if (onComplete) onComplete();
+          }, speed + 20);
+        }, delay);
+      }
+
+      // Reparto a Oponente
+      const oponentHand = document.getElementById('oponent-hand');
+      for (let i = 0; i < 3; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'w-16 sm:w-20 h-24 sm:h-28 opacity-0';
+        oponentHand.appendChild(slot);
+        flyCard(slot, false, i * 140, () => {
+          slot.className = 'w-16 sm:w-20 h-24 sm:h-28 transition-transform transform hover:-translate-y-2';
+          slot.innerHTML = `
+            <div class="w-full h-full rounded-xl overflow-hidden border-2 border-amber-400/80 shadow-ground bg-blue-950">
+              <img src="http://localhost:3000/card_back.png" class="w-full h-full object-cover">
+            </div>
+          `;
+        });
+      }
+
+      // Reparto a Jugador
+      const playerHand = document.getElementById('player-hand');
+      for (let i = 0; i < 3; i++) {
+        const slot = document.createElement('div');
+        slot.className = 'w-16 sm:w-20 h-24 sm:h-28 opacity-0';
+        slot.dataset.img = playerCards[i].img;
+        playerHand.appendChild(slot);
+
+        flyCard(slot, true, 420 + i * 150, () => {
+          slot.remove();
+          renderPlayerHand();
+        });
+      }
+
+      // Carta de La Vida
+      const lifeSlot = document.getElementById('life-card-slot');
+      lifeSlot.dataset.img = sampleLifeCard.img;
+
+      flyCard(lifeSlot, true, 950, () => {
+        lifeSlot.className = 'w-16 sm:w-20 h-24 sm:h-28 rounded-xl overflow-hidden glow-gold border-2 border-yellow-300 shadow-2xl transition transform hover:scale-105';
+        lifeSlot.innerHTML = `
+          <div class="w-full h-full bg-white p-0.5">
+            <img src="${sampleLifeCard.img}" alt="La Vida" class="w-full h-full object-contain rounded-lg">
+          </div>
+        `;
+
+        isDealing = false;
+        startTurn();
+      });
+    }
+
+    function renderPlayerHand() {
+      const playerHand = document.getElementById('player-hand');
+      playerHand.innerHTML = '';
+      playerCards.forEach((card, i) => {
+        const fanAngle = (i - (playerCards.length - 1) / 2) * 7;
+        const node = document.createElement('div');
+        node.className = 'player-card relative w-16 sm:w-20 h-24 sm:h-28 rounded-xl cursor-pointer shadow-ground';
+        node.style.transform = `rotate(${fanAngle}deg)`;
+        node.innerHTML = `
+          <div class="w-full h-full bg-white border-2 ${card.isLife ? 'border-yellow-400 glow-gold' : 'border-amber-300'} rounded-xl overflow-hidden p-0.5 shadow-md">
+            <img src="${card.img}" alt="${card.name}" class="w-full h-full object-contain">
+          </div>
+        `;
+        node.onclick = () => onPlayerClickCard(i);
+        playerHand.appendChild(node);
+      });
+    }
+
+    function startTurn() {
+      if (isProcessingTrick) return;
+
+      const playerBadge = document.getElementById('player-badge');
+      const oponentBadge = document.getElementById('oponent-badge');
+
+      if (turn === 'player') {
+        playerBadge.classList.add('turn-active');
+        oponentBadge.classList.remove('turn-active');
+        document.getElementById('trick-status').textContent = tableCards.length === 0
+          ? `Tirada ${trickNumber}: ¡Tu turno de lanzar! Toca una carta.`
+          : `El rival lanzó. ¡Te toca responder! Toca tu carta.`;
+      } else {
+        oponentBadge.classList.add('turn-active');
+        playerBadge.classList.remove('turn-active');
+        document.getElementById('trick-status').textContent = tableCards.length === 0
+          ? `Tirada ${trickNumber}: El rival tiene la mano y va a lanzar...`
+          : `Lanzaste tu carta. El rival responde...`;
+
+        setTimeout(() => {
+          if (!isProcessingTrick) {
+            executeOponentThrow();
+          }
+        }, 850);
+      }
+    }
+
+    // 2. LANZAR CARTA DEL JUGADOR
+    function onPlayerClickCard(index) {
+      if (turn !== 'player' || isProcessingTrick || isDealing || tableCards.length >= 2) return;
+      if (index >= playerCards.length) return;
+
+      const card = playerCards[index];
+      const playerHand = document.getElementById('player-hand');
+      const cardNodes = playerHand.querySelectorAll('.player-card');
+      const sourceCardNode = cardNodes[index];
+      if (!sourceCardNode) return;
+
+      const startRect = sourceCardNode.getBoundingClientRect();
+      const dropzone = document.getElementById('table-dropzone');
+      const dropRect = dropzone.getBoundingClientRect();
+
+      const slotOffset = tableCards.length === 0 ? -40 : 40;
+      const targetX = dropRect.left + dropRect.width / 2 + slotOffset - 35;
+      const targetY = dropRect.top + dropRect.height / 2 - 45;
+
+      sourceCardNode.style.visibility = 'hidden';
+
+      const flying = document.createElement('div');
+      flying.className = 'fixed w-16 sm:w-20 h-24 sm:h-28 card-3d shadow-flying pointer-events-none z-50';
+      flying.style.left = `${startRect.left}px`;
+      flying.style.top = `${startRect.top}px`;
+      flying.style.transition = `all ${speed}ms ${timing}`;
+      flying.innerHTML = `
+        <div class="card-face bg-white border-2 border-emerald-400 rounded-xl overflow-hidden p-0.5">
+          <img src="${card.img}" class="w-full h-full object-contain">
+        </div>
+      `;
+      document.body.appendChild(flying);
+
+      playSwooshSound();
+
+      requestAnimationFrame(() => {
+        const randomRot = (Math.random() * 8 - 4).toFixed(1);
+        flying.style.transform = `translate(${targetX - startRect.left}px, ${targetY - startRect.top}px) rotate(${randomRot}deg) scale(1.04)`;
+      });
+
+      setTimeout(() => {
+        playTapSound();
+        flying.remove();
+
+        const tableCard = document.createElement('div');
+        const landingRot = (Math.random() * 8 - 4).toFixed(1);
+        tableCard.className = 'w-16 sm:w-20 h-24 sm:h-28 bg-white border-2 border-emerald-500 rounded-xl shadow-xl overflow-hidden p-0.5 transform';
+        tableCard.style.transform = `rotate(${landingRot}deg)`;
+        tableCard.innerHTML = `<img src="${card.img}" class="w-full h-full object-contain">`;
+        tableCard.dataset.owner = 'player';
+        dropzone.appendChild(tableCard);
+
+        playerCards.splice(index, 1);
+        renderPlayerHand();
+
+        tableCards.push({ owner: 'player', card: card, element: tableCard });
+
+        if (tableCards.length === 2) {
+          evaluateTrick();
+        } else {
+          turn = 'oponent';
+          startTurn();
+        }
+      }, speed + 20);
+    }
+
+    // 3. LANZAR CARTA DEL OPONENTE
+    function executeOponentThrow() {
+      if (oponentCards.length === 0 || isProcessingTrick || tableCards.length >= 2) return;
+
+      let chosenIndex = 0;
+      if (tableCards.length > 0) {
+        chosenIndex = oponentCards.findIndex(c => c.isLife) !== -1 ? oponentCards.findIndex(c => c.isLife) : 0;
+      }
+      const card = oponentCards.splice(chosenIndex, 1)[0];
+
+      const oponentHand = document.getElementById('oponent-hand');
+      const lastChild = oponentHand.lastElementChild;
+      if (lastChild) lastChild.remove();
+      document.getElementById('oponent-cards-count').textContent = `${oponentCards.length} cartas`;
+
+      const oponentRect = oponentHand.getBoundingClientRect();
+      const dropzone = document.getElementById('table-dropzone');
+      const dropRect = dropzone.getBoundingClientRect();
+
+      const slotOffset = tableCards.length === 0 ? -40 : 40;
+      const targetX = dropRect.left + dropRect.width / 2 + slotOffset - 35;
+      const targetY = dropRect.top + dropRect.height / 2 - 45;
+
+      const flying = document.createElement('div');
+      flying.className = 'fixed w-16 sm:w-20 h-24 sm:h-28 card-3d shadow-flying pointer-events-none z-50';
+      flying.style.left = `${oponentRect.left + 50}px`;
+      flying.style.top = `${oponentRect.top}px`;
+      flying.style.transform = 'rotateY(180deg)';
+      flying.style.transition = `all ${speed}ms ${timing}`;
+
+      flying.innerHTML = `
+        <div class="card-face bg-white border-2 border-rose-400 rounded-xl overflow-hidden p-0.5">
+          <img src="${card.img}" class="w-full h-full object-contain">
+        </div>
+        <div class="card-face card-back bg-blue-950 border-2 border-amber-400 rounded-xl overflow-hidden">
+          <img src="http://localhost:3000/card_back.png" class="w-full h-full object-cover">
+        </div>
+      `;
+      document.body.appendChild(flying);
+
+      playSwooshSound();
+
+      requestAnimationFrame(() => {
+        const randomRot = (Math.random() * 10 - 5).toFixed(1);
+        flying.style.transform = `translate(${targetX - (oponentRect.left + 50)}px, ${targetY - oponentRect.top}px) rotateY(0deg) rotate(${randomRot}deg) scale(1.04)`;
+      });
+
+      setTimeout(() => {
+        playTapSound();
+        flying.remove();
+
+        const tableCard = document.createElement('div');
+        const landingRot = (Math.random() * 8 - 4).toFixed(1);
+        tableCard.className = 'w-16 sm:w-20 h-24 sm:h-28 bg-white border-2 border-rose-500 rounded-xl shadow-xl overflow-hidden p-0.5 transform';
+        tableCard.style.transform = `rotate(${landingRot}deg)`;
+        tableCard.innerHTML = `<img src="${card.img}" class="w-full h-full object-contain">`;
+        tableCard.dataset.owner = 'oponent';
+        dropzone.appendChild(tableCard);
+
+        tableCards.push({ owner: 'oponent', card: card, element: tableCard });
+
+        if (tableCards.length === 2) {
+          evaluateTrick();
+        } else {
+          turn = 'player';
+          startTurn();
+        }
+      }, speed + 20);
+    }
+
+    // 4. DETERMINAR GANADOR DE LA TIRADA
+    function evaluateTrick() {
+      isProcessingTrick = true;
+
+      const card1 = tableCards[0];
+      const card2 = tableCards[1];
+
+      let winner = 'player';
+
+      // Reglas de El Pericón:
+      if (card1.card.isLife && !card2.card.isLife) {
+        winner = card1.owner;
+      } else if (!card1.card.isLife && card2.card.isLife) {
+        winner = card2.owner;
+      } else if (card1.card.isLife && card2.card.isLife) {
+        winner = card1.card.val >= card2.card.val ? card1.owner : card2.owner;
+      } else {
+        if (card1.card.suit === card2.card.suit) {
+          winner = card1.card.val >= card2.card.val ? card1.owner : card2.owner;
+        } else {
+          winner = card1.owner;
+        }
+      }
+
+      const winningCard = winner === card1.owner ? card1.card : card2.card;
+      const statusText = winner === 'player'
+        ? `¡Ganaste con ${winningCard.name}! Las cartas vuelven al mazo 🃏`
+        : `El rival ganó con ${winningCard.name}. Las cartas vuelven al mazo.`;
+
+      document.getElementById('trick-status').textContent = statusText;
+
+      // Pausa generosa de 2.2 segundos para apreciar qué lanzó el rival antes de volver al mazo
+      setTimeout(() => {
+        returnCardsToDeck(winner);
+      }, 2200);
+
+    }
+
+    // 5. ANIMACIÓN: LAS 2 CARTAS SE DEVUELVEN AL MAZO
+    function returnCardsToDeck(winner) {
+      playSwooshSound();
+
+      const dropzone = document.getElementById('table-dropzone');
+      const cardElements = Array.from(dropzone.children);
+      const deckRect = document.getElementById('deck-anchor').getBoundingClientRect();
+
+      // Ambas cartas vuelan directo hacia la posición del Mazo
+      cardElements.forEach((cardNode, i) => {
+        const nodeRect = cardNode.getBoundingClientRect();
+        const deltaX = deckRect.left - nodeRect.left;
+        const deltaY = deckRect.top - nodeRect.top;
+
+        cardNode.style.transition = `all ${speed * 0.9}ms ${timing}`;
+        cardNode.style.transform = `translate(${deltaX}px, ${deltaY}px) scale(0.7) rotate(${i * 10}deg)`;
+        cardNode.style.opacity = '0.3';
+      });
+
+      setTimeout(() => {
+        dropzone.innerHTML = ''; // MESA LIMPIA
+        tableCards = [];
+
+        // Sumar ganada
+        if (winner === 'player') playerTricksWon++;
+        else oponentTricksWon++;
+
+        updateScores();
+
+        // Verificar si alguien ganó 2 de 3 tiradas
+        if (playerTricksWon === 2 || oponentTricksWon === 2 || trickNumber >= 3) {
+          finishRound();
+        } else {
+          // El ganador de la tirada tiene la mano y sigue lanzando
+          trickNumber++;
+          document.getElementById('round-tirada-num').textContent = `Tirada ${trickNumber} de 3`;
+          turn = winner; // ¡EL QUE GANA SIGUE LANZANDO!
+          isProcessingTrick = false;
+          startTurn();
+        }
+      }, speed * 0.9 + 50);
+    }
+
+    function updateScores() {
+      document.getElementById('player-score-tag').textContent = `Tú: ${playerTricksWon} ${playerTricksWon === 1 ? 'ganada' : 'ganadas'}`;
+      document.getElementById('oponent-score-tag').textContent = `Rival: ${oponentTricksWon} ${oponentTricksWon === 1 ? 'ganada' : 'ganadas'}`;
+    }
+
+    function finishRound() {
+      isProcessingTrick = true;
+      const won = playerTricksWon > oponentTricksWon;
+
+      if (won) {
+        document.getElementById('trick-status').innerHTML = `🏆 <strong class="text-emerald-400">¡GANASTE LA RONDA (${playerTricksWon} a ${oponentTricksWon})!</strong> Toca 'Repartir' para otra mano.`;
+      } else {
+        document.getElementById('trick-status').innerHTML = `Ronda para el rival (${oponentTricksWon} a ${playerTricksWon}). Toca 'Repartir' para la revancha.`;
+      }
+    }
+
+    window.onload = () => {
+      dealNewRound();
+    };
+  </script>
+</body>
+</html>
