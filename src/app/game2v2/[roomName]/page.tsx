@@ -57,14 +57,21 @@ const evaluatePericonCard = (cardId: number, lifeCardId: number): number => {
     case 0: return 26;  // 1 de Oros
     case 7: return 25;  // 10 de Oros
   }
-  const lifeSuit = Math.floor(lifeCardId / 10);
+  const lifeSuit = lifeCardId >= 0 ? Math.floor(lifeCardId / 10) : -1;
   const cardSuit = Math.floor(cardId / 10);
   const faceNum = (cardId % 10);
   const faceVal = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12][faceNum];
 
-  if (cardSuit === lifeSuit) {
-    if (faceVal === 3) return 28;
-    if (faceVal === 2) return 24;
+  // 3 del palo de la vida (El Gollero)
+  if (lifeSuit >= 0 && cardSuit === lifeSuit && faceVal === 3) return 28;
+
+  // 3 de Oro (Gollero de Oro cuando la vida no es oro)
+  if (cardId === 2 && cardSuit !== lifeSuit) return 23;
+
+  // 2 de la vida
+  if (lifeSuit >= 0 && cardSuit === lifeSuit && faceVal === 2) return 24;
+
+  if (lifeSuit >= 0 && cardSuit === lifeSuit) {
     return 11 + faceVal; // 12 a 23
   }
   return 0; // Carta común
@@ -135,6 +142,8 @@ export default function GameTwoVsTwo() {
 
   // La Vida y Mesa Central
   const [lifeCard, setLifeCard] = useState<Card>({ id: -1, position: -1, suit: '', number: -1, image: '' });
+  const lifeCardRef = useRef<Card>({ id: -1, position: -1, suit: '', number: -1, image: '' });
+  const [disconnectedNotice, setDisconnectedNotice] = useState<string | null>(null);
   const [playedCards, setPlayedCards] = useState<PlayedCard[]>([]);
   const playedCardsRef = useRef<PlayedCard[]>([]);
 
@@ -240,10 +249,12 @@ export default function GameTwoVsTwo() {
     if (!connection) return;
 
     const myName = user?.name && user.name !== 'nulo' ? user.name : 'Jugador';
+    const slotParam = searchParams.get('slot');
+    const preferredSlot = slotParam ? parseInt(slotParam, 10) : -1;
 
     const joinRoom = async () => {
       try {
-        await connection.invoke('JoinRoom2v2', roomName, myName, betAmount);
+        await connection.invoke('JoinRoom2v2', roomName, myName, betAmount, preferredSlot);
       } catch (err) {
         console.error('Error al invocar JoinRoom2v2:', err);
       }
@@ -299,6 +310,34 @@ export default function GameTwoVsTwo() {
       handleRemoteCardPlayed(data.seatIndex, data.cardId);
     });
 
+    // Evento: Resolución autoritativa de la baza desde el servidor
+    connection.on('TrickFinished2v2', (data: any) => {
+      console.log('[TrickFinished2v2 recibido]', data);
+      handleServerTrickFinished(data);
+    });
+
+    // Evento: Desconexión y Reconexión
+    connection.on('PlayerDisconnectedNotice2v2', (data: { seatIndex: number; name: string; message: string }) => {
+      setDisconnectedNotice(data.message);
+      speakPhrase(`${data.name} se ha desconectado. Esperando reconexión.`);
+    });
+
+    connection.on('PlayerReconnectedNotice2v2', (data: { seatIndex: number; name: string; message: string }) => {
+      setDisconnectedNotice(null);
+      speakPhrase(`${data.name} se ha reconectado.`);
+      triggerAnnouncement({
+        type: 'win_round',
+        title: '¡JUGADOR RECONECTADO!',
+        subtitle: `${data.name} ha regresado a la mesa`,
+        badge: 'PARTIDA EN CURSO'
+      }, 2500);
+    });
+
+    connection.on('GameReconnectedState2v2', (data: any) => {
+      console.log('[GameReconnectedState2v2 recibido]', data);
+      handleGameReconnected(data);
+    });
+
     // Eventos de Pedir (3, 6, 9)
     connection.on('StakeAsked2v2', (data: { seatIndex: number; nextStake: number }) => {
       handleRemoteStakeAsked(data.seatIndex, data.nextStake);
@@ -313,11 +352,15 @@ export default function GameTwoVsTwo() {
       connection.off('GameStarted2v2');
       connection.off('NewHandDealt2v2');
       connection.off('CardPlayed2v2');
+      connection.off('TrickFinished2v2');
+      connection.off('PlayerDisconnectedNotice2v2');
+      connection.off('PlayerReconnectedNotice2v2');
+      connection.off('GameReconnectedState2v2');
       connection.off('StakeAsked2v2');
       connection.off('StakeAnswered2v2');
       connection.invoke('LeaveRoom2v2', roomName).catch(() => {});
     };
-  }, [connection, roomName, user]);
+  }, [connection, roomName, user, searchParams]);
 
   // Manejar el inicio formal de la partida
   const handleGameStarted = (data: any) => {
@@ -339,6 +382,7 @@ export default function GameTwoVsTwo() {
 
     setMyCards(hand);
     setLifeCard(life);
+    lifeCardRef.current = life;
     setPartnerCardCount(3);
     setRival1CardCount(3);
     setRival2CardCount(3);
@@ -383,6 +427,7 @@ export default function GameTwoVsTwo() {
 
     setMyCards(hand);
     setLifeCard(life);
+    lifeCardRef.current = life;
     setPartnerCardCount(3);
     setRival1CardCount(3);
     setRival2CardCount(3);
@@ -408,9 +453,87 @@ export default function GameTwoVsTwo() {
     }, 1200);
   };
 
+  // Manejar reconexión a partida activa
+  const handleGameReconnected = (data: any) => {
+    setRoomState(prev => prev ? { ...prev, gameStarted: true } : null);
+    const myIdx = mySeatIndexRef.current >= 0 ? mySeatIndexRef.current : 0;
+    const { hand, life } = parseHandCards(data.initHand, myIdx);
+
+    setLifeCard(life);
+    lifeCardRef.current = life;
+
+    // Descontar cartas jugadas
+    if (data.currentTrick && Array.isArray(data.currentTrick)) {
+      const parsedTrick: PlayedCard[] = data.currentTrick.map((t: any) => ({
+        playerIndex: t.seatIndex,
+        card: Baraja(t.cardId, 0)
+      }));
+      playedCardsRef.current = parsedTrick;
+      setPlayedCards(parsedTrick);
+
+      const myPlayed = data.currentTrick.filter((t: any) => t.seatIndex === myIdx).map((t: any) => t.cardId);
+      setMyCards(hand.filter(c => !myPlayed.includes(c.id)));
+    } else {
+      setMyCards(hand);
+    }
+
+    setPointsTeam1(data.pointsTeam1);
+    setPointsTeam2(data.pointsTeam2);
+    pointsTeam1Ref.current = data.pointsTeam1;
+    pointsTeam2Ref.current = data.pointsTeam2;
+
+    setTricksTeam1(data.tricksTeam1);
+    setTricksTeam2(data.tricksTeam2);
+    tricksTeam1Ref.current = data.tricksTeam1;
+    tricksTeam2Ref.current = data.tricksTeam2;
+
+    setCurrentStake(data.currentStake);
+    currentStakeRef.current = data.currentStake;
+
+    setCurrentTurn(data.currentTurn);
+    currentTurnRef.current = data.currentTurn;
+    leadPlayerRef.current = data.starterPlayer;
+
+    setDisconnectedNotice(null);
+    isProcessingMoveRef.current = false;
+    setIsProcessingMove(false);
+
+    triggerAnnouncement({
+      type: 'win_round',
+      title: '¡RECONEXIÓN EXITOSA!',
+      subtitle: 'Partida restaurada exactamente donde quedó',
+      badge: 'CONTINÚA EL JUEGO'
+    }, 2500);
+  };
+
   // Lanzar carta del jugador humano local
   const handlePlayMyCard = (card: Card) => {
     if (currentTurnRef.current !== mySeatIndexRef.current || isProcessingMoveRef.current || isCleaningTable) return;
+
+    // Regla del Pelao: Si salieron con un triunfo y poseemos triunfos en la mano, obligatorio tirar triunfo
+    if (playedCardsRef.current.length > 0) {
+      const leadCardId = playedCardsRef.current[0].card.id;
+      const lifeId = lifeCardRef.current.id;
+      const isLeadTrump = evaluatePericonCard(leadCardId, lifeId) >= 11;
+      const playerHasTrump = myCards.some(c => evaluatePericonCard(c.id, lifeId) >= 11);
+      const isSelectedTrump = evaluatePericonCard(card.id, lifeId) >= 11;
+
+      if (isLeadTrump && playerHasTrump && !isSelectedTrump) {
+        speakPhrase("¡Regla del Pelao! Debes lanzar un triunfo.");
+        vibrateDevice('reject');
+        playSynthSound('reject');
+        Swal.fire({
+          title: "¡REGLA DEL PELAO!",
+          text: "Salieron con un triunfo en esta baza. ¡Estás obligado a tirar un triunfo de tu mano!",
+          icon: "warning",
+          confirmButtonText: "Entendido",
+          confirmButtonColor: "#f59e0b",
+          background: "#1a0e06",
+          color: "#fff"
+        });
+        return;
+      }
+    }
 
     isProcessingMoveRef.current = true;
     setIsProcessingMove(true);
@@ -459,9 +582,17 @@ export default function GameTwoVsTwo() {
         }, 1200);
       }
     } else {
-      // Se completaron las 4 cartas en la mesa: EVALUAR BAZA
+      // Se completaron las 4 cartas en la mesa: resolución local con lifeCardRef
       finishTrick(playedCardsRef.current);
     }
+  };
+
+  // Manejar resolución autoritativa de la baza enviada por el servidor
+  const handleServerTrickFinished = (res: any) => {
+    setTricksTeam1(res.tricksTeam1);
+    setTricksTeam2(res.tricksTeam2);
+    tricksTeam1Ref.current = res.tricksTeam1;
+    tricksTeam2Ref.current = res.tricksTeam2;
   };
 
   // Evaluar baza completa de 4 cartas
@@ -471,11 +602,12 @@ export default function GameTwoVsTwo() {
 
     const leadCardId = fourCards[0].card.id;
     let winningItem = fourCards[0];
+    const currentLifeId = lifeCardRef.current.id;
 
     for (let i = 1; i < fourCards.length; i++) {
       const bestId = winningItem.card.id;
       const candId = fourCards[i].card.id;
-      if (doesCandidateBeatBest(bestId, candId, leadCardId, lifeCard.id)) {
+      if (doesCandidateBeatBest(bestId, candId, leadCardId, currentLifeId)) {
         winningItem = fourCards[i];
       }
     }
@@ -765,6 +897,48 @@ export default function GameTwoVsTwo() {
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
   };
 
+  // Copiar enlace con puesto/rol específico asignado
+  const handleCopySlotLink = (slotIndex: number, roleName: string) => {
+    if (typeof window === 'undefined') return;
+    const origin = window.location.origin;
+    const path = window.location.pathname;
+    const link = `${origin}${path}?slot=${slotIndex}`;
+
+    navigator.clipboard.writeText(link).then(() => {
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: `¡Link para ${roleName} copiado!`,
+        text: `Pásale este enlace para que tome el puesto de ${roleName}.`,
+        showConfirmButton: false,
+        timer: 3500,
+        background: '#1a0e06',
+        color: '#fff'
+      });
+    });
+  };
+
+  // Compartir por WhatsApp con puesto/rol asignado
+  const handleShareSlotWhatsApp = (slotIndex: number, roleName: string) => {
+    if (typeof window === 'undefined') return;
+    const origin = window.location.origin;
+    const path = window.location.pathname;
+    const link = `${origin}${path}?slot=${slotIndex}`;
+    const text = `¡Únete a mi mesa de Pericón 2 vs 2 como mi ${roleName}!\nEntra directo aquí: ${link}`;
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+  };
+
+  // Cambiar de asiento en la sala de espera
+  const handleSwitchSeat = async (targetSeat: number) => {
+    if (!connection) return;
+    try {
+      await connection.invoke('SwitchSeat2v2', roomName, targetSeat);
+    } catch (err) {
+      console.error('Error al cambiar de asiento:', err);
+    }
+  };
+
   const isMatchmaking = roomName.startsWith('match-') || searchParams.get('match') === 'auto';
   const isGameRunning = roomState?.gameStarted === true;
   const connectedCount = roomState?.seats?.length || 0;
@@ -839,7 +1013,13 @@ export default function GameTwoVsTwo() {
         </div>
       </header>
 
-      {/* 2. LOBBY DE ESPERA (OVERLAY CUANDO HAY MENOS DE 4 JUGADORES) */}
+      {/* ALERTA FLOTANTE DE DESCONEXIÓN */}
+      {disconnectedNotice && (
+        <div className="w-full bg-amber-500 text-black px-4 py-2 font-black text-xs sm:text-sm flex items-center justify-center gap-2 shadow-lg z-30 animate-pulse border-b border-amber-600">
+          <span>⚠️ {disconnectedNotice}</span>
+        </div>
+      )}
+
       {/* 2. LOBBY DE ESPERA (OVERLAY CUANDO HAY MENOS DE 4 JUGADORES) */}
       {!isGameRunning && (
         <div className="fixed inset-0 z-40 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
@@ -941,36 +1121,73 @@ export default function GameTwoVsTwo() {
                   <span className="text-amber-400 font-extrabold">{connectedCount} de 4 Conectados</span>
                 </div>
 
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                   {[0, 1, 2, 3].map((seatIdx) => {
                     const seat = roomState?.seats?.find(s => s.seatIndex === seatIdx);
                     const isTeam1 = seatIdx === 0 || seatIdx === 2;
                     const isMe = seatIdx === mySeatIndex;
+                    const roleTitle = seatIdx === 0 ? 'Capitán' : (seatIdx === 2 ? 'Tu Compañero' : (seatIdx === 1 ? 'Rival 1' : 'Rival 2'));
+                    const roleTeam = isTeam1 ? 'Equipo 1 (Azul)' : 'Equipo 2 (Rojo)';
 
                     return (
                       <div
                         key={seatIdx}
-                        className={`p-2.5 rounded-2xl border flex items-center gap-2 text-left transition ${
+                        className={`p-3 rounded-2xl border flex flex-col justify-between gap-2 text-left transition ${
                           seat
-                            ? (isTeam1 ? 'bg-blue-950/60 border-blue-500/50 text-blue-100' : 'bg-red-950/60 border-red-500/50 text-red-100')
-                            : 'bg-black/40 border-dashed border-slate-800 text-slate-500'
+                            ? (isTeam1 ? 'bg-blue-950/60 border-blue-500/50 text-blue-100 shadow-md shadow-blue-950/40' : 'bg-red-950/60 border-red-500/50 text-red-100 shadow-md shadow-red-950/40')
+                            : 'bg-black/40 border-dashed border-slate-700 text-slate-400'
                         }`}
                       >
-                        <div className={`w-7 h-7 rounded-xl flex items-center justify-center text-xs font-black shrink-0 ${
-                          seat
-                            ? (isTeam1 ? 'bg-blue-600 text-white' : 'bg-red-600 text-white')
-                            : 'bg-slate-800 text-slate-600'
-                        }`}>
-                          {seat ? (isTeam1 ? '🛡️' : '⚔️') : '⏳'}
+                        <div className="flex items-center gap-2.5">
+                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm font-black shrink-0 ${
+                            seat
+                              ? (isTeam1 ? 'bg-blue-600 text-white shadow' : 'bg-red-600 text-white shadow')
+                              : 'bg-slate-800 text-slate-400'
+                          }`}>
+                            {seat ? (isTeam1 ? '🛡️' : '⚔️') : '⏳'}
+                          </div>
+                          <div className="truncate flex-1 leading-tight">
+                            <span className="text-xs font-extrabold block truncate">
+                              {seat ? `${seat.name} ${isMe ? '(Tú)' : ''}` : `Esperando ${roleTitle}...`}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-semibold block">
+                              {roleTitle} • {roleTeam}
+                            </span>
+                          </div>
                         </div>
-                        <div className="truncate flex-1 leading-tight">
-                          <span className="text-xs font-extrabold block truncate">
-                            {seat ? `${seat.name} ${isMe ? '(Tú)' : ''}` : `Esperando ${seatIdx === 1 ? 'Rival 1' : (seatIdx === 2 ? 'Compañero' : 'Rival 2')}...`}
-                          </span>
-                          <span className="text-[9px] text-slate-400 font-semibold block">
-                            {isTeam1 ? 'Equipo 1 (Azul)' : 'Equipo 2 (Rojo)'}
-                          </span>
-                        </div>
+
+                        {!seat && (
+                          <div className="flex items-center gap-1.5 pt-1 border-t border-white/5">
+                            <button
+                              type="button"
+                              onClick={() => handleCopySlotLink(seatIdx, roleTitle)}
+                              className="flex-1 bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/40 text-amber-300 py-1 px-2 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition active:scale-95"
+                              title={`Copiar enlace directo para ${roleTitle}`}
+                            >
+                              <Copy size={11} />
+                              <span>Copiar Link</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleShareSlotWhatsApp(seatIdx, roleTitle)}
+                              className="bg-emerald-600/30 hover:bg-emerald-600/40 border border-emerald-500/40 text-emerald-300 py-1 px-2 rounded-lg text-[10px] font-bold flex items-center justify-center gap-1 transition active:scale-95"
+                              title={`Enviar por WhatsApp para ${roleTitle}`}
+                            >
+                              <Share2 size={11} />
+                              <span>WhatsApp</span>
+                            </button>
+                            {mySeatIndex !== seatIdx && (
+                              <button
+                                type="button"
+                                onClick={() => handleSwitchSeat(seatIdx)}
+                                className="bg-blue-600/30 hover:bg-blue-600/40 border border-blue-500/40 text-blue-300 py-1 px-2 rounded-lg text-[10px] font-bold transition active:scale-95"
+                                title="Moverme a este puesto"
+                              >
+                                Sentarme
+                              </button>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })}
@@ -1185,19 +1402,56 @@ export default function GameTwoVsTwo() {
         </div>
 
         {/* ABAJO: PUESTO 0 - TÚ (EQUIPO 1 - AZUL) Y CONTROLES */}
-        <div className="w-full flex flex-col items-center justify-center relative z-20">
+        <div className="w-full flex flex-col items-center justify-center relative z-20 mt-auto pb-1">
           
-          {/* Banner de Turno */}
-          <div className="mb-1">
-            {currentTurn === mySeatIndex ? (
-              <span className="bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-black text-xs sm:text-sm px-4 py-1 rounded-full shadow-lg shadow-yellow-500/30 ring-1 ring-yellow-300">
-                👉 ¡ES TU TURNO DE TIRAR CARTA!
+          {/* Barra de Acciones del Jugador: Identidad, Estado de Turno y Botón de PEDIR (Directamente visible SOBRE las cartas) */}
+          <div className="w-full max-w-md flex items-center justify-between gap-2 mb-1.5 px-2">
+            
+            {/* Identidad del Jugador Local */}
+            <div className="flex items-center gap-1.5 sm:gap-2 bg-blue-950/80 border border-blue-500/50 px-2.5 py-1 sm:py-1.5 rounded-2xl shadow">
+              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-blue-600 text-white font-black text-xs flex items-center justify-center border border-blue-200">
+                🛡️
+              </div>
+              <div className="text-left leading-tight">
+                <span className="text-xs font-bold text-blue-100 block max-w-[90px] sm:max-w-[120px] truncate">
+                  {user?.name && user.name !== 'nulo' ? user.name : 'Tú'}
+                </span>
+                <span className="text-[8px] sm:text-[9px] text-blue-300 block font-semibold">
+                  {(mySeatIndex === 0 || mySeatIndex === 2) ? 'Equipo 1 (Azul)' : 'Equipo 2 (Rojo)'}
+                </span>
+              </div>
+            </div>
+
+            {/* Banner de Turno Compacto y Destacado */}
+            <div className="flex-1 flex justify-center">
+              {currentTurn === mySeatIndex ? (
+                <span className="bg-gradient-to-r from-amber-500 to-yellow-400 text-black font-black text-[11px] sm:text-xs px-3 py-1 rounded-full shadow-lg shadow-yellow-500/30 ring-1 ring-yellow-300 animate-pulse whitespace-nowrap">
+                  👉 ¡TU TURNO!
+                </span>
+              ) : (
+                <span className="bg-black/60 border border-slate-700 text-slate-300 font-bold text-[10px] sm:text-xs px-2.5 py-1 rounded-full truncate max-w-[130px]">
+                  Turno: <strong className="text-amber-300">{players[currentTurn]?.name || 'Jugador'}</strong>
+                </span>
+              )}
+            </div>
+
+            {/* Botón de PEDIR (3, 6, 9) - SIEMPRE VISIBLE EN LA ZONA DE JUEGO */}
+            <button
+              type="button"
+              onClick={handlePedirClick}
+              disabled={currentStake >= 9 || isProcessingMove || isCleaningTable}
+              className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-2xl font-black text-xs sm:text-sm uppercase tracking-wider flex items-center gap-1.5 border-2 transition-all shadow-xl active:scale-95 shrink-0 ${
+                currentStake >= 9
+                  ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
+                  : 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black border-yellow-200 hover:brightness-110 shadow-yellow-500/25 cursor-pointer'
+              } ${fonts.bowlbyOneSC.className}`}
+            >
+              <span>🔥 PEDIR</span>
+              <span className="text-[10px] bg-black text-yellow-300 px-1.5 py-0.5 rounded-md font-extrabold">
+                {currentStake === 1 ? '3' : (currentStake === 3 ? '6' : '9')}
               </span>
-            ) : (
-              <span className="bg-black/60 border border-slate-700 text-slate-300 font-bold text-[11px] sm:text-xs px-3 py-0.5 rounded-full">
-                Turno de: <strong className="text-amber-300">{players[currentTurn]?.name || 'Jugador'}</strong>
-              </span>
-            )}
+            </button>
+
           </div>
 
           {/* Tus Cartas en Abanico Interactivo (SIN PARPADEO) */}
@@ -1223,41 +1477,6 @@ export default function GameTwoVsTwo() {
                 </button>
               );
             })}
-          </div>
-
-          {/* Barra de Acciones del Jugador */}
-          <div className="w-full max-w-md flex items-center justify-between gap-2 mt-1 px-2">
-            
-            {/* Identidad del Jugador Local */}
-            <div className="flex items-center gap-2 bg-blue-950/70 border border-blue-500/40 px-3 py-1.5 rounded-2xl">
-              <div className="w-7 h-7 rounded-full bg-blue-600 text-white font-black text-xs flex items-center justify-center border border-blue-200">
-                🛡️
-              </div>
-              <div className="text-left leading-tight">
-                <span className="text-xs font-bold text-blue-100">{user?.name && user.name !== 'nulo' ? user.name : 'Tú'}</span>
-                <span className="text-[9px] text-blue-300 block font-semibold">
-                  {(mySeatIndex === 0 || mySeatIndex === 2) ? 'Equipo 1 (Azul)' : 'Equipo 2 (Rojo)'}
-                </span>
-              </div>
-            </div>
-
-            {/* Botón de PEDIR (3, 6, 9) */}
-            <button
-              type="button"
-              onClick={handlePedirClick}
-              disabled={currentStake >= 9 || isProcessingMove || isCleaningTable}
-              className={`px-4 py-2 rounded-2xl font-black text-xs sm:text-sm uppercase tracking-wider flex items-center gap-1.5 border-2 transition-all shadow-xl active:scale-95 ${
-                currentStake >= 9
-                  ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black border-yellow-200 hover:brightness-110 shadow-yellow-500/25 cursor-pointer'
-              } ${fonts.bowlbyOneSC.className}`}
-            >
-              <span>🔥 PEDIR</span>
-              <span className="text-[10px] bg-black text-yellow-300 px-1.5 py-0.5 rounded-md font-extrabold">
-                {currentStake === 1 ? '3' : (currentStake === 3 ? '6' : '9')}
-              </span>
-            </button>
-
           </div>
 
         </div>
