@@ -139,10 +139,10 @@ export default function SignUp() {
         </Link>
 
         <div className="flex flex-col justify-center h-full mb-2">
-          <div className="flex justify-center mt-4">
+          <div className="flex justify-center mt-3 bg-black/75 backdrop-blur-md border border-amber-500/40 rounded-3xl p-6 shadow-2xl shadow-black/80 w-full max-w-[340px] mx-auto">
 
             <Form {...form}>
-              <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+              <form onSubmit={handleSubmit(onSubmit)} className="space-y-3.5 w-full">
                 {serverError && (
                   <div className="bg-red-950/80 border border-red-500 text-red-200 text-xs px-3 py-2 rounded-lg text-center">
                     {serverError}
@@ -229,11 +229,11 @@ export default function SignUp() {
                   )}
                 />
 
-                <div className="flex justify-center">
+                <div className="flex justify-center pt-2">
                   <Button type="submit"
                     disabled={loading}
-                    className="xl:w-[230px] bg-gradient-to-tr rounded-xl from-yellow-950 to-yellow-700 pl-6 pr-6 text-white shadow-lg disabled:opacity-50 font-bold"
-                  >{loading ? "Registrando..." : "Registrar"}</Button>
+                    className="w-full bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-slate-950 font-black shadow-xl shadow-amber-500/30 border-2 border-yellow-100 rounded-2xl py-3.5 text-base tracking-wider disabled:opacity-50 hover:scale-[1.02] active:scale-95 transition-all"
+                  >{loading ? "REGISTRANDO..." : "REGISTRAR"}</Button>
                 </div>
               </form>
             </Form>

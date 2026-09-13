@@ -92,59 +92,68 @@ export default function Home() {
           </p>
         </div>
 
-        {/* User Session Info / Action Buttons */}
-        <div className="pt-4 flex flex-col items-center gap-3 w-full max-w-[280px]">
+        {/* User Session Info / Action Buttons con Alta Presencia */}
+        <div className="mt-4 flex flex-col items-center gap-3 w-full max-w-[320px] bg-black/75 backdrop-blur-md border-2 border-amber-500/40 rounded-3xl p-5 shadow-2xl shadow-black/80">
           {isLoggedIn ? (
             <>
-              <div className="bg-black/40 border border-amber-500/40 rounded-xl px-4 py-2 text-center text-white w-full backdrop-blur-sm shadow-md">
-                <p className="text-xs text-amber-300 font-medium uppercase tracking-wider">Sesión iniciada</p>
-                <p className={`${fonts.bowlbyOneSC.className} text-lg text-white font-bold`}>{player.name}</p>
-                <p className="text-xs text-amber-200 mt-0.5">🪙 {player.coins} monedas</p>
+              <div className="bg-[#18131e]/90 border border-amber-500/50 rounded-2xl px-4 py-2.5 text-center text-white w-full shadow-inner">
+                <p className="text-[10px] sm:text-xs text-amber-300 font-bold uppercase tracking-wider flex items-center justify-center gap-1">
+                  <span>🤠</span>
+                  <span>Sesión iniciada</span>
+                </p>
+                <p className={`${fonts.bowlbyOneSC.className} text-xl text-white font-black tracking-wide mt-0.5`}>{player.name}</p>
+                <p className="text-xs text-amber-300 font-extrabold mt-0.5">🪙 {player.coins.toLocaleString()} monedas</p>
               </div>
 
               <Button
                 type="button"
                 onClick={() => router.push("/desk")}
-                className={`${fonts.bowlbyOneSC.className} z-30 w-full bg-gradient-to-tr from-yellow-950 to-yellow-700 py-3 text-white shadow-lg rounded-xl text-base hover:brightness-110 transition`}>
-                <span className="animate-blink">Jugar Ahora</span>
+                className={`${fonts.bowlbyOneSC.className} z-30 w-full bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 py-3.5 text-slate-950 font-black shadow-xl shadow-amber-500/30 rounded-2xl text-base border-2 border-yellow-100 hover:scale-[1.02] active:scale-95 transition-all`}>
+                <span className="flex items-center justify-center gap-2">
+                  <span>JUGAR AHORA</span>
+                  <span>➜</span>
+                </span>
               </Button>
 
               <button
                 onClick={handleLogout}
-                className="text-xs text-amber-300/80 hover:text-white underline cursor-pointer transition mt-1">
+                className="text-xs text-amber-300/80 hover:text-white underline cursor-pointer transition">
                 Cerrar sesión
               </button>
             </>
           ) : (
             <>
+              {/* Botón Principal Iniciar Sesión: Dorado brillante con alto contraste */}
               <Button
                 type="button"
                 onClick={() => router.push("/iniciar-sesion")}
-                className={`${fonts.bowlbyOneSC.className} z-30 w-full bg-gradient-to-tr from-yellow-950 to-yellow-700 py-3 text-white shadow-lg rounded-xl text-sm hover:brightness-110 transition`}>
-                Iniciar Sesión
+                className={`${fonts.bowlbyOneSC.className} z-30 w-full bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 py-3.5 text-slate-950 font-black shadow-xl shadow-amber-500/40 rounded-2xl text-sm sm:text-base border-2 border-yellow-100 tracking-wider hover:scale-[1.02] active:scale-95 transition-all`}>
+                INICIAR SESIÓN
               </Button>
 
+              {/* Botón Crear Cuenta Nueva: Verde esmeralda vivo con borde brillante */}
               <Button
                 type="button"
                 onClick={() => router.push("/registro")}
-                className="w-full bg-black/40 border border-amber-600/60 hover:bg-black/60 text-amber-200 py-2.5 rounded-xl text-sm font-semibold transition shadow">
+                className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 border-2 border-emerald-300/60 text-white py-3 rounded-2xl text-sm font-extrabold shadow-lg shadow-emerald-600/30 tracking-wide hover:scale-[1.02] active:scale-95 transition-all">
                 Crear Cuenta Nueva
               </Button>
 
               <div className="flex items-center gap-2 my-0.5 w-full justify-center">
-                <span className="h-px bg-white/20 flex-1"></span>
-                <span className="text-[11px] text-amber-200/60 uppercase">o con</span>
-                <span className="h-px bg-white/20 flex-1"></span>
+                <span className="h-px bg-amber-500/40 flex-1"></span>
+                <span className="text-[10px] text-amber-300/90 uppercase font-bold tracking-widest">o con</span>
+                <span className="h-px bg-amber-500/40 flex-1"></span>
               </div>
 
-              <div className="flex justify-center -my-1">
+              <div className="flex justify-center w-full">
                 <GoogleButton />
               </div>
 
               <button
                 onClick={handleGuestPlay}
-                className="text-xs text-white/70 hover:text-white underline cursor-pointer transition mt-0.5">
-                Jugar como Invitado
+                className="w-full py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/25 text-xs text-white font-bold transition flex items-center justify-center gap-1.5 hover:scale-[1.02] active:scale-95">
+                <span>🎲</span>
+                <span>Jugar como Invitado (50 🪙)</span>
               </button>
             </>
           )}
