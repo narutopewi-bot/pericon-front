@@ -1131,49 +1131,80 @@ export default function GameTwoVsTwo() {
   const connectedCount = roomState?.seats?.length || 0;
 
   return (
-    <main className="min-h-screen w-full bg-gradient-to-b from-[#140a04] via-[#0b0502] to-[#040201] text-white flex flex-col relative overflow-hidden select-none">
+    <main className="h-[100dvh] max-h-[100dvh] w-full bg-gradient-to-b from-[#140a04] via-[#0b0502] to-[#040201] text-white flex flex-col relative overflow-hidden select-none">
       
       {/* 1. BARRA SUPERIOR (HEADER GAMER) */}
-      <header className="w-full bg-black/80 backdrop-blur-md border-b border-amber-500/30 px-3 py-2 sm:px-6 flex items-center justify-between z-30 shadow-lg">
-        <div className="flex items-center gap-2">
+      <header className="w-full bg-black/80 backdrop-blur-md border-b border-amber-500/30 px-2 py-1.5 sm:px-6 sm:py-2 flex items-center justify-between z-30 shadow-lg shrink-0">
+        {/* Izquierda: Logo y Código de sala */}
+        <div className="flex items-center gap-1.5 shrink-0">
           <Link href="/desk" className="flex items-center gap-1 hover:opacity-80 transition">
-            <Image src="/logo.svg" alt="Pericón" width={110} height={32} className="w-20 sm:w-28 object-contain" />
+            <Image src="/logo.svg" alt="Pericón" width={110} height={32} className="w-16 sm:w-24 object-contain" />
           </Link>
           <span className="hidden sm:inline-block text-[10px] font-black uppercase tracking-widest bg-purple-900/60 border border-purple-500/50 text-purple-200 px-2 py-0.5 rounded-md">
             {isMatchmaking ? 'DUELO 2 VS 2' : 'SALA PRIVADA'}
           </span>
-          <span className="text-[11px] font-mono text-amber-300 bg-amber-950/60 border border-amber-500/30 px-2 py-0.5 rounded-md font-bold">
+          <span className="hidden md:inline-block text-[11px] font-mono text-amber-300 bg-amber-950/60 border border-amber-500/30 px-2 py-0.5 rounded-md font-bold">
             {roomName}
           </span>
         </div>
 
-        {/* Marcador de Piedras Central */}
-        <div className="flex items-center gap-2 sm:gap-4">
-          <Stone
-            stoneone={pointsTeam1}
-            stonetwo={pointsTeam2}
-            isTumbaOne={pointsTeam1 >= 9 || (isTumbaDeParaAtrasT1 && pointsTeam1 === 8)}
-            isTumbaTwo={pointsTeam2 >= 9 || (isTumbaDeParaAtrasT2 && pointsTeam2 === 8)}
-          />
+        {/* Centro: Marcador de Piedras 2 vs 2 Claro y Legible (100% Visible en Celular) */}
+        <div className="flex items-center justify-center shrink-0">
+          <div className="flex items-center gap-1 sm:gap-2.5 bg-gradient-to-r from-blue-950/90 via-black/95 to-red-950/90 border-2 border-amber-500/60 px-2 sm:px-3.5 py-0.5 sm:py-1 rounded-xl sm:rounded-2xl shadow-xl shadow-black/60">
+            {/* Equipo 1 - Azul (Nosotros) */}
+            <div className="flex items-center gap-1">
+              <span className="w-2.5 h-2.5 rounded-full bg-blue-500 shadow-sm shadow-blue-400 shrink-0"></span>
+              <span className="text-[9px] sm:text-xs font-black text-blue-200 uppercase hidden xs:inline">Azul</span>
+              <span className="text-xs sm:text-sm font-black text-blue-300 bg-blue-900/70 px-1.5 sm:px-2 py-0.5 rounded-md border border-blue-400/50 min-w-[20px] text-center">
+                {pointsTeam1}
+              </span>
+            </div>
+
+            {/* Separador Piedras */}
+            <div className="flex items-center gap-0.5 sm:gap-1 px-1 sm:px-1.5 border-x border-amber-500/30 text-center">
+              <span className="text-xs sm:text-sm">🪨</span>
+              <span className="text-[8px] sm:text-[10px] text-amber-300/80 font-bold uppercase hidden md:inline">Piedras</span>
+            </div>
+
+            {/* Equipo 2 - Rojo (Rivales) */}
+            <div className="flex items-center gap-1">
+              <span className="text-xs sm:text-sm font-black text-red-300 bg-red-900/70 px-1.5 sm:px-2 py-0.5 rounded-md border border-red-400/50 min-w-[20px] text-center">
+                {pointsTeam2}
+              </span>
+              <span className="text-[9px] sm:text-xs font-black text-red-200 uppercase hidden xs:inline">Rojo</span>
+              <span className="w-2.5 h-2.5 rounded-full bg-red-500 shadow-sm shadow-red-400 shrink-0"></span>
+            </div>
+
+            {/* Indicador de Tumba / Obligado */}
+            {((pointsTeam1 >= 9 || (isTumbaDeParaAtrasT1 && pointsTeam1 === 8)) && (pointsTeam2 >= 9 || (isTumbaDeParaAtrasT2 && pointsTeam2 === 8))) ? (
+              <span className="bg-red-600 text-white text-[7.5px] sm:text-[9px] font-black px-1.5 py-0.5 rounded-full animate-pulse ml-0.5">
+                OBLIGADO
+              </span>
+            ) : ((pointsTeam1 >= 9 || (isTumbaDeParaAtrasT1 && pointsTeam1 === 8)) || (pointsTeam2 >= 9 || (isTumbaDeParaAtrasT2 && pointsTeam2 === 8))) ? (
+              <span className="bg-amber-500 text-black text-[7.5px] sm:text-[9px] font-black px-1.5 py-0.5 rounded-full animate-bounce ml-0.5">
+                TUMBA
+              </span>
+            ) : null}
+          </div>
         </div>
 
-        {/* Pote, Compartir y Salir */}
-        <div className="flex items-center gap-1.5 sm:gap-2">
+        {/* Derecha: Pote, Compartir y Salir */}
+        <div className="flex items-center gap-1 sm:gap-2 shrink-0">
           {!isMatchmaking && (
             <button
               type="button"
               onClick={handleCopyShareLink}
-              className="bg-purple-950/80 hover:bg-purple-800 border border-purple-500/50 text-purple-200 px-2.5 py-1 rounded-xl flex items-center gap-1 text-xs font-bold transition active:scale-95 shadow"
+              className="w-7 h-7 sm:w-auto sm:px-2.5 sm:py-1 rounded-lg sm:rounded-xl bg-purple-950/80 hover:bg-purple-800 border border-purple-500/50 text-purple-200 flex items-center justify-center gap-1 text-xs font-bold transition active:scale-95 shadow"
               title="Copiar Link de la Sala"
             >
-              {copiedLink ? <Check size={14} className="text-green-400" /> : <Copy size={14} />}
+              {copiedLink ? <Check size={13} className="text-green-400" /> : <Copy size={13} />}
               <span className="hidden sm:inline">Invitar</span>
             </button>
           )}
 
-          <div className="bg-amber-950/70 border border-amber-500/50 px-2.5 py-1 rounded-xl flex items-center gap-1 shadow">
-            <span className="text-xs">🪙</span>
-            <span className="text-xs sm:text-sm font-black text-amber-300">{betAmount * 4}</span>
+          <div className="bg-amber-950/70 border border-amber-500/50 px-2 py-0.5 sm:py-1 rounded-lg sm:rounded-xl flex items-center gap-1 shadow">
+            <span className="text-[11px] sm:text-xs">🪙</span>
+            <span className="text-[11px] sm:text-sm font-black text-amber-300">{betAmount * 4}</span>
           </div>
 
           <button
@@ -1192,7 +1223,7 @@ export default function GameTwoVsTwo() {
                 if (res.isConfirmed) router.push('/desk');
               });
             }}
-            className="w-8 h-8 rounded-xl bg-red-950/80 hover:bg-red-700 border border-red-500/40 flex items-center justify-center text-white text-xs font-bold transition active:scale-95"
+            className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-red-950/80 hover:bg-red-700 border border-red-500/40 flex items-center justify-center text-white text-xs font-bold transition active:scale-95"
             title="Salir"
           >
             🚪
@@ -1402,16 +1433,16 @@ export default function GameTwoVsTwo() {
       )}
 
       {/* 3. TABLERO DE JUEGO (MESA EN CRUZ 2 VS 2) */}
-      <div className="flex-1 w-full max-w-5xl mx-auto flex flex-col justify-between p-2 sm:p-4 relative">
+      <div className="flex-1 w-full max-w-5xl mx-auto flex flex-col justify-between px-1 sm:px-4 py-0.5 sm:py-2 relative overflow-hidden">
         
         {/* ARRIBA: PUESTO 2 - COMPAÑERO (EQUIPO 1 - AZUL) */}
         <div className="w-full flex flex-col items-center justify-center relative z-10 shrink-0">
           <div className="bg-gradient-to-r from-blue-950/90 to-sky-950/90 border-2 border-blue-400/60 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-xl sm:rounded-2xl flex items-center gap-1.5 sm:gap-2 shadow-lg shadow-blue-500/20">
-            <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-[9px] sm:text-[10px] font-black border border-blue-200 shrink-0">
+            <div className="w-4 h-4 sm:w-6 sm:h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-[8px] sm:text-[10px] font-black border border-blue-200 shrink-0">
               🤝
             </div>
             <div className="text-left leading-tight">
-              <span className="text-[11px] sm:text-xs font-bold text-blue-100 block max-w-[110px] sm:max-w-none truncate">{players[2].name}</span>
+              <span className="text-[10px] sm:text-xs font-bold text-blue-100 block max-w-[110px] sm:max-w-none truncate">{players[2].name}</span>
               <span className="text-[7px] sm:text-[8px] text-blue-300 uppercase font-black">Compañero (Azul)</span>
             </div>
             {currentTurn === 2 && (
@@ -1431,9 +1462,9 @@ export default function GameTwoVsTwo() {
           )}
 
           {/* Cartas ocultas del Compañero */}
-          <div className="flex items-center -space-x-3 sm:-space-x-4 mt-0.5 sm:mt-1">
+          <div className="flex items-center -space-x-2.5 sm:-space-x-4 mt-0.5">
             {Array.from({ length: partnerCardCount }).map((_, i) => (
-              <div key={i} className="w-7 h-10 sm:w-12 sm:h-16 rounded-md sm:rounded-lg overflow-hidden border border-blue-400/40 shadow">
+              <div key={i} className="w-6 h-8 sm:w-12 sm:h-16 rounded sm:rounded-lg overflow-hidden border border-blue-400/40 shadow">
                 <img src="/card_back.png" alt="Carta" className="w-full h-full object-cover" />
               </div>
             ))}
@@ -1441,7 +1472,7 @@ export default function GameTwoVsTwo() {
         </div>
 
         {/* FILA MEDIA: RIVAL 1 (IZQ), TAPETE CENTRAL (4 CARTAS), RIVAL 2 (DER) */}
-        <div className="w-full flex items-center justify-between relative my-auto gap-0.5 sm:gap-2">
+        <div className="w-full flex items-center justify-between relative my-auto gap-0.5 sm:gap-2 shrink-0">
           
           {/* IZQUIERDA: PUESTO 1 - RIVAL 1 (EQUIPO 2 - ROJO) */}
           <div className="flex flex-col items-center justify-center z-10 w-12 sm:w-24 shrink-0 relative">
@@ -1466,8 +1497,8 @@ export default function GameTwoVsTwo() {
             </div>
 
             {/* Cartas ocultas de Rival 1: En móvil tarjeta compacta con contador, en desktop abanico */}
-            <div className="mt-1 sm:hidden relative">
-              <div className="w-7 h-10 rounded-md overflow-hidden border border-red-500/40 shadow">
+            <div className="mt-0.5 sm:hidden relative">
+              <div className="w-6 h-8 rounded overflow-hidden border border-red-500/40 shadow">
                 <img src="/card_back.png" alt="Carta" className="w-full h-full object-cover" />
               </div>
               <span className="absolute -bottom-1 -right-1 bg-red-600 text-white text-[8px] font-black px-1 rounded-full border border-red-300 shadow leading-tight">
@@ -1484,7 +1515,7 @@ export default function GameTwoVsTwo() {
           </div>
 
           {/* TAPETE VERDE CENTRAL: 4 CARTAS EN MESA BIEN DISTRIBUIDAS */}
-          <div className="flex-1 mx-0.5 sm:mx-3 min-h-[240px] sm:min-h-[300px] rounded-2xl sm:rounded-3xl bg-gradient-to-b from-[#1b4332] via-[#2d6a4f] to-[#1b4332] border-2 sm:border-4 border-amber-600/60 shadow-2xl shadow-green-950/60 flex flex-col items-center justify-between p-1.5 sm:p-3.5 relative overflow-hidden">
+          <div className="flex-1 mx-0.5 sm:mx-3 min-h-[165px] xs:min-h-[185px] sm:min-h-[280px] max-h-[225px] sm:max-h-none rounded-2xl sm:rounded-3xl bg-gradient-to-b from-[#1b4332] via-[#2d6a4f] to-[#1b4332] border-2 sm:border-4 border-amber-600/60 shadow-2xl shadow-green-950/60 flex flex-col items-center justify-between p-1.5 sm:p-3 relative overflow-hidden">
             
             {/* Resplandor ambiental de tapete */}
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-emerald-500/10 via-transparent to-black/30 pointer-events-none" />
@@ -1497,7 +1528,7 @@ export default function GameTwoVsTwo() {
                   <span className="hidden sm:block text-[7.5px] text-slate-300 font-semibold mt-0.5">Triunfo</span>
                 </div>
                 {lifeCard.id >= 0 && (
-                  <div className="w-6 h-9 sm:w-9 sm:h-13 rounded sm:rounded-md overflow-hidden border border-amber-400 shadow transform rotate-3 shrink-0">
+                  <div className="w-5 h-8 sm:w-9 sm:h-13 rounded sm:rounded-md overflow-hidden border border-amber-400 shadow transform rotate-3 shrink-0">
                     <img src={lifeCard.image} alt="Vida" className="w-full h-full object-cover" />
                   </div>
                 )}
@@ -1522,7 +1553,7 @@ export default function GameTwoVsTwo() {
                 return (
                   <div key={pIdx} className="flex flex-col items-center transition-all duration-300">
                     {/* Ranura de la Carta */}
-                    <div className={`w-[42px] h-[64px] xs:w-[48px] xs:h-[72px] sm:w-[68px] sm:h-[98px] rounded-lg sm:rounded-xl overflow-hidden border-2 flex items-center justify-center transition-all duration-300 ${
+                    <div className={`w-[40px] h-[60px] xs:w-[46px] xs:h-[68px] sm:w-[68px] sm:h-[98px] rounded-lg sm:rounded-xl overflow-hidden border-2 flex items-center justify-center transition-all duration-300 ${
                       playedItem
                         ? (isWinner
                             ? 'border-yellow-400 ring-2 sm:ring-4 ring-yellow-400 shadow-2xl shadow-yellow-500/50 scale-105 bg-white z-20'
@@ -1534,15 +1565,15 @@ export default function GameTwoVsTwo() {
                       {playedItem ? (
                         <img src={playedItem.card.image} alt="Carta jugada" className="w-full h-full object-contain" />
                       ) : (
-                        <span className="text-[7.5px] sm:text-[9px] text-emerald-300/50 font-bold text-center px-0.5 leading-tight">
+                        <span className="text-[7px] sm:text-[9px] text-emerald-300/50 font-bold text-center px-0.5 leading-tight">
                           {currentTurn === pIdx ? 'Jugando...' : '—'}
                         </span>
                       )}
                     </div>
 
                     {/* Identificación del Jugador debajo de su carta */}
-                    <div className="flex flex-col items-center mt-0.5 sm:mt-1">
-                      <span className={`text-[7px] sm:text-[9.5px] font-black uppercase px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded-full shadow ${
+                    <div className="flex flex-col items-center mt-0.5">
+                      <span className={`text-[6.5px] sm:text-[9.5px] font-black uppercase px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded-full shadow ${
                         isTeam1
                           ? 'bg-blue-950/90 text-blue-200 border border-blue-400/50'
                           : 'bg-red-950/90 text-red-200 border border-red-400/50'
@@ -1567,17 +1598,17 @@ export default function GameTwoVsTwo() {
             </div>
 
             {/* BANNER DEL RESULTADO DE LA BAZA Y ESTADO DE LA RONDA */}
-            <div className="w-full z-10 mt-0.5 sm:mt-1">
+            <div className="w-full z-10 mt-0.5">
               {trickResult ? (
-                <div className="w-full bg-black/90 border border-amber-400 rounded-xl sm:rounded-2xl py-1 sm:py-1.5 px-2 sm:px-3 text-center shadow-2xl animate-in zoom-in-95 duration-200">
-                  <span className={`text-[10px] sm:text-sm font-black tracking-wide leading-tight block ${
+                <div className="w-full bg-black/90 border border-amber-400 rounded-xl sm:rounded-2xl py-0.5 sm:py-1.5 px-2 sm:px-3 text-center shadow-2xl animate-in zoom-in-95 duration-200">
+                  <span className={`text-[9.5px] sm:text-sm font-black tracking-wide leading-tight block ${
                     trickResult.winningTeam === 1 ? 'text-green-300' : 'text-rose-300'
                   }`}>
                     {trickResult.message}
                   </span>
                 </div>
               ) : (
-                <div className="w-full bg-black/60 border border-amber-500/20 rounded-xl py-0.5 sm:py-1 px-1.5 text-center text-emerald-200/80 text-[8.5px] sm:text-xs leading-tight">
+                <div className="w-full bg-black/60 border border-amber-500/20 rounded-xl py-0.5 sm:py-1 px-1.5 text-center text-emerald-200/80 text-[8px] sm:text-xs leading-tight">
                   <span>Mano: <strong>{currentStake}</strong> {currentStake === 1 ? 'piedra' : 'piedras'} • Turno: <strong className="text-amber-300">{players[currentTurn]?.name}</strong></span>
                 </div>
               )}
@@ -1608,8 +1639,8 @@ export default function GameTwoVsTwo() {
             </div>
 
             {/* Cartas ocultas de Rival 2: En móvil tarjeta compacta con contador, en desktop abanico */}
-            <div className="mt-1 sm:hidden relative">
-              <div className="w-7 h-10 rounded-md overflow-hidden border border-red-500/40 shadow">
+            <div className="mt-0.5 sm:hidden relative">
+              <div className="w-6 h-8 rounded overflow-hidden border border-red-500/40 shadow">
                 <img src="/card_back.png" alt="Carta" className="w-full h-full object-cover" />
               </div>
               <span className="absolute -bottom-1 -right-1 bg-red-600 text-white text-[8px] font-black px-1 rounded-full border border-red-300 shadow leading-tight">
@@ -1628,7 +1659,7 @@ export default function GameTwoVsTwo() {
         </div>
 
         {/* ABAJO: PUESTO 0 - TÚ (EQUIPO 1 - AZUL) Y CONTROLES */}
-        <div className="w-full flex flex-col items-center justify-center relative z-20 mt-auto pb-1 shrink-0">
+        <div className="w-full flex flex-col items-center justify-center relative z-20 shrink-0 pb-2 sm:pb-4">
           {/* Burbuja de chat para ti */}
           {activePhrases[mySeatIndex] && (
             <QuickChatBubble
@@ -1639,15 +1670,15 @@ export default function GameTwoVsTwo() {
           )}
           
           {/* Barra de Acciones del Jugador: Identidad, Estado de Turno y Botón de PEDIR */}
-          <div className="w-full max-w-md flex items-center justify-between gap-1.5 sm:gap-2 mb-1 px-1 sm:px-2">
+          <div className="w-full max-w-md flex items-center justify-between gap-1 sm:gap-2 mb-0.5 sm:mb-1 px-1 sm:px-2">
             
             {/* Identidad del Jugador Local */}
             <div className="flex items-center gap-1 sm:gap-2 bg-blue-950/80 border border-blue-500/50 px-2 py-0.5 sm:py-1.5 rounded-xl sm:rounded-2xl shadow shrink-0">
-              <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-blue-600 text-white font-black text-[10px] sm:text-xs flex items-center justify-center border border-blue-200 shrink-0">
+              <div className="w-4 h-4 sm:w-7 sm:h-7 rounded-full bg-blue-600 text-white font-black text-[9px] sm:text-xs flex items-center justify-center border border-blue-200 shrink-0">
                 🛡️
               </div>
               <div className="text-left leading-tight">
-                <span className="text-[11px] sm:text-xs font-bold text-blue-100 block max-w-[70px] sm:max-w-[120px] truncate">
+                <span className="text-[10px] sm:text-xs font-bold text-blue-100 block max-w-[70px] sm:max-w-[120px] truncate">
                   {user?.name && user.name !== 'nulo' ? user.name : 'Tú'}
                 </span>
                 <span className="text-[7px] sm:text-[9px] text-blue-300 block font-semibold">
@@ -1665,7 +1696,7 @@ export default function GameTwoVsTwo() {
                   maxSeconds={30}
                 />
               ) : (
-                <span className="bg-black/60 border border-slate-700 text-slate-300 font-bold text-[9px] sm:text-xs px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full truncate max-w-[110px] sm:max-w-[130px]">
+                <span className="bg-black/60 border border-slate-700 text-slate-300 font-bold text-[8.5px] sm:text-xs px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full truncate max-w-[110px] sm:max-w-[130px]">
                   Turno: <strong className="text-amber-300">{players[currentTurn]?.name || 'Jugador'}</strong>
                 </span>
               )}
@@ -1683,7 +1714,7 @@ export default function GameTwoVsTwo() {
                     type="button"
                     onClick={handlePedirClick}
                     disabled={currentStake >= 9 || isProcessingMove || isCleaningTable || isTumbaActive}
-                    className={`px-2.5 sm:px-4 py-1 sm:py-2 rounded-xl sm:rounded-2xl font-black text-[11px] sm:text-sm uppercase tracking-wider flex items-center gap-1 border-2 transition-all shadow-xl active:scale-95 shrink-0 ${
+                    className={`px-2 sm:px-4 py-0.5 sm:py-2 rounded-xl sm:rounded-2xl font-black text-[10px] sm:text-sm uppercase tracking-wider flex items-center gap-1 border-2 transition-all shadow-xl active:scale-95 shrink-0 ${
                       currentStake >= 9 || isTumbaActive
                         ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
                         : 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black border-yellow-200 hover:brightness-110 shadow-yellow-500/25 cursor-pointer'
@@ -1692,7 +1723,7 @@ export default function GameTwoVsTwo() {
                   >
                     <span>{isTumbaActive ? '🪦 TUMBA' : '🔥 PEDIR'}</span>
                     {!isTumbaActive && (
-                      <span className="text-[9px] sm:text-[10px] bg-black text-yellow-300 px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded-md font-extrabold">
+                      <span className="text-[8.5px] sm:text-[10px] bg-black text-yellow-300 px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded-md font-extrabold">
                         {currentStake === 1 ? '3' : (currentStake === 3 ? '6' : '9')}
                       </span>
                     )}
@@ -1703,11 +1734,11 @@ export default function GameTwoVsTwo() {
 
           </div>
 
-          {/* Tus Cartas en Abanico Interactivo (SIN PARPADEO) */}
-          <div className="flex items-center justify-center gap-1.5 sm:gap-3 my-0.5 sm:my-1">
+          {/* Tus Cartas en Abanico Interactivo (100% VISIBLES SIN CORTARSE) */}
+          <div className="flex items-center justify-center gap-1.5 sm:gap-3">
             {myCards.map((card, index) => {
               const isTurn = currentTurn === mySeatIndex && !isProcessingMove && !isCleaningTable;
-              let rotClass = index === 0 ? 'rotate-[-4deg]' : (index === 1 ? 'rotate-0' : 'rotate-[4deg]');
+              let rotClass = index === 0 ? 'rotate-[-3deg]' : (index === 1 ? 'rotate-0' : 'rotate-[3deg]');
 
               return (
                 <button
@@ -1715,7 +1746,7 @@ export default function GameTwoVsTwo() {
                   type="button"
                   disabled={!isTurn}
                   onClick={() => handlePlayMyCard(card)}
-                  className={`w-[66px] h-[96px] xs:w-[76px] xs:h-[110px] sm:w-24 sm:h-36 rounded-xl sm:rounded-2xl overflow-hidden border-2 transition-all duration-200 transform ${rotClass} ${
+                  className={`w-[62px] h-[90px] xs:w-[70px] xs:h-[102px] sm:w-24 sm:h-36 rounded-xl sm:rounded-2xl overflow-hidden border-2 transition-all duration-200 transform ${rotClass} ${
                     isTurn
                       ? 'border-amber-400 hover:-translate-y-3 hover:scale-105 active:scale-95 shadow-2xl shadow-amber-500/30 ring-2 ring-yellow-400/60 cursor-pointer'
                       : 'border-slate-600 opacity-80 cursor-not-allowed'
