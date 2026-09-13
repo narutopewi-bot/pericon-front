@@ -117,7 +117,9 @@ export default function GameTwoVsTwo() {
   const rawRoomName = Array.isArray(params?.roomName) ? params.roomName[0] : (params?.roomName as string || 'sala-pericon');
   const roomName = decodeURIComponent(rawRoomName);
 
-  const initialBet = parseInt(searchParams.get('bet') || '100', 10);
+  const isFriendlyRoom = searchParams.get('friendly') === '1' ||
+    (searchParams.get('match') !== 'auto' && !roomName.toLowerCase().startsWith('match-'));
+  const initialBet = isFriendlyRoom ? 10 : parseInt(searchParams.get('bet') || '100', 10);
   const [betAmount, setBetAmount] = useState<number>(initialBet);
 
   // Estado de Sala Multijugador (4 personas reales)
@@ -1021,6 +1023,142 @@ export default function GameTwoVsTwo() {
 
   // Fin de la partida
   const handleGameOver = (isPlayerTeamWinner: boolean) => {
+    // 1. CASO SALA AMISTOSA CREADA:
+    // Tarifa de 10 monedas por entrar/jugar (para la casa). El ganador no se gana nada de pozo de monedas.
+    if (isFriendlyRoom) {
+      const roomFee = 10;
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
+      let currentUserId = user?.id ? parseInt(user.id.toString(), 10) : 0;
+      let storedUser: any = null;
+      if (typeof window !== 'undefined') {
+        try {
+          const storedStr = localStorage.getItem("pericon_user");
+          if (storedStr) {
+            storedUser = JSON.parse(storedStr);
+            if ((!currentUserId || isNaN(currentUserId)) && storedUser.id) {
+              currentUserId = parseInt(storedUser.id.toString(), 10);
+            }
+          }
+        } catch {}
+      }
+
+      const currentCoins = user?.coins ?? storedUser?.coins ?? 1000;
+      const estimatedNewCoins = Math.max(0, currentCoins - roomFee);
+
+      dispatch(setGamePlayer({
+        ...user,
+        coins: estimatedNewCoins,
+        wins: isPlayerTeamWinner ? (user?.wins || 0) + 1 : (user?.wins || 0),
+        losses: !isPlayerTeamWinner ? (user?.losses || 0) + 1 : (user?.losses || 0)
+      }));
+
+      if (currentUserId > 0) {
+        fetch(`${apiUrl}/api/user/record-match`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            userId: currentUserId,
+            won: isPlayerTeamWinner,
+            coinsChange: -roomFee
+          })
+        })
+        .then(res => res.ok ? res.json() : null)
+        .then(data => {
+          if (data && typeof window !== 'undefined' && storedUser) {
+            storedUser.coins = data.coins;
+            storedUser.wins = data.wins;
+            storedUser.losses = data.losses;
+            localStorage.setItem("pericon_user", JSON.stringify(storedUser));
+          }
+        })
+        .catch(err => console.error("Error al registrar amistoso 2v2:", err));
+      } else if (typeof window !== 'undefined' && storedUser) {
+        storedUser.coins = estimatedNewCoins;
+        if (isPlayerTeamWinner) storedUser.wins = (storedUser.wins || 0) + 1;
+        else storedUser.losses = (storedUser.losses || 0) + 1;
+        localStorage.setItem("pericon_user", JSON.stringify(storedUser));
+      }
+
+      if (isPlayerTeamWinner) {
+        vibrateDevice('winMatch');
+        playSynthSound('win');
+        speakPhrase('¡Felicidades! Tu equipo ha ganado la partida amistosa.');
+
+        Swal.fire({
+          title: '🏆 ¡VICTORIA AMISTOSA!',
+          html: `
+            <div style="font-family: inherit; font-size: 13px; text-align: left; padding: 4px 0;">
+              <p style="margin-bottom: 12px; font-weight: bold; color: #4ade80; font-size: 15px; text-align: center;">
+                ¡Tu equipo dominó el encuentro amistoso!
+              </p>
+              <div style="background: rgba(0,0,0,0.45); border-radius: 12px; padding: 10px 14px; border: 1px solid rgba(56,189,248,0.3);">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                  <span style="color: #cbd5e1;">🎮 Modalidad:</span>
+                  <span style="font-weight: bold; color: #38bdf8;">Sala Amistosa 2 vs 2</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                  <span style="color: #cbd5e1;">🏛️ Tarifa de sala (para la casa):</span>
+                  <span style="font-weight: bold; color: #fb923c;">10 monedas</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                  <span style="color: #cbd5e1;">🏅 Récord personal:</span>
+                  <span style="font-weight: bold; color: #4ade80;">+1 Victoria sumada</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                  <span style="color: #cbd5e1;">💰 Pozo de apuestas:</span>
+                  <span style="color: #94a3b8; font-style: italic;">Sin apuestas (Amistoso)</span>
+                </div>
+                <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.15); margin: 8px 0;" />
+                <div style="display: flex; justify-content: space-between; font-size: 14px;">
+                  <span style="font-weight: bold; color: #fff;">👛 Tu nuevo saldo:</span>
+                  <span style="font-weight: 900; color: #fde047;">${estimatedNewCoins} monedas</span>
+                </div>
+              </div>
+            </div>
+          `,
+          icon: 'success',
+          confirmButtonText: 'Volver al Menú',
+          confirmButtonColor: '#22c55e',
+          background: '#1a0e06',
+          color: '#fff',
+        }).then(() => {
+          router.push('/desk');
+        });
+      } else {
+        speakPhrase('Partida amistosa finalizada.');
+        Swal.fire({
+          title: 'PARTIDA AMISTOSA FINALIZADA',
+          html: `
+            <div style="font-family: inherit; font-size: 13px; text-align: left; padding: 4px 0;">
+              <p style="margin-bottom: 12px; font-weight: bold; color: #cbd5e1; font-size: 14px; text-align: center;">
+                Los rivales completaron la partida amistosa.
+              </p>
+              <div style="background: rgba(0,0,0,0.45); border-radius: 12px; padding: 10px 14px; border: 1px solid rgba(255,255,255,0.15);">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                  <span style="color: #cbd5e1;">🏛️ Tarifa de sala (para la casa):</span>
+                  <span style="font-weight: bold; color: #fb923c;">10 monedas</span>
+                </div>
+                <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.15); margin: 8px 0;" />
+                <div style="display: flex; justify-content: space-between; font-size: 14px;">
+                  <span style="font-weight: bold; color: #fff;">👛 Tu nuevo saldo:</span>
+                  <span style="font-weight: 900; color: #fde047;">${estimatedNewCoins} monedas</span>
+                </div>
+              </div>
+            </div>
+          `,
+          icon: 'info',
+          confirmButtonText: 'Volver al Menú',
+          confirmButtonColor: '#d97706',
+          background: '#1a0e06',
+          color: '#fff',
+        }).then(() => {
+          router.push('/desk');
+        });
+      }
+      return;
+    }
+
+    // 2. CASO 2 VS 2 COMPETITIVO (SIN CREAR SALA / EMPAREJAMIENTO AUTOMÁTICO):
     const totalPot = betAmount * 4;
     const houseCommission = Math.floor(totalPot * 0.20);
     const teamPrize = totalPot - houseCommission;

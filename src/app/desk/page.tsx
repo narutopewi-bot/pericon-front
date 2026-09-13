@@ -50,41 +50,21 @@ export default function Desk() {
 
   const handleCreatePrivateRoom = () => {
     Swal.fire({
-      title: 'CREAR SALA PRIVADA 2 VS 2',
+      title: 'CREAR SALA AMISTOSA 2 VS 2',
       html: `
         <div style="text-align: center; padding: 6px 0;">
-          <p style="color: #cbd5e1; font-size: 13px; margin-bottom: 12px;">
-            Elige la apuesta por jugador para tu mesa privada. Luego podrás compartir el enlace por WhatsApp o pasar el código a tus amigos.
+          <p style="color: #cbd5e1; font-size: 14px; margin-bottom: 12px; line-height: 1.5;">
+            Esta es una <strong>Mesa Amistosa en Parejas</strong>.<br/>
+            Costo de entrada por jugador: <strong style="color: #facc15; font-size: 16px;">10 monedas</strong> (tarifa para la casa).
           </p>
-          <div style="display: flex; justify-content: center; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;">
-            <button type="button" class="swal-bet-btn" data-bet="100" style="background:#166534; color:#fff; border:1px solid #4ade80; border-radius:8px; padding:6px 14px; font-weight:bold; cursor:pointer;">🪙 100</button>
-            <button type="button" class="swal-bet-btn" data-bet="150" style="background:#1e293b; color:#94a3b8; border:1px solid #475569; border-radius:8px; padding:6px 14px; font-weight:bold; cursor:pointer;">🪙 150</button>
-            <button type="button" class="swal-bet-btn" data-bet="200" style="background:#1e293b; color:#94a3b8; border:1px solid #475569; border-radius:8px; padding:6px 14px; font-weight:bold; cursor:pointer;">🪙 200</button>
-            <button type="button" class="swal-bet-btn" data-bet="500" style="background:#1e293b; color:#94a3b8; border:1px solid #475569; border-radius:8px; padding:6px 14px; font-weight:bold; cursor:pointer;">🪙 500</button>
+          <div style="background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 12px; padding: 10px; margin-bottom: 8px; color: #86efac; font-size: 13px;">
+            ℹ️ En los amistosos creados no hay pozo de apuestas: ¡el objetivo es jugar con amigos y sumar victorias a tu récord!
           </div>
-          <input id="swal-custom-bet" type="number" value="100" min="50" max="5000" step="50" style="width: 80%; background:#0f172a; border:1px solid #22c55e; border-radius:10px; padding:8px 12px; color:#4ade80; font-size:16px; font-weight:bold; text-align:center;" />
         </div>
       `,
-      didOpen: () => {
-        const input = document.getElementById('swal-custom-bet') as HTMLInputElement;
-        const btns = document.querySelectorAll('.swal-bet-btn');
-        btns.forEach((btn) => {
-          btn.addEventListener('click', () => {
-            btns.forEach((b) => {
-              (b as HTMLElement).style.background = '#1e293b';
-              (b as HTMLElement).style.color = '#94a3b8';
-              (b as HTMLElement).style.borderColor = '#475569';
-            });
-            (btn as HTMLElement).style.background = '#166534';
-            (btn as HTMLElement).style.color = '#fff';
-            (btn as HTMLElement).style.borderColor = '#4ade80';
-            if (input) input.value = (btn as HTMLElement).getAttribute('data-bet') || '100';
-          });
-        });
-      },
-      icon: 'question',
+      icon: 'info',
       showCancelButton: true,
-      confirmButtonText: '¡Crear y Abrir Mesa!',
+      confirmButtonText: '¡Crear Sala (10 🪙)!',
       cancelButtonText: 'Cancelar',
       confirmButtonColor: '#16a34a',
       cancelButtonColor: '#475569',
@@ -92,40 +72,31 @@ export default function Desk() {
       color: '#fff',
       customClass: {
         popup: 'border-2 border-emerald-500/50 rounded-3xl shadow-2xl'
-      },
-      preConfirm: () => {
-        const input = document.getElementById('swal-custom-bet') as HTMLInputElement;
-        const bet = input ? parseInt(input.value, 10) : 100;
-        if (isNaN(bet) || bet < 10) {
-          Swal.showValidationMessage('Por favor ingresa una apuesta válida mayor a 10 monedas');
-          return false;
-        }
-        return bet;
       }
     }).then((res) => {
-      if (res.isConfirmed && res.value) {
-        const chosenBet = res.value;
+      if (res.isConfirmed) {
         const randomCode = Math.floor(1000 + Math.random() * 9000);
         const roomName = `sala-${randomCode}`;
-        router.push(`/game2v2/${roomName}?bet=${chosenBet}&creator=1`);
+        router.push(`/game2v2/${roomName}?bet=10&friendly=1&creator=1`);
       }
     });
   };
 
   const handleJoinPrivateRoom = () => {
     Swal.fire({
-      title: 'UNIRSE A SALA PRIVADA',
+      title: 'UNIRSE A SALA AMISTOSA',
       html: `
         <div style="text-align: center; padding: 6px 0;">
           <p style="color: #cbd5e1; font-size: 13px; margin-bottom: 12px;">
-            Ingresa el código que te compartió tu amigo (ej: <strong>SALA-4821</strong> o <strong>4821</strong>) o pega el enlace completo:
+            Ingresa el código que te compartió tu amigo (ej: <strong>SALA-4821</strong> o <strong>4821</strong>) o pega el enlace completo.<br/>
+            <span style="color: #facc15; font-weight: bold;">Tarifa de entrada: 10 monedas</span>
           </p>
           <input id="swal-room-code" type="text" placeholder="Ej: SALA-4821 o pega el link" style="width: 85%; background:#0f172a; border:1px solid #a855f7; border-radius:10px; padding:10px 14px; color:#e9d5ff; font-size:14px; font-weight:bold; text-align:center;" />
         </div>
       `,
       icon: 'info',
       showCancelButton: true,
-      confirmButtonText: 'Entrar a la Sala',
+      confirmButtonText: 'Entrar a la Sala (10 🪙)',
       cancelButtonText: 'Cancelar',
       confirmButtonColor: '#9333ea',
       cancelButtonColor: '#475569',
@@ -158,7 +129,7 @@ export default function Desk() {
           }
         }
 
-        router.push(`/game2v2/${targetRoom}`);
+        router.push(`/game2v2/${targetRoom}?bet=10&friendly=1`);
       }
     });
   };
