@@ -182,6 +182,11 @@ export default function GameTwoVsTwo() {
   const isTumbaDeParaAtrasT1Ref = useRef<boolean>(false);
   const isTumbaDeParaAtrasT2Ref = useRef<boolean>(false);
 
+  // Estados de Tumba oficiales (10 segundos de análisis y decisión)
+  const [tumbaCountdown, setTumbaCountdown] = useState<number | null>(null);
+  const tumbaCountdownTimerRef = useRef<any>(null);
+  const [isWaitingOppTumba, setIsWaitingOppTumba] = useState<boolean>(false);
+
   // Anuncios y resultados de baza
   const [announcement, setAnnouncement] = useState<AnnouncementData | null>(null);
   const announcementTimer = useRef<any>(null);
@@ -379,6 +384,75 @@ export default function GameTwoVsTwo() {
       }, 4000);
     });
 
+    // Eventos de Tumba Oficiales 2 vs 2
+    connection.on('TumbaPassedNotice2v2', (data: { seatIndex: number; passingTeam: number; pointsTeam1: number; pointsTeam2: number; message: string }) => {
+      console.log('[TumbaPassedNotice2v2 recibido]', data);
+      setIsWaitingOppTumba(false);
+      isProcessingMoveRef.current = false;
+      setIsProcessingMove(false);
+      if (tumbaCountdownTimerRef.current) clearInterval(tumbaCountdownTimerRef.current);
+      setTumbaCountdown(null);
+      Swal.close();
+
+      setPointsTeam1(data.pointsTeam1);
+      setPointsTeam2(data.pointsTeam2);
+      pointsTeam1Ref.current = data.pointsTeam1;
+      pointsTeam2Ref.current = data.pointsTeam2;
+
+      const myTeam = (mySeatIndexRef.current === 0 || mySeatIndexRef.current === 2) ? 1 : 2;
+      const didMyTeamPass = data.passingTeam === myTeam;
+
+      if (didMyTeamPass) {
+        speakPhrase("Pasaron en Tumba. Menos una piedra.");
+        triggerAnnouncement({
+          type: 'tumba',
+          title: 'PASARON EN TUMBA',
+          subtitle: 'Se les resta 1 piedra a ustedes y se le suma al rival',
+          badge: 'REPARTO NUEVA MANO'
+        }, 3000);
+      } else {
+        speakPhrase("¡Los rivales pasaron en Tumba! Más una piedra para ustedes.");
+        triggerAnnouncement({
+          type: 'tumba',
+          title: '¡LOS RIVALES PASARON EN TUMBA!',
+          subtitle: 'Los rivales prefirieron no jugar. ¡Suman 1 piedra!',
+          badge: 'REPARTO NUEVA MANO'
+        }, 3000);
+      }
+
+      if (data.pointsTeam1 >= 10 || data.pointsTeam2 >= 10) {
+        const winningTeam = data.pointsTeam1 >= 10 ? 1 : 2;
+        setTimeout(() => {
+          handleGameOver(winningTeam === myTeam);
+        }, 2000);
+      } else {
+        if (mySeatIndexRef.current === 0) {
+          const nextStarter = (handStarterRef.current + 1) % 4;
+          setTimeout(() => {
+            connection.invoke('DealNewHand2v2', roomName, nextStarter).catch(e => console.error("Error al pedir DealNewHand2v2:", e));
+          }, 2500);
+        }
+      }
+    });
+
+    connection.on('TumbaAcceptedNotice2v2', (data: { seatIndex: number; acceptingTeam: number; message: string }) => {
+      console.log('[TumbaAcceptedNotice2v2 recibido]', data);
+      setIsWaitingOppTumba(false);
+      isProcessingMoveRef.current = false;
+      setIsProcessingMove(false);
+      if (tumbaCountdownTimerRef.current) clearInterval(tumbaCountdownTimerRef.current);
+      setTumbaCountdown(null);
+      Swal.close();
+
+      triggerAnnouncement({
+        type: 'tumba',
+        title: '¡MANO DE TUMBA ACEPTADA!',
+        subtitle: 'La mano de Tumba está en juego. ¡A jugar!',
+        badge: 'TUMBA EN JUEGO'
+      }, 2500);
+      speakPhrase("¡Aceptaron jugar la mano de Tumba!");
+    });
+
     return () => {
       connection.off('RoomUpdate2v2');
       connection.off('GameStarted2v2');
@@ -391,9 +465,139 @@ export default function GameTwoVsTwo() {
       connection.off('StakeAsked2v2');
       connection.off('StakeAnswered2v2');
       connection.off('ReceiveQuickPhrase');
+      connection.off('TumbaPassedNotice2v2');
+      connection.off('TumbaAcceptedNotice2v2');
+      if (tumbaCountdownTimerRef.current) clearInterval(tumbaCountdownTimerRef.current);
       connection.invoke('LeaveRoom2v2', roomName).catch(() => {});
     };
   }, [connection, roomName, user, searchParams]);
+
+  // Reglas oficiales de La Tumba y Obligado 2 vs 2 (10 segundos de análisis y confirmación)
+  const checkTumbaOnNewHand = (starterPlayer: number) => {
+    const pT1 = pointsTeam1Ref.current;
+    const pT2 = pointsTeam2Ref.current;
+    const team1InTumba = pT1 >= 9 || (isTumbaDeParaAtrasT1Ref.current && pT1 === 8);
+    const team2InTumba = pT2 >= 9 || (isTumbaDeParaAtrasT2Ref.current && pT2 === 8);
+    const isObligado = team1InTumba && team2InTumba;
+
+    const myTeam = (mySeatIndexRef.current === 0 || mySeatIndexRef.current === 2) ? 1 : 2;
+    const myTeamInTumba = myTeam === 1 ? team1InTumba : team2InTumba;
+    const oppTeamInTumba = myTeam === 1 ? team2InTumba : team1InTumba;
+
+    if (isObligado) {
+      setIsWaitingOppTumba(false);
+      isProcessingMoveRef.current = false;
+      setIsProcessingMove(false);
+      triggerAnnouncement({
+        type: 'tumba',
+        title: '¡ESTADO OBLIGADO!',
+        subtitle: '¡Mano definitiva! Quien gane 2 de 3 bazas gana el juego',
+        badge: 'ÚLTIMA MANO'
+      }, 3500);
+      speakPhrase("¡Obligado! Quien gane esta mano gana la partida");
+      vibrateDevice('tumba');
+      playSynthSound('tumba');
+    } else if (myTeamInTumba) {
+      setIsWaitingOppTumba(false);
+      isProcessingMoveRef.current = true;
+      setIsProcessingMove(true);
+
+      triggerAnnouncement({
+        type: 'tumba',
+        title: '¡ESTÁS EN TUMBA!',
+        subtitle: 'Analiza tus 3 cartas y La Vida. Tienes 10 segundos.',
+        badge: 'TUMBA: 10 SEGUNDOS'
+      }, 3500);
+      speakPhrase("¡Estás en tumba! Analiza tus cartas y la vida durante diez segundos.");
+      vibrateDevice('tumba');
+      playSynthSound('tumba');
+
+      if (tumbaCountdownTimerRef.current) clearInterval(tumbaCountdownTimerRef.current);
+      let count = 10;
+      setTumbaCountdown(count);
+
+      tumbaCountdownTimerRef.current = setInterval(() => {
+        count -= 1;
+        if (count > 0) {
+          setTumbaCountdown(count);
+        } else {
+          if (tumbaCountdownTimerRef.current) clearInterval(tumbaCountdownTimerRef.current);
+          setTumbaCountdown(null);
+
+          Swal.fire({
+            title: "¿Deseas jugar esta ronda en TUMBA?",
+            text: "Si aceptas y pierdes, se le restarán 3 piedras a tu equipo. Si rechazas, se te resta 1 piedra y se le suma al contrario.",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Sí, acepto jugar",
+            cancelButtonText: "No, paso esta mano",
+            confirmButtonColor: "#22c55e",
+            cancelButtonColor: "#ef4444",
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            background: "#1a0e06",
+            color: "#fff"
+          }).then(async (result) => {
+            if (result.isConfirmed) {
+              triggerAnnouncement({
+                type: 'tumba',
+                title: '¡A JUGAR EN TUMBA!',
+                subtitle: 'Tu equipo aceptó jugar esta mano',
+                badge: 'MANO DE TUMBA'
+              }, 2000);
+              isProcessingMoveRef.current = false;
+              setIsProcessingMove(false);
+              if (connection) {
+                try {
+                  await connection.invoke("AcceptTumba2v2", roomName, mySeatIndexRef.current);
+                } catch (e) {
+                  console.error("Error al enviar AcceptTumba2v2:", e);
+                }
+              }
+            } else {
+              isProcessingMoveRef.current = false;
+              setIsProcessingMove(false);
+              setIsWaitingOppTumba(false);
+              speakPhrase("Pasaron en Tumba. Menos una piedra.");
+              vibrateDevice('reject');
+              playSynthSound('reject');
+              if (connection) {
+                try {
+                  await connection.invoke("PassTumba2v2", roomName, mySeatIndexRef.current);
+                } catch (e) {
+                  console.error("Error al enviar PassTumba2v2:", e);
+                }
+              }
+            }
+          });
+        }
+      }, 1000);
+    } else if (oppTeamInTumba) {
+      triggerAnnouncement({
+        type: 'tumba',
+        title: '¡LOS RIVALES ESTÁN EN TUMBA!',
+        subtitle: 'Tus contrincantes están analizando sus cartas (10s)...',
+        badge: 'Rivales en Tumba'
+      }, 3500);
+      speakPhrase("¡Los rivales están en tumba!");
+      vibrateDevice('tumba');
+      playSynthSound('tumba');
+      setIsWaitingOppTumba(true);
+      isProcessingMoveRef.current = true;
+      setIsProcessingMove(true);
+    } else {
+      setIsWaitingOppTumba(false);
+      isProcessingMoveRef.current = false;
+      setIsProcessingMove(false);
+      const starterName = players[starterPlayer]?.name || 'Jugador';
+      triggerAnnouncement({
+        type: 'dame_tres',
+        title: '¡NUEVA MANO!',
+        subtitle: `Sale jugando: ${starterName}`,
+        badge: 'MANO POR 1 PIEDRA'
+      }, 2200);
+    }
+  };
 
   // Manejar el inicio formal de la partida
   const handleGameStarted = (data: any) => {
@@ -428,16 +632,7 @@ export default function GameTwoVsTwo() {
 
     setTimeout(() => {
       setIsDealing(false);
-      isProcessingMoveRef.current = false;
-      setIsProcessingMove(false);
-
-      const starterName = players[starter]?.name || 'Jugador';
-      triggerAnnouncement({
-        type: 'dame_tres',
-        title: '¡PARTIDA 2 VS 2 INICIADA!',
-        subtitle: `Sale jugando: ${starterName}`,
-        badge: 'MANO POR 1 PIEDRA'
-      }, 2500);
+      checkTumbaOnNewHand(starter);
     }, 1200);
   };
 
@@ -475,16 +670,7 @@ export default function GameTwoVsTwo() {
 
     setTimeout(() => {
       setIsDealing(false);
-      isProcessingMoveRef.current = false;
-      setIsProcessingMove(false);
-
-      const starterName = players[starter]?.name || 'Jugador';
-      triggerAnnouncement({
-        type: 'dame_tres',
-        title: '¡NUEVA MANO!',
-        subtitle: `Sale jugando: ${starterName}`,
-        badge: 'MANO POR 1 PIEDRA'
-      }, 2200);
+      checkTumbaOnNewHand(starter);
     }, 1200);
   };
 
@@ -543,7 +729,7 @@ export default function GameTwoVsTwo() {
 
   // Lanzar carta del jugador humano local
   const handlePlayMyCard = (card: Card) => {
-    if (currentTurnRef.current !== mySeatIndexRef.current || isProcessingMoveRef.current || isCleaningTable) return;
+    if (currentTurnRef.current !== mySeatIndexRef.current || isProcessingMoveRef.current || isCleaningTable || isWaitingOppTumba || tumbaCountdown !== null) return;
 
     // Regla del Pelao: Si salieron con un triunfo y poseemos triunfos en la mano, obligatorio tirar triunfo
     if (playedCardsRef.current.length > 0) {
@@ -585,7 +771,7 @@ export default function GameTwoVsTwo() {
 
   // Auto-juego cuando se agotan los 30s del turno
   const handleTurnTimeout = () => {
-    if (currentTurnRef.current !== mySeatIndexRef.current || isProcessingMoveRef.current || isCleaningTable) return;
+    if (currentTurnRef.current !== mySeatIndexRef.current || isProcessingMoveRef.current || isCleaningTable || isWaitingOppTumba || tumbaCountdown !== null) return;
     if (myCards.length === 0) return;
 
     let chosenCard = myCards[0];
@@ -1669,6 +1855,32 @@ export default function GameTwoVsTwo() {
             />
           )}
           
+          {/* Contador de tiempo para decisión de Tumba (10s de análisis) */}
+          {tumbaCountdown !== null && (
+            <div className='flex justify-center mb-1 animate-pulse z-30'>
+              <div className='flex items-center gap-2 bg-gradient-to-r from-stone-950 via-black to-stone-950 border-2 border-yellow-400 text-yellow-300 px-3 py-0.5 sm:py-1 rounded-xl shadow-2xl'>
+                <span className='text-xs'>⏳</span>
+                <span className='font-black text-[9px] sm:text-xs tracking-wide uppercase'>ANALIZA TUS CARTAS Y LA VIDA</span>
+                <div className='bg-yellow-400 text-black font-black text-[9px] sm:text-xs px-2 py-0.2 rounded-full shadow'>
+                  {tumbaCountdown}s
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Aviso cuando los rivales están analizando en Tumba */}
+          {isWaitingOppTumba && (
+            <div className='flex justify-center mb-1 animate-pulse z-30'>
+              <div className='flex items-center gap-2 bg-gradient-to-r from-stone-950 via-black to-stone-950 border-2 border-amber-500 text-amber-300 px-3 py-0.5 sm:py-1 rounded-xl shadow-2xl'>
+                <span className='text-xs'>⏳</span>
+                <span className='font-black text-[9px] sm:text-xs tracking-wide uppercase'>RIVALES EN TUMBA</span>
+                <div className='bg-amber-500 text-black font-black text-[9px] sm:text-xs px-2 py-0.2 rounded-full shadow'>
+                  Analizando (10s)...
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Barra de Acciones del Jugador: Identidad, Estado de Turno y Botón de PEDIR */}
           <div className="w-full max-w-md flex items-center justify-between gap-1 sm:gap-2 mb-0.5 sm:mb-1 px-1 sm:px-2">
             
@@ -1689,7 +1901,7 @@ export default function GameTwoVsTwo() {
 
             {/* Banner de Turno con Temporizador de 30s y Auto-juego */}
             <div className="flex-1 flex items-center justify-center min-w-0">
-              {currentTurn === mySeatIndex && !isProcessingMove && !isCleaningTable && myCards.length > 0 ? (
+              {currentTurn === mySeatIndex && !isProcessingMove && !isCleaningTable && myCards.length > 0 && tumbaCountdown === null && !isWaitingOppTumba ? (
                 <GameTurnTimer
                   isMyTurn={true}
                   onTimeout={handleTurnTimeout}
@@ -1713,9 +1925,9 @@ export default function GameTwoVsTwo() {
                   <button
                     type="button"
                     onClick={handlePedirClick}
-                    disabled={currentStake >= 9 || isProcessingMove || isCleaningTable || isTumbaActive}
+                    disabled={currentStake >= 9 || isProcessingMove || isCleaningTable || isTumbaActive || tumbaCountdown !== null || isWaitingOppTumba}
                     className={`px-2 sm:px-4 py-0.5 sm:py-2 rounded-xl sm:rounded-2xl font-black text-[10px] sm:text-sm uppercase tracking-wider flex items-center gap-1 border-2 transition-all shadow-xl active:scale-95 shrink-0 ${
-                      currentStake >= 9 || isTumbaActive
+                      currentStake >= 9 || isTumbaActive || tumbaCountdown !== null || isWaitingOppTumba
                         ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
                         : 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black border-yellow-200 hover:brightness-110 shadow-yellow-500/25 cursor-pointer'
                     } ${fonts.bowlbyOneSC.className}`}
@@ -1737,7 +1949,7 @@ export default function GameTwoVsTwo() {
           {/* Tus Cartas en Abanico Interactivo (100% VISIBLES SIN CORTARSE) */}
           <div className="flex items-center justify-center gap-1.5 sm:gap-3">
             {myCards.map((card, index) => {
-              const isTurn = currentTurn === mySeatIndex && !isProcessingMove && !isCleaningTable;
+              const isTurn = currentTurn === mySeatIndex && !isProcessingMove && !isCleaningTable && tumbaCountdown === null && !isWaitingOppTumba;
               let rotClass = index === 0 ? 'rotate-[-3deg]' : (index === 1 ? 'rotate-0' : 'rotate-[3deg]');
 
               return (
