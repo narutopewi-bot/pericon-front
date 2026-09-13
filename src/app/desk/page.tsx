@@ -347,8 +347,9 @@ export default function Desk() {
           
           {/* Título de sección sutil */}
           <div className="text-center mb-3 sm:mb-4">
-            <span className="text-[10px] sm:text-xs font-black tracking-widest text-amber-400 uppercase bg-black/60 border border-amber-500/40 px-3 py-1 rounded-full shadow">
-              MODOS DE JUEGO
+            <span className="text-[10px] sm:text-xs font-black tracking-widest text-amber-300 uppercase bg-black/70 border border-amber-500/50 px-3.5 py-1 rounded-full shadow-lg backdrop-blur-md inline-flex items-center gap-1.5">
+              <span>🌵</span>
+              <span>PULPERÍA DE CARORA • MODOS DE JUEGO</span>
             </span>
           </div>
 

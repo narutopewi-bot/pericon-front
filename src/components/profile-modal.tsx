@@ -119,7 +119,7 @@ export default function ProfileModal({ isOpen, onClose, player }: ProfileModalPr
           </div>
 
           <p className="text-[11px] text-amber-100/80 leading-snug mt-0.5">
-            {levelInfo.level === "Experto" ? (
+            {levelInfo.winsToNext <= 0 ? (
               <span>👑 {levelInfo.description}</span>
             ) : (
               <span>
@@ -127,7 +127,7 @@ export default function ProfileModal({ isOpen, onClose, player }: ProfileModalPr
                 <strong className="text-amber-300 font-bold">{levelInfo.winsToNext} victorias</strong>{" "}
                 para alcanzar el rango{" "}
                 <strong className="text-white">
-                  {levelInfo.level === "Novato" ? "Avanzado 🥈" : "Experto 👑"}
+                  {levelInfo.nextRankTitle}
                 </strong>
                 .
               </span>

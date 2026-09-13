@@ -83,9 +83,12 @@ export default function Home() {
           className="w-[200px] xl:w-[260px] h-auto"
         />
 
-        <div className="pt-2">
-          <p className={`${fonts.angkor.className} text-white font-bowly text-[18px] xl:text-[20px] leading-[22px] w-[320px] text-center`}>
-            ¡Es hora de poner las cartas sobre la mesa!
+        <div className="pt-2 flex flex-col items-center gap-1.5">
+          <span className="text-[10px] sm:text-xs font-black tracking-widest text-amber-300 uppercase bg-black/60 border border-amber-500/40 px-3 py-0.5 rounded-full shadow backdrop-blur-sm">
+            🌵 Carora • Estado Lara
+          </span>
+          <p className={`${fonts.angkor.className} text-white font-bowly text-[16px] xl:text-[19px] leading-[22px] w-[330px] text-center drop-shadow-md`}>
+            ¡El legendario juego de naipes de la tierra del chivo y el cocuy!
           </p>
         </div>
 
