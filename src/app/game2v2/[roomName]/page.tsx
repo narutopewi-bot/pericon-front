@@ -13,7 +13,7 @@ import { GameAnnouncement, AnnouncementData } from '@/components/game-announceme
 import { playCardSound, playSwooshSound, vibrateDevice, playSynthSound, speakPhrase } from '@/lib/gameEffects';
 import { playCardDealSound, playCardDropSound, playCoinWinSound, playCantoSound, playChatPopSound } from '@/lib/soundEffects';
 import GameTurnTimer from '@/components/game-turn-timer';
-import { QuickChatButton, QuickChatBubble } from '@/components/quick-chat';
+
 import * as fonts from '@/components/fonts';
 import { Copy, Check, Share2, Users, Clock, Sparkles } from 'lucide-react';
 import Swal from 'sweetalert2';
@@ -200,16 +200,7 @@ export default function GameTwoVsTwo() {
     message: string;
   } | null>(null);
 
-  // Frases Rápidas Llaneras por Asiento
-  const [activePhrases, setActivePhrases] = useState<{ [seatIndex: number]: { phrase: string; senderName: string } }>({});
 
-  const handleSendQuickPhrase = (phrase: string) => {
-    if (!connection) return;
-    const myName = user?.name && user.name !== 'nulo' ? user.name : (players[mySeatIndexRef.current]?.name || 'Jugador');
-    connection.invoke('SendQuickPhrase', roomName, myName, phrase, mySeatIndexRef.current).catch(err => {
-      console.error('Error al enviar frase rápida:', err);
-    });
-  };
 
   const triggerAnnouncement = (data: AnnouncementData, durationMs: number = 2200) => {
     if (announcementTimer.current) clearTimeout(announcementTimer.current);
@@ -367,22 +358,7 @@ export default function GameTwoVsTwo() {
       handleRemoteStakeAnswered(data.seatIndex, data.accepted);
     });
 
-    // Evento de Frases Rápidas Llaneras
-    connection.on('ReceiveQuickPhrase', (senderName: string, phrase: string, seatIndex: number) => {
-      console.log('[ReceiveQuickPhrase recibido]', { senderName, phrase, seatIndex });
-      playChatPopSound();
-      setActivePhrases(prev => ({
-        ...prev,
-        [seatIndex]: { phrase, senderName }
-      }));
-      setTimeout(() => {
-        setActivePhrases(prev => {
-          const copy = { ...prev };
-          delete copy[seatIndex];
-          return copy;
-        });
-      }, 4000);
-    });
+
 
     // Eventos de Tumba Oficiales 2 vs 2
     connection.on('TumbaPassedNotice2v2', (data: { seatIndex: number; passingTeam: number; pointsTeam1: number; pointsTeam2: number; message: string }) => {
@@ -1638,15 +1614,6 @@ export default function GameTwoVsTwo() {
             )}
           </div>
 
-          {/* Burbuja de Chat del Compañero */}
-          {activePhrases[2] && (
-            <QuickChatBubble
-              phrase={activePhrases[2].phrase}
-              senderName={activePhrases[2].senderName}
-              className="absolute -bottom-10 left-1/2 -translate-x-1/2 z-30"
-            />
-          )}
-
           {/* Cartas ocultas del Compañero */}
           <div className="flex items-center -space-x-2.5 sm:-space-x-4 mt-0.5">
             {Array.from({ length: partnerCardCount }).map((_, i) => (
@@ -1662,13 +1629,6 @@ export default function GameTwoVsTwo() {
           
           {/* IZQUIERDA: PUESTO 1 - RIVAL 1 (EQUIPO 2 - ROJO) */}
           <div className="flex flex-col items-center justify-center z-10 w-12 sm:w-24 shrink-0 relative">
-            {activePhrases[1] && (
-              <QuickChatBubble
-                phrase={activePhrases[1].phrase}
-                senderName={activePhrases[1].senderName}
-                className="absolute -top-12 left-0 z-30"
-              />
-            )}
             <div className={`bg-gradient-to-b from-red-950/90 to-rose-950/90 border-2 ${currentTurn === 1 ? 'border-yellow-400 ring-2 ring-yellow-400/50' : 'border-red-500/60'} p-1 sm:p-1.5 rounded-xl sm:rounded-2xl flex flex-col items-center text-center shadow-lg shadow-red-500/20 w-full`}>
               <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-red-600 text-white flex items-center justify-center text-[9px] sm:text-xs font-bold border border-red-200 shrink-0">
                 ⚔️
@@ -1804,13 +1764,6 @@ export default function GameTwoVsTwo() {
 
           {/* DERECHA: PUESTO 3 - RIVAL 2 (EQUIPO 2 - ROJO) */}
           <div className="flex flex-col items-center justify-center z-10 w-12 sm:w-24 shrink-0 relative">
-            {activePhrases[3] && (
-              <QuickChatBubble
-                phrase={activePhrases[3].phrase}
-                senderName={activePhrases[3].senderName}
-                className="absolute -top-12 right-0 z-30"
-              />
-            )}
             <div className={`bg-gradient-to-b from-red-950/90 to-rose-950/90 border-2 ${currentTurn === 3 ? 'border-yellow-400 ring-2 ring-yellow-400/50' : 'border-red-500/60'} p-1 sm:p-1.5 rounded-xl sm:rounded-2xl flex flex-col items-center text-center shadow-lg shadow-red-500/20 w-full`}>
               <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-red-600 text-white flex items-center justify-center text-[9px] sm:text-xs font-bold border border-red-200 shrink-0">
                 ⚔️
@@ -1846,15 +1799,6 @@ export default function GameTwoVsTwo() {
 
         {/* ABAJO: PUESTO 0 - TÚ (EQUIPO 1 - AZUL) Y CONTROLES */}
         <div className="w-full flex flex-col items-center justify-center relative z-20 shrink-0 pb-2 sm:pb-4">
-          {/* Burbuja de chat para ti */}
-          {activePhrases[mySeatIndex] && (
-            <QuickChatBubble
-              phrase={activePhrases[mySeatIndex].phrase}
-              senderName={activePhrases[mySeatIndex].senderName}
-              className="absolute -top-12 left-1/2 -translate-x-1/2 z-30"
-            />
-          )}
-          
           {/* Contador de tiempo para decisión de Tumba (10s de análisis) */}
           {tumbaCountdown !== null && (
             <div className='flex justify-center mb-1 animate-pulse z-30'>
@@ -1914,9 +1858,8 @@ export default function GameTwoVsTwo() {
               )}
             </div>
 
-            {/* Botón de Frases Rápidas y Botón de PEDIR */}
+            {/* Botón de PEDIR */}
             <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
-              <QuickChatButton onSendPhrase={handleSendQuickPhrase} />
 
               {(() => {
                 const isTumbaActive = (pointsTeam1 >= 9 || (isTumbaDeParaAtrasT1 && pointsTeam1 === 8)) ||
