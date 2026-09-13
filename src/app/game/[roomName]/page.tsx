@@ -1115,15 +1115,6 @@ export default function Duel1vs1() {
 
         setTableCards(prev => [cpEightRef.current]);
         setPlayerCards([]);
-
-        setTimeout(async () => {
-          const dato = { game: idGame.current, order: 87, content: "" };
-          try {
-            await connection.invoke("ChangeGame1vs1", dato);
-          } catch (err) {
-            console.error("Error al cambiar juego tras rechazo:", err);
-          }
-        }, 2200);
       }
     });
 
@@ -1273,7 +1264,8 @@ export default function Duel1vs1() {
               } else if (Orden == "5") {
                 switchturn.current = false;
                 setIsMyTurn(false);
-                setPlayerCards([]);
+                // Mantener las cartas sobre el tapete para que el jugador vea claramente la jugada final
+                setTableCards([cpEightRef.current, cpownRef.current, cardZero]);
                 speakPhrase("¡Felicidades, ganaste la partida! Tumba completada.");
                 vibrateDevice('winMatch');
                 playSynthSound('win');
@@ -1283,13 +1275,15 @@ export default function Duel1vs1() {
                   subtitle: '¡Tumba completada! Has ganado la partida.',
                   badge: 'VICTORIA'
                 }, 4000);
-                Swal.fire({
-                  title: "¡GANASTE EL JUEGO!",
-                  text: "¡Felicidades, completaste la tumba y eres el vencedor de la partida!",
-                  icon: "success",
-                  confirmButtonText: "Ir al Lobby",
-                  confirmButtonColor: "#d97706"
-                }).then(() => router.push("/desk"));
+                setTimeout(() => {
+                  Swal.fire({
+                    title: "¡GANASTE EL JUEGO!",
+                    text: "¡Felicidades, completaste la tumba y eres el vencedor de la partida!",
+                    icon: "success",
+                    confirmButtonText: "Ir al Lobby",
+                    confirmButtonColor: "#d97706"
+                  }).then(() => router.push("/desk"));
+                }, 3500);
               }
             } else {
               if (Orden == "0") {
@@ -1336,7 +1330,8 @@ export default function Duel1vs1() {
               } else if (Orden == "4") {
                 switchturn.current = false;
                 setIsMyTurn(false);
-                setPlayerCards([]);
+                // Mantener las cartas sobre el tapete para que el jugador vea claramente la jugada final
+                setTableCards([cpEightRef.current, cpownRef.current, cardZero]);
                 speakPhrase("Tu rival ha completado la tumba y gana la partida.");
                 vibrateDevice('reject');
                 playSynthSound('reject');
@@ -1346,13 +1341,15 @@ export default function Duel1vs1() {
                   subtitle: 'Tu rival ha completado la tumba.',
                   badge: 'DERROTA'
                 }, 4000);
-                Swal.fire({
-                  title: "JUEGO TERMINADO",
-                  text: "Tu rival ha ganado la partida.",
-                  icon: "error",
-                  confirmButtonText: "Ir al Lobby",
-                  confirmButtonColor: "#d97706"
-                }).then(() => router.push("/desk"));
+                setTimeout(() => {
+                  Swal.fire({
+                    title: "JUEGO TERMINADO",
+                    text: "Tu rival ha ganado la partida.",
+                    icon: "error",
+                    confirmButtonText: "Ir al Lobby",
+                    confirmButtonColor: "#d97706"
+                  }).then(() => router.push("/desk"));
+                }, 3500);
               }
             }
           }, 850);
@@ -1489,7 +1486,8 @@ export default function Duel1vs1() {
             } else if (Orden == "4") {
               switchturn.current = false;
               setIsMyTurn(false);
-              setPlayerCards([]);
+              // Mantener las cartas sobre el tapete
+              setTableCards([cpEightRef.current, cpoppRef.current, cpownRef.current]);
               speakPhrase("¡Felicidades, ganaste la partida! Tumba completada.");
               vibrateDevice('winMatch');
               playSynthSound('win');
@@ -1499,13 +1497,15 @@ export default function Duel1vs1() {
                 subtitle: '¡Tumba completada! Has ganado la partida.',
                 badge: 'VICTORIA'
               }, 4000);
-              Swal.fire({
-                title: "¡GANASTE EL JUEGO!",
-                text: "¡Felicidades, completaste la tumba y eres el vencedor de la partida!",
-                icon: "success",
-                confirmButtonText: "Ir al Lobby",
-                confirmButtonColor: "#d97706"
-              }).then(() => router.push("/desk"));
+              setTimeout(() => {
+                Swal.fire({
+                  title: "¡GANASTE EL JUEGO!",
+                  text: "¡Felicidades, completaste la tumba y eres el vencedor de la partida!",
+                  icon: "success",
+                  confirmButtonText: "Ir al Lobby",
+                  confirmButtonColor: "#d97706"
+                }).then(() => router.push("/desk"));
+              }, 3500);
             }
           } else {
             if (Orden == "1") {
@@ -1552,7 +1552,8 @@ export default function Duel1vs1() {
             } else if (Orden == "5") {
               switchturn.current = false;
               setIsMyTurn(false);
-              setPlayerCards([]);
+              // Mantener las cartas sobre el tapete
+              setTableCards([cpEightRef.current, cpoppRef.current, cpownRef.current]);
               speakPhrase("Tu rival ha completado la tumba y gana la partida.");
               vibrateDevice('reject');
               playSynthSound('reject');
@@ -1562,13 +1563,15 @@ export default function Duel1vs1() {
                 subtitle: 'Tu rival ha completado la tumba.',
                 badge: 'DERROTA'
               }, 4000);
-              Swal.fire({
-                title: "JUEGO TERMINADO",
-                text: "Tu rival ha ganado la partida.",
-                icon: "error",
-                confirmButtonText: "Ir al Lobby",
-                confirmButtonColor: "#d97706"
-              }).then(() => router.push("/desk"));
+              setTimeout(() => {
+                Swal.fire({
+                  title: "JUEGO TERMINADO",
+                  text: "Tu rival ha ganado la partida.",
+                  icon: "error",
+                  confirmButtonText: "Ir al Lobby",
+                  confirmButtonColor: "#d97706"
+                }).then(() => router.push("/desk"));
+              }, 3500);
             }
           }
         }, 850);

@@ -840,7 +840,10 @@ export default function GameTwoVsTwo() {
     }
 
     if (isGameOver) {
-      handleGameOver(winningTeamOfMatch === myTeam);
+      // Dejar visible la última baza 3.5 segundos para que los jugadores vean claramente qué carta mató a cuál
+      setTimeout(() => {
+        handleGameOver(winningTeamOfMatch === myTeam);
+      }, 3500);
     } else {
       // Si soy el anfitrión (Asiento 0), solicito repartir la nueva mano rotando el turno
       if (mySeatIndexRef.current === 0 && connection) {
@@ -1008,13 +1011,47 @@ export default function GameTwoVsTwo() {
       }, 2500);
       speakPhrase(`¡Dijeron quiero! Jugamos por ${nextStake} piedras.`);
     } else {
+      const challengerSeat = lastStakeAskedByRef.current ?? ((responderSeat + 1) % 4);
+      const challengerTeam = (challengerSeat === 0 || challengerSeat === 2) ? 1 : 2;
+      const myTeam = (mySeatIndexRef.current === 0 || mySeatIndexRef.current === 2) ? 1 : 2;
+      const reward = current === 1 ? 1 : (current === 3 ? 3 : 6);
+
+      const oldT1 = pointsTeam1Ref.current;
+      const oldT2 = pointsTeam2Ref.current;
+      const newT1 = challengerTeam === 1 ? Math.min(10, oldT1 + reward) : oldT1;
+      const newT2 = challengerTeam === 2 ? Math.min(10, oldT2 + reward) : oldT2;
+      updatePoints(newT1, newT2);
+
       triggerAnnouncement({
-        type: 'win_round',
-        title: '¡DIJERON NO QUIERO!',
-        subtitle: 'Mano ganada automáticamente',
-        badge: 'MANO GANADA'
-      }, 2500);
-      speakPhrase('¡No quisieron! Mano ganada.');
+        type: challengerTeam === myTeam ? 'win_round' : 'opp_win_round',
+        title: '¡NO QUIERO!',
+        subtitle: challengerTeam === myTeam 
+          ? `El rival no quiso. Tu equipo suma +${reward} piedra(s)`
+          : `Tu equipo no quiso. Los rivales suman +${reward} piedra(s)`,
+        badge: `+${reward} PIEDRAS`
+      }, 3000);
+      speakPhrase(challengerTeam === myTeam ? `¡No quisieron! Sumamos ${reward} piedras.` : "No quisimos. Piedra para los rivales.");
+
+      playedCardsRef.current = [];
+      setPlayedCards([]);
+      setTrickResult(null);
+
+      // Si se completaron puntos de victoria o tumba
+      if (newT1 >= 10 || newT2 >= 10) {
+        setTimeout(() => {
+          handleGameOver(challengerTeam === myTeam);
+        }, 3000);
+      } else {
+        // El anfitrión reparte la nueva mano rotando la salida
+        if (mySeatIndexRef.current === 0 && connection) {
+          setTimeout(() => {
+            const nextStarter = (handStarterRef.current + 1) % 4;
+            connection.invoke('DealNewHand2v2', roomName, nextStarter).catch(err => {
+              console.error('Error al repartir nueva mano tras no quiero:', err);
+            });
+          }, 3000);
+        }
+      }
     }
   };
 
