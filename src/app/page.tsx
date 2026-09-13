@@ -5,7 +5,6 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import * as fonts from "@/components/fonts";
 import { Button } from "@/components/ui/button";
-import GoogleButton from "@/components/google";
 import { useAppDispatch, useAppSelector, RootState } from "@/store/store";
 import { setGamePlayer, clearGamePlayer } from "@/store/slices/gameplayerSlice";
 
@@ -123,37 +122,27 @@ export default function Home() {
             </>
           ) : (
             <>
-              {/* Botón Principal Iniciar Sesión: Dorado brillante con alto contraste */}
+              {/* Botón Principal Iniciar Sesión: Negro & Oro */}
               <Button
                 type="button"
                 onClick={() => router.push("/iniciar-sesion")}
-                className={`${fonts.bowlbyOneSC.className} z-30 w-full bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 py-3.5 text-slate-950 font-black shadow-xl shadow-amber-500/40 rounded-2xl text-sm sm:text-base border-2 border-yellow-100 tracking-wider hover:scale-[1.02] active:scale-95 transition-all`}>
+                className={`${fonts.bowlbyOneSC.className} z-30 w-full bg-black/90 hover:bg-black py-3.5 text-amber-400 hover:text-amber-300 font-black shadow-2xl shadow-black/90 rounded-2xl text-sm sm:text-base border-2 border-amber-400 tracking-wider hover:scale-[1.02] active:scale-95 transition-all`}>
                 INICIAR SESIÓN
               </Button>
 
-              {/* Botón Crear Cuenta Nueva: Verde esmeralda vivo con borde brillante */}
+              {/* Botón Crear Cuenta Nueva: Negro & Plata */}
               <Button
                 type="button"
                 onClick={() => router.push("/registro")}
-                className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 border-2 border-emerald-300/60 text-white py-3 rounded-2xl text-sm font-extrabold shadow-lg shadow-emerald-600/30 tracking-wide hover:scale-[1.02] active:scale-95 transition-all">
+                className="w-full bg-black/85 hover:bg-black border-2 border-slate-300 hover:border-white text-white py-3 rounded-2xl text-sm font-extrabold shadow-xl shadow-black/90 tracking-wide hover:scale-[1.02] active:scale-95 transition-all">
                 Crear Cuenta Nueva
               </Button>
 
-              <div className="flex items-center gap-2 my-0.5 w-full justify-center">
-                <span className="h-px bg-amber-500/40 flex-1"></span>
-                <span className="text-[10px] text-amber-300/90 uppercase font-bold tracking-widest">o con</span>
-                <span className="h-px bg-amber-500/40 flex-1"></span>
-              </div>
-
-              <div className="flex justify-center w-full">
-                <GoogleButton />
-              </div>
-
               <button
                 onClick={handleGuestPlay}
-                className="w-full py-2 px-3 rounded-xl bg-white/10 hover:bg-white/20 border border-white/25 text-xs text-white font-bold transition flex items-center justify-center gap-1.5 hover:scale-[1.02] active:scale-95">
+                className="w-full py-2.5 px-3 mt-1 rounded-xl bg-white/10 hover:bg-white/20 border border-white/25 text-xs text-white font-bold transition flex items-center justify-center gap-1.5 hover:scale-[1.02] active:scale-95">
                 <span>🎲</span>
-                <span>Jugar como Invitado (50 🪙)</span>
+                <span>Jugar como Invitado (Solo Amistoso)</span>
               </button>
             </>
           )}

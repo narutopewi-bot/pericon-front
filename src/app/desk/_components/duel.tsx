@@ -93,6 +93,11 @@ const Duel = ({ open, duelToggle, }: any) => {
   }
 
   async function onSubmit({ mode, credits }: { mode: string; credits: string }) {
+    if (user.name?.startsWith("Invitado_") || user.id?.startsWith("guest_")) {
+      alert("El modo invitado únicamente puede participar en partidas amistosas (Crear o Unirse a Sala). Por favor regístrate para jugar duelos.");
+      return;
+    }
+
     const bet = parseInt(credits);
 
     if (!validateCredits(credits)) {

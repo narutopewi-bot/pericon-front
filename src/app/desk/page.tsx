@@ -141,6 +141,11 @@ export default function Desk() {
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [globalAnnouncement, setGlobalAnnouncement] = useState<{ message: string; createdAt: string } | null>(null);
 
+  const dispatch = useDispatch();
+  const connection = useSignalRContext(); 
+  const hasConnected = React.useRef(false);
+  const gamep = useSelector((state: RootState) => state.gameplayer);
+
   const [dataplayer, setDataplayer] = React.useState<GamePlayer>({
     id: "",
     name: "",
@@ -153,29 +158,74 @@ export default function Desk() {
     avatarUrl: "",
   });
 
+  const isGuest = Boolean(
+    dataplayer.name?.startsWith("Invitado_") ||
+    dataplayer.id?.startsWith("guest_") ||
+    gamep.name?.startsWith("Invitado_") ||
+    gamep.id?.startsWith("guest_")
+  );
+
+  const showGuestRestrictedNotice = () => {
+    Swal.fire({
+      title: 'MODO INVITADO: SOLO AMISTOSOS',
+      html: `
+        <div style="text-align: center; font-size: 14px; padding: 6px 0;">
+          <p style="color: #cbd5e1; margin-bottom: 12px; line-height: 1.5;">
+            Como jugador invitado, únicamente puedes participar en <strong>Partidas Amistosas</strong> (Crear Sala o Unirte con código).
+          </p>
+          <div style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 12px; padding: 12px; color: #fde68a; font-size: 13px; margin-bottom: 12px;">
+            🪙 Para jugar <strong>Duelos 1 vs 1</strong> o competir por monedas y ranking, necesitas registrar tu cuenta oficial.
+          </div>
+          <p style="color: #94a3b8; font-size: 12px;">
+            ¡El registro es rápido y podrás guardar tu progreso y premios!
+          </p>
+        </div>
+      `,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonText: 'Crear Cuenta Oficial',
+      cancelButtonText: 'Seguir como Invitado',
+      confirmButtonColor: '#d97706',
+      cancelButtonColor: '#475569',
+      background: '#1a0e06',
+      color: '#fff',
+      customClass: {
+        popup: 'border-2 border-amber-500/50 rounded-3xl shadow-2xl'
+      }
+    }).then((res) => {
+      if (res.isConfirmed) {
+        router.push("/registro");
+      }
+    });
+  };
+
   const duelToggle = () => {
+    if (isGuest) {
+      showGuestRestrictedNotice();
+      return;
+    }
     setOpen(!open);
   };
 
   const duelToggle02 = () => {
+    if (isGuest) {
+      showGuestRestrictedNotice();
+      return;
+    }
     setNewopen(!newopen);
   };
 
   const handleFinishNewDuel = () => {
-  // Puedes reiniciar estados o simplemente reactivar algo
-  //  duelToggle02();
-    setNewopen(false); // cierra el modal desde el padre
-  // Si necesitas hacer algo extra aquí, lo puedes añadir
+    setNewopen(false);
   };
 
   const openNewDuel = () => {
-    setNewopen(true); // ← abre siempre
+    if (isGuest) {
+      showGuestRestrictedNotice();
+      return;
+    }
+    setNewopen(true);
   };
-
-  const dispatch = useDispatch();
-  const connection = useSignalRContext(); 
-  const hasConnected = React.useRef(false);
-  const gamep = useSelector((state: RootState) => state.gameplayer);
 
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -317,7 +367,40 @@ export default function Desk() {
       <GameHeaderMenu
         player={dataplayer}
         onOpenProfile={() => setProfileOpen(true)}
-        onOpenWallet={() => setWalletOpen(true)}
+        onOpenWallet={() => {
+          if (isGuest) {
+            Swal.fire({
+              title: 'MONEDERO EXCLUSIVO',
+              html: `
+                <div style="text-align: center; font-size: 14px; padding: 6px 0;">
+                  <p style="color: #cbd5e1; margin-bottom: 12px; line-height: 1.5;">
+                    El monedero y las recargas de saldo están disponibles únicamente para cuentas registradas.
+                  </p>
+                  <div style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 12px; padding: 10px; color: #fde68a; font-weight: bold; margin-bottom: 8px;">
+                    ¡Crea tu cuenta oficial para recargar y cobrar premios!
+                  </div>
+                </div>
+              `,
+              icon: 'info',
+              showCancelButton: true,
+              confirmButtonText: 'Crear Cuenta',
+              cancelButtonText: 'Cerrar',
+              confirmButtonColor: '#d97706',
+              cancelButtonColor: '#475569',
+              background: '#1a0e06',
+              color: '#fff',
+              customClass: {
+                popup: 'border-2 border-amber-500/50 rounded-3xl shadow-2xl'
+              }
+            }).then((res) => {
+              if (res.isConfirmed) {
+                router.push("/registro");
+              }
+            });
+            return;
+          }
+          setWalletOpen(true);
+        }}
         onOpenTutorial={() => setTutorialOpen(true)}
         onOpenLeaderboard={() => setLeaderboardOpen(true)}
       />
@@ -353,16 +436,32 @@ export default function Desk() {
             </span>
           </div>
 
+          {/* Aviso informativo si es Modo Invitado */}
+          {isGuest && (
+            <div className="w-full mb-3 bg-amber-950/70 border border-amber-500/60 rounded-2xl p-2.5 text-center shadow-lg backdrop-blur-md">
+              <p className="text-amber-300 text-xs font-bold flex items-center justify-center gap-1.5">
+                <span>🛡️</span>
+                <span>Modo Invitado: Habilitado únicamente para Partidas Amistosas (Crear o Unirse a Sala).</span>
+              </p>
+              <button
+                onClick={() => router.push("/registro")}
+                className="mt-1 text-[11px] text-amber-400 hover:text-amber-200 underline font-extrabold cursor-pointer"
+              >
+                ¿Quieres apostar monedas y subir de nivel? ¡Regístrate aquí!
+              </button>
+            </div>
+          )}
+
           {/* Cuadrícula 2x2 Optimizada para Móvil y Desktop */}
           <div className="grid grid-cols-2 gap-2.5 sm:gap-4 w-full">
 
             {/* 1. DUELO (Activo: Solitario y 1 vs 1) */}
             <div
               onClick={() => duelToggle()}
-              className="rounded-2xl sm:rounded-3xl border-2 border-blue-500/70 p-3 sm:p-4 flex flex-col items-center justify-between text-center relative cursor-pointer active:scale-95 hover:scale-[1.02] transition-all duration-150 bg-gradient-to-b from-[#1b1e2e]/90 via-[#12141f]/95 to-[#0a0b12] shadow-lg shadow-blue-500/20 backdrop-blur-md group"
+              className={`rounded-2xl sm:rounded-3xl border-2 ${isGuest ? 'border-amber-500/50 opacity-80 hover:opacity-100' : 'border-blue-500/70'} p-3 sm:p-4 flex flex-col items-center justify-between text-center relative cursor-pointer active:scale-95 hover:scale-[1.02] transition-all duration-150 bg-gradient-to-b from-[#1b1e2e]/90 via-[#12141f]/95 to-[#0a0b12] shadow-lg shadow-blue-500/20 backdrop-blur-md group`}
             >
-              <div className="absolute -top-2.5 right-2 bg-blue-600 text-white font-black text-[8px] sm:text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full shadow border border-blue-300 animate-pulse">
-                🔥 POPULAR
+              <div className={`absolute -top-2.5 right-2 ${isGuest ? 'bg-amber-800 text-amber-200 border-amber-400/60' : 'bg-blue-600 text-white border-blue-300'} font-black text-[8px] sm:text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full shadow border`}>
+                {isGuest ? '🔒 CUENTA REQUERIDA' : '🔥 POPULAR'}
               </div>
               <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-blue-700 to-sky-400 p-2 shadow-lg border border-blue-200/50 flex items-center justify-center mt-1 group-hover:rotate-6 transition transform">
                 <Image priority src="/duel.svg" alt="Duelo" width={40} height={40} className="w-7 h-7 sm:w-10 sm:h-10 object-contain drop-shadow" />
@@ -375,8 +474,8 @@ export default function Desk() {
                   1 vs 1 o Solitario por monedas
                 </p>
               </div>
-              <div className="w-full mt-2 bg-blue-600/30 border border-blue-400/50 rounded-xl py-1 sm:py-1.5 text-[10px] sm:text-xs font-black text-blue-200 flex items-center justify-center gap-1 group-hover:bg-blue-600 group-hover:text-white transition">
-                <span>JUGAR</span>
+              <div className={`w-full mt-2 ${isGuest ? 'bg-amber-950/60 border-amber-500/40 text-amber-300' : 'bg-blue-600/30 border-blue-400/50 text-blue-200'} border rounded-xl py-1 sm:py-1.5 text-[10px] sm:text-xs font-black flex items-center justify-center gap-1 group-hover:bg-blue-600 group-hover:text-white transition`}>
+                <span>{isGuest ? 'SOLO REGISTRADOS' : 'JUGAR'}</span>
                 <span>➜</span>
               </div>
             </div>

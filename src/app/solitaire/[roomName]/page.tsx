@@ -234,8 +234,19 @@ export default function Duel() {
   // Start of the Game on solitaire mode
 
   useEffect(() => {
+    if (gameplayer.name?.startsWith("Invitado_") || gameplayer.id?.startsWith("guest_")) {
+      Swal.fire({
+        title: "SOLO PARTIDAS AMISTOSAS",
+        text: "El modo invitado solo puede participar en salas amistosas (Crear o Unirse a Sala). Regístrate para jugar duelos por monedas.",
+        icon: "warning",
+        confirmButtonColor: "#d97706"
+      }).then(() => {
+        router.push("/desk");
+      });
+      return;
+    }
     setOponent({ username: 'Pericon', avatar: '/avatar.png' })
-  }, [])
+  }, [gameplayer, router])
 
   // Initialize Game parameters
 

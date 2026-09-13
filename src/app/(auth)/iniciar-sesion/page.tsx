@@ -3,8 +3,6 @@
 import * as React from 'react';
 import { Input } from "@/components/input";
 import { Button } from "@/components/ui/button";
-import GoogleButton from "@/components/google"
-import FacebookButton from '@/components/facebook';
 import Link from "next/link";
 import Image from "next/image";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -158,7 +156,7 @@ export default function SignIn() {
                 <div className="flex justify-center pt-2">
                   <Button type="submit"
                     disabled={loading}
-                    className="w-full bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 text-slate-950 font-black shadow-xl shadow-amber-500/30 border-2 border-yellow-100 rounded-2xl py-3.5 text-base tracking-wider disabled:opacity-50 hover:scale-[1.02] active:scale-95 transition-all"
+                    className="w-full bg-black/90 hover:bg-black text-amber-400 hover:text-amber-300 font-black shadow-2xl shadow-black/90 border-2 border-amber-400 rounded-2xl py-3.5 text-base tracking-wider disabled:opacity-50 hover:scale-[1.02] active:scale-95 transition-all"
                   >{loading ? "INGRESANDO..." : "INGRESAR"}</Button>
                 </div>
               </form>
@@ -173,16 +171,6 @@ export default function SignIn() {
             </div>
 
             <div className="mt-2 text-xs text-slate-300">¿No tienes una cuenta? <Link href="/registro" className="text-amber-400 font-bold underline hover:text-amber-300">Regístrate</Link></div>
-          </div>
-
-          <div className="flex justify-center py-2">
-            <div className="mx-2">
-              <GoogleButton />
-            </div>
-
-            <div className="mx-2">
-              <FacebookButton />
-            </div>
           </div>
 
         </div>
