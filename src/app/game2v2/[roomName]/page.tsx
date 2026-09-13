@@ -1405,17 +1405,17 @@ export default function GameTwoVsTwo() {
       <div className="flex-1 w-full max-w-5xl mx-auto flex flex-col justify-between p-2 sm:p-4 relative">
         
         {/* ARRIBA: PUESTO 2 - COMPAÑERO (EQUIPO 1 - AZUL) */}
-        <div className="w-full flex flex-col items-center justify-center relative z-10">
-          <div className="bg-gradient-to-r from-blue-950/90 to-sky-950/90 border-2 border-blue-400/60 px-3 py-1 rounded-2xl flex items-center gap-2 shadow-lg shadow-blue-500/20">
-            <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-[10px] font-black border border-blue-200">
+        <div className="w-full flex flex-col items-center justify-center relative z-10 shrink-0">
+          <div className="bg-gradient-to-r from-blue-950/90 to-sky-950/90 border-2 border-blue-400/60 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-xl sm:rounded-2xl flex items-center gap-1.5 sm:gap-2 shadow-lg shadow-blue-500/20">
+            <div className="w-5 h-5 sm:w-6 sm:h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-[9px] sm:text-[10px] font-black border border-blue-200 shrink-0">
               🤝
             </div>
-            <div className="text-left">
-              <span className="text-xs font-bold text-blue-100 block leading-tight">{players[2].name}</span>
-              <span className="text-[8px] text-blue-300 uppercase font-black">Compañero (Azul)</span>
+            <div className="text-left leading-tight">
+              <span className="text-[11px] sm:text-xs font-bold text-blue-100 block max-w-[110px] sm:max-w-none truncate">{players[2].name}</span>
+              <span className="text-[7px] sm:text-[8px] text-blue-300 uppercase font-black">Compañero (Azul)</span>
             </div>
             {currentTurn === 2 && (
-              <span className="text-[8px] bg-blue-500 text-white font-extrabold px-1.5 py-0.5 rounded-full">
+              <span className="text-[7px] sm:text-[8px] bg-blue-500 text-white font-extrabold px-1.5 py-0.5 rounded-full animate-pulse">
                 TURNO
               </span>
             )}
@@ -1431,9 +1431,9 @@ export default function GameTwoVsTwo() {
           )}
 
           {/* Cartas ocultas del Compañero */}
-          <div className="flex items-center -space-x-4 mt-1">
+          <div className="flex items-center -space-x-3 sm:-space-x-4 mt-0.5 sm:mt-1">
             {Array.from({ length: partnerCardCount }).map((_, i) => (
-              <div key={i} className="w-10 h-14 sm:w-12 sm:h-16 rounded-lg overflow-hidden border border-blue-400/40 shadow">
+              <div key={i} className="w-7 h-10 sm:w-12 sm:h-16 rounded-md sm:rounded-lg overflow-hidden border border-blue-400/40 shadow">
                 <img src="/card_back.png" alt="Carta" className="w-full h-full object-cover" />
               </div>
             ))}
@@ -1441,10 +1441,10 @@ export default function GameTwoVsTwo() {
         </div>
 
         {/* FILA MEDIA: RIVAL 1 (IZQ), TAPETE CENTRAL (4 CARTAS), RIVAL 2 (DER) */}
-        <div className="w-full flex items-center justify-between relative my-auto">
+        <div className="w-full flex items-center justify-between relative my-auto gap-0.5 sm:gap-2">
           
           {/* IZQUIERDA: PUESTO 1 - RIVAL 1 (EQUIPO 2 - ROJO) */}
-          <div className="flex flex-col items-center justify-center z-10 w-20 sm:w-28 relative">
+          <div className="flex flex-col items-center justify-center z-10 w-12 sm:w-24 shrink-0 relative">
             {activePhrases[1] && (
               <QuickChatBubble
                 phrase={activePhrases[1].phrase}
@@ -1452,23 +1452,31 @@ export default function GameTwoVsTwo() {
                 className="absolute -top-12 left-0 z-30"
               />
             )}
-            <div className="bg-gradient-to-b from-red-950/90 to-rose-950/90 border-2 border-red-500/60 p-1.5 rounded-2xl flex flex-col items-center text-center shadow-lg shadow-red-500/20 w-full">
-              <div className="w-7 h-7 rounded-full bg-red-600 text-white flex items-center justify-center text-xs font-bold border border-red-200">
+            <div className={`bg-gradient-to-b from-red-950/90 to-rose-950/90 border-2 ${currentTurn === 1 ? 'border-yellow-400 ring-2 ring-yellow-400/50' : 'border-red-500/60'} p-1 sm:p-1.5 rounded-xl sm:rounded-2xl flex flex-col items-center text-center shadow-lg shadow-red-500/20 w-full`}>
+              <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-red-600 text-white flex items-center justify-center text-[9px] sm:text-xs font-bold border border-red-200 shrink-0">
                 ⚔️
               </div>
-              <span className="text-[11px] font-bold text-red-100 mt-1 truncate w-full">{players[1].name}</span>
-              <span className="text-[8px] text-red-300 font-black uppercase">Rival 1</span>
+              <span className="text-[9px] sm:text-[11px] font-bold text-red-100 mt-0.5 truncate w-full">{players[1].name}</span>
+              <span className="text-[7px] sm:text-[8px] text-red-300 font-black uppercase">Rival 1</span>
               {currentTurn === 1 && (
-                <span className="text-[8px] bg-red-500 text-white font-extrabold px-1.5 py-0.5 rounded-full mt-1">
+                <span className="text-[7px] sm:text-[8px] bg-red-500 text-white font-extrabold px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded-full mt-0.5 animate-pulse">
                   TURNO
                 </span>
               )}
             </div>
 
-            {/* Cartas ocultas de Rival 1 */}
-            <div className="flex flex-col -space-y-6 mt-1.5">
+            {/* Cartas ocultas de Rival 1: En móvil tarjeta compacta con contador, en desktop abanico */}
+            <div className="mt-1 sm:hidden relative">
+              <div className="w-7 h-10 rounded-md overflow-hidden border border-red-500/40 shadow">
+                <img src="/card_back.png" alt="Carta" className="w-full h-full object-cover" />
+              </div>
+              <span className="absolute -bottom-1 -right-1 bg-red-600 text-white text-[8px] font-black px-1 rounded-full border border-red-300 shadow leading-tight">
+                {rival1CardCount}
+              </span>
+            </div>
+            <div className="hidden sm:flex sm:flex-col -space-y-6 mt-1.5">
               {Array.from({ length: rival1CardCount }).map((_, i) => (
-                <div key={i} className="w-10 h-14 sm:w-12 sm:h-16 rounded-lg overflow-hidden border border-red-500/40 shadow">
+                <div key={i} className="w-12 h-16 rounded-lg overflow-hidden border border-red-500/40 shadow">
                   <img src="/card_back.png" alt="Carta" className="w-full h-full object-cover" />
                 </div>
               ))}
@@ -1476,35 +1484,35 @@ export default function GameTwoVsTwo() {
           </div>
 
           {/* TAPETE VERDE CENTRAL: 4 CARTAS EN MESA BIEN DISTRIBUIDAS */}
-          <div className="flex-1 mx-1 sm:mx-4 min-h-[260px] sm:min-h-[300px] rounded-3xl bg-gradient-to-b from-[#1b4332] via-[#2d6a4f] to-[#1b4332] border-4 border-amber-600/60 shadow-2xl shadow-green-950/60 flex flex-col items-center justify-between p-2.5 sm:p-4 relative overflow-hidden">
+          <div className="flex-1 mx-0.5 sm:mx-3 min-h-[240px] sm:min-h-[300px] rounded-2xl sm:rounded-3xl bg-gradient-to-b from-[#1b4332] via-[#2d6a4f] to-[#1b4332] border-2 sm:border-4 border-amber-600/60 shadow-2xl shadow-green-950/60 flex flex-col items-center justify-between p-1.5 sm:p-3.5 relative overflow-hidden">
             
             {/* Resplandor ambiental de tapete */}
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-emerald-500/10 via-transparent to-black/30 pointer-events-none" />
 
             {/* Cabecera del Tapete: La Vida y Marcador de Bazas */}
-            <div className="w-full flex items-center justify-between z-10">
-              <div className="flex items-center gap-2 bg-black/70 backdrop-blur-sm border border-amber-500/40 px-2.5 py-1 rounded-2xl shadow-lg">
-                <div className="text-left">
-                  <span className="text-[9px] font-black uppercase tracking-widest text-amber-300 block">LA VIDA</span>
-                  <span className="text-[8px] text-slate-300 font-semibold">Triunfo</span>
+            <div className="w-full flex items-center justify-between z-10 gap-1">
+              <div className="flex items-center gap-1.5 sm:gap-2 bg-black/75 backdrop-blur-sm border border-amber-500/40 px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-xl sm:rounded-2xl shadow-lg">
+                <div className="text-left leading-none">
+                  <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-wider text-amber-300 block">VIDA</span>
+                  <span className="hidden sm:block text-[7.5px] text-slate-300 font-semibold mt-0.5">Triunfo</span>
                 </div>
                 {lifeCard.id >= 0 && (
-                  <div className="w-8 h-12 sm:w-9 sm:h-13 rounded-md overflow-hidden border border-amber-400 shadow transform rotate-3">
+                  <div className="w-6 h-9 sm:w-9 sm:h-13 rounded sm:rounded-md overflow-hidden border border-amber-400 shadow transform rotate-3 shrink-0">
                     <img src={lifeCard.image} alt="Vida" className="w-full h-full object-cover" />
                   </div>
                 )}
               </div>
 
-              <div className="bg-black/70 backdrop-blur-sm border border-amber-500/40 px-2.5 py-1 rounded-xl text-[10px] sm:text-xs font-bold text-amber-300 shadow flex items-center gap-1.5">
-                <span>Bazas:</span>
-                <span className="text-blue-300 font-black">{tricksTeam1}</span>
-                <span>a</span>
-                <span className="text-red-300 font-black">{tricksTeam2}</span>
+              <div className="bg-black/75 backdrop-blur-sm border border-amber-500/40 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-xl text-[9px] sm:text-xs font-bold text-amber-300 shadow flex items-center gap-1 shrink-0">
+                <span className="text-[8px] sm:text-[11px] text-amber-200/80">Bazas:</span>
+                <span className="text-blue-300 font-black">🔵{tricksTeam1}</span>
+                <span className="text-stone-400">-</span>
+                <span className="text-red-300 font-black">{tricksTeam2}🔴</span>
               </div>
             </div>
 
             {/* LAS 4 CARTAS DE LA BAZA EN FILA CLARA (SIN TAPARSE) */}
-            <div className="w-full flex items-center justify-center gap-2 sm:gap-4 my-auto z-10 px-1">
+            <div className="w-full flex items-center justify-center gap-1 sm:gap-3.5 my-auto z-10 px-0.5">
               {[0, 1, 2, 3].map((pIdx) => {
                 const playedItem = playedCards.find((p) => p.playerIndex === pIdx);
                 const playerInfo = players[pIdx];
@@ -1514,10 +1522,10 @@ export default function GameTwoVsTwo() {
                 return (
                   <div key={pIdx} className="flex flex-col items-center transition-all duration-300">
                     {/* Ranura de la Carta */}
-                    <div className={`w-[52px] h-[78px] sm:w-[68px] sm:h-[98px] rounded-xl overflow-hidden border-2 flex items-center justify-center transition-all duration-300 ${
+                    <div className={`w-[42px] h-[64px] xs:w-[48px] xs:h-[72px] sm:w-[68px] sm:h-[98px] rounded-lg sm:rounded-xl overflow-hidden border-2 flex items-center justify-center transition-all duration-300 ${
                       playedItem
                         ? (isWinner
-                            ? 'border-yellow-400 ring-4 ring-yellow-400 shadow-2xl shadow-yellow-500/50 scale-105 bg-white z-20'
+                            ? 'border-yellow-400 ring-2 sm:ring-4 ring-yellow-400 shadow-2xl shadow-yellow-500/50 scale-105 bg-white z-20'
                             : 'border-slate-300 bg-white shadow-md')
                         : (currentTurn === pIdx
                             ? (isTeam1 ? 'border-blue-400/80 bg-blue-950/40 border-dashed' : 'border-red-400/80 bg-red-950/40 border-dashed')
@@ -1526,15 +1534,15 @@ export default function GameTwoVsTwo() {
                       {playedItem ? (
                         <img src={playedItem.card.image} alt="Carta jugada" className="w-full h-full object-contain" />
                       ) : (
-                        <span className="text-[8px] sm:text-[9px] text-emerald-300/50 font-bold text-center px-0.5">
+                        <span className="text-[7.5px] sm:text-[9px] text-emerald-300/50 font-bold text-center px-0.5 leading-tight">
                           {currentTurn === pIdx ? 'Jugando...' : '—'}
                         </span>
                       )}
                     </div>
 
                     {/* Identificación del Jugador debajo de su carta */}
-                    <div className="flex flex-col items-center mt-1">
-                      <span className={`text-[8px] sm:text-[9.5px] font-black uppercase px-1.5 py-0.5 rounded-full shadow ${
+                    <div className="flex flex-col items-center mt-0.5 sm:mt-1">
+                      <span className={`text-[7px] sm:text-[9.5px] font-black uppercase px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded-full shadow ${
                         isTeam1
                           ? 'bg-blue-950/90 text-blue-200 border border-blue-400/50'
                           : 'bg-red-950/90 text-red-200 border border-red-400/50'
@@ -1544,9 +1552,9 @@ export default function GameTwoVsTwo() {
 
                       {/* Insignia de Resultado de la Baza */}
                       {trickResult && playedItem && (
-                        <span className={`text-[8px] sm:text-[9px] font-black mt-0.5 px-1.5 py-0.5 rounded shadow ${
+                        <span className={`text-[6.5px] sm:text-[9px] font-black mt-0.5 px-1 py-0.2 rounded shadow ${
                           isWinner
-                            ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-black ring-2 ring-yellow-200'
+                            ? 'bg-gradient-to-r from-yellow-400 to-amber-500 text-black ring-1 ring-yellow-200'
                             : 'bg-black/60 text-stone-400'
                         }`}>
                           {isWinner ? '⭐ Ganó' : '❌'}
@@ -1559,18 +1567,18 @@ export default function GameTwoVsTwo() {
             </div>
 
             {/* BANNER DEL RESULTADO DE LA BAZA Y ESTADO DE LA RONDA */}
-            <div className="w-full z-10 mt-1">
+            <div className="w-full z-10 mt-0.5 sm:mt-1">
               {trickResult ? (
-                <div className="w-full bg-black/90 border-2 border-amber-400 rounded-2xl py-1.5 px-3 text-center shadow-2xl animate-in zoom-in-95 duration-200">
-                  <span className={`text-xs sm:text-sm font-black tracking-wide ${
+                <div className="w-full bg-black/90 border border-amber-400 rounded-xl sm:rounded-2xl py-1 sm:py-1.5 px-2 sm:px-3 text-center shadow-2xl animate-in zoom-in-95 duration-200">
+                  <span className={`text-[10px] sm:text-sm font-black tracking-wide leading-tight block ${
                     trickResult.winningTeam === 1 ? 'text-green-300' : 'text-rose-300'
                   }`}>
                     {trickResult.message}
                   </span>
                 </div>
               ) : (
-                <div className="w-full bg-black/50 border border-amber-500/20 rounded-xl py-1 px-2 text-center text-emerald-200/70 text-[10px] sm:text-xs">
-                  <span>Mano por <strong>{currentStake}</strong> piedra(s) • Turno: <strong className="text-amber-300">{players[currentTurn]?.name}</strong></span>
+                <div className="w-full bg-black/60 border border-amber-500/20 rounded-xl py-0.5 sm:py-1 px-1.5 text-center text-emerald-200/80 text-[8.5px] sm:text-xs leading-tight">
+                  <span>Mano: <strong>{currentStake}</strong> {currentStake === 1 ? 'piedra' : 'piedras'} • Turno: <strong className="text-amber-300">{players[currentTurn]?.name}</strong></span>
                 </div>
               )}
             </div>
@@ -1578,7 +1586,7 @@ export default function GameTwoVsTwo() {
           </div>
 
           {/* DERECHA: PUESTO 3 - RIVAL 2 (EQUIPO 2 - ROJO) */}
-          <div className="flex flex-col items-center justify-center z-10 w-20 sm:w-28 relative">
+          <div className="flex flex-col items-center justify-center z-10 w-12 sm:w-24 shrink-0 relative">
             {activePhrases[3] && (
               <QuickChatBubble
                 phrase={activePhrases[3].phrase}
@@ -1586,23 +1594,31 @@ export default function GameTwoVsTwo() {
                 className="absolute -top-12 right-0 z-30"
               />
             )}
-            <div className="bg-gradient-to-b from-red-950/90 to-rose-950/90 border-2 border-red-500/60 p-1.5 rounded-2xl flex flex-col items-center text-center shadow-lg shadow-red-500/20 w-full">
-              <div className="w-7 h-7 rounded-full bg-red-600 text-white flex items-center justify-center text-xs font-bold border border-red-200">
+            <div className={`bg-gradient-to-b from-red-950/90 to-rose-950/90 border-2 ${currentTurn === 3 ? 'border-yellow-400 ring-2 ring-yellow-400/50' : 'border-red-500/60'} p-1 sm:p-1.5 rounded-xl sm:rounded-2xl flex flex-col items-center text-center shadow-lg shadow-red-500/20 w-full`}>
+              <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-red-600 text-white flex items-center justify-center text-[9px] sm:text-xs font-bold border border-red-200 shrink-0">
                 ⚔️
               </div>
-              <span className="text-[11px] font-bold text-red-100 mt-1 truncate w-full">{players[3].name}</span>
-              <span className="text-[8px] text-red-300 font-black uppercase">Rival 2</span>
+              <span className="text-[9px] sm:text-[11px] font-bold text-red-100 mt-0.5 truncate w-full">{players[3].name}</span>
+              <span className="text-[7px] sm:text-[8px] text-red-300 font-black uppercase">Rival 2</span>
               {currentTurn === 3 && (
-                <span className="text-[8px] bg-red-500 text-white font-extrabold px-1.5 py-0.5 rounded-full mt-1">
+                <span className="text-[7px] sm:text-[8px] bg-red-500 text-white font-extrabold px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded-full mt-0.5 animate-pulse">
                   TURNO
                 </span>
               )}
             </div>
 
-            {/* Cartas ocultas de Rival 2 */}
-            <div className="flex flex-col -space-y-6 mt-1.5">
+            {/* Cartas ocultas de Rival 2: En móvil tarjeta compacta con contador, en desktop abanico */}
+            <div className="mt-1 sm:hidden relative">
+              <div className="w-7 h-10 rounded-md overflow-hidden border border-red-500/40 shadow">
+                <img src="/card_back.png" alt="Carta" className="w-full h-full object-cover" />
+              </div>
+              <span className="absolute -bottom-1 -right-1 bg-red-600 text-white text-[8px] font-black px-1 rounded-full border border-red-300 shadow leading-tight">
+                {rival2CardCount}
+              </span>
+            </div>
+            <div className="hidden sm:flex sm:flex-col -space-y-6 mt-1.5">
               {Array.from({ length: rival2CardCount }).map((_, i) => (
-                <div key={i} className="w-10 h-14 sm:w-12 sm:h-16 rounded-lg overflow-hidden border border-red-500/40 shadow">
+                <div key={i} className="w-12 h-16 rounded-lg overflow-hidden border border-red-500/40 shadow">
                   <img src="/card_back.png" alt="Carta" className="w-full h-full object-cover" />
                 </div>
               ))}
@@ -1612,7 +1628,7 @@ export default function GameTwoVsTwo() {
         </div>
 
         {/* ABAJO: PUESTO 0 - TÚ (EQUIPO 1 - AZUL) Y CONTROLES */}
-        <div className="w-full flex flex-col items-center justify-center relative z-20 mt-auto pb-1">
+        <div className="w-full flex flex-col items-center justify-center relative z-20 mt-auto pb-1 shrink-0">
           {/* Burbuja de chat para ti */}
           {activePhrases[mySeatIndex] && (
             <QuickChatBubble
@@ -1623,25 +1639,25 @@ export default function GameTwoVsTwo() {
           )}
           
           {/* Barra de Acciones del Jugador: Identidad, Estado de Turno y Botón de PEDIR */}
-          <div className="w-full max-w-md flex items-center justify-between gap-2 mb-1.5 px-2">
+          <div className="w-full max-w-md flex items-center justify-between gap-1.5 sm:gap-2 mb-1 px-1 sm:px-2">
             
             {/* Identidad del Jugador Local */}
-            <div className="flex items-center gap-1.5 sm:gap-2 bg-blue-950/80 border border-blue-500/50 px-2.5 py-1 sm:py-1.5 rounded-2xl shadow">
-              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full bg-blue-600 text-white font-black text-xs flex items-center justify-center border border-blue-200">
+            <div className="flex items-center gap-1 sm:gap-2 bg-blue-950/80 border border-blue-500/50 px-2 py-0.5 sm:py-1.5 rounded-xl sm:rounded-2xl shadow shrink-0">
+              <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-blue-600 text-white font-black text-[10px] sm:text-xs flex items-center justify-center border border-blue-200 shrink-0">
                 🛡️
               </div>
               <div className="text-left leading-tight">
-                <span className="text-xs font-bold text-blue-100 block max-w-[90px] sm:max-w-[120px] truncate">
+                <span className="text-[11px] sm:text-xs font-bold text-blue-100 block max-w-[70px] sm:max-w-[120px] truncate">
                   {user?.name && user.name !== 'nulo' ? user.name : 'Tú'}
                 </span>
-                <span className="text-[8px] sm:text-[9px] text-blue-300 block font-semibold">
-                  {(mySeatIndex === 0 || mySeatIndex === 2) ? 'Equipo 1 (Azul)' : 'Equipo 2 (Rojo)'}
+                <span className="text-[7px] sm:text-[9px] text-blue-300 block font-semibold">
+                  {(mySeatIndex === 0 || mySeatIndex === 2) ? 'Equipo 1' : 'Equipo 2'}
                 </span>
               </div>
             </div>
 
             {/* Banner de Turno con Temporizador de 30s y Auto-juego */}
-            <div className="flex-1 flex items-center justify-center">
+            <div className="flex-1 flex items-center justify-center min-w-0">
               {currentTurn === mySeatIndex && !isProcessingMove && !isCleaningTable && myCards.length > 0 ? (
                 <GameTurnTimer
                   isMyTurn={true}
@@ -1649,14 +1665,14 @@ export default function GameTwoVsTwo() {
                   maxSeconds={30}
                 />
               ) : (
-                <span className="bg-black/60 border border-slate-700 text-slate-300 font-bold text-[10px] sm:text-xs px-2.5 py-1 rounded-full truncate max-w-[130px]">
+                <span className="bg-black/60 border border-slate-700 text-slate-300 font-bold text-[9px] sm:text-xs px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-full truncate max-w-[110px] sm:max-w-[130px]">
                   Turno: <strong className="text-amber-300">{players[currentTurn]?.name || 'Jugador'}</strong>
                 </span>
               )}
             </div>
 
             {/* Botón de Frases Rápidas y Botón de PEDIR */}
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
               <QuickChatButton onSendPhrase={handleSendQuickPhrase} />
 
               {(() => {
@@ -1667,16 +1683,16 @@ export default function GameTwoVsTwo() {
                     type="button"
                     onClick={handlePedirClick}
                     disabled={currentStake >= 9 || isProcessingMove || isCleaningTable || isTumbaActive}
-                    className={`px-3 sm:px-4 py-1.5 sm:py-2 rounded-2xl font-black text-xs sm:text-sm uppercase tracking-wider flex items-center gap-1.5 border-2 transition-all shadow-xl active:scale-95 shrink-0 ${
+                    className={`px-2.5 sm:px-4 py-1 sm:py-2 rounded-xl sm:rounded-2xl font-black text-[11px] sm:text-sm uppercase tracking-wider flex items-center gap-1 border-2 transition-all shadow-xl active:scale-95 shrink-0 ${
                       currentStake >= 9 || isTumbaActive
                         ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
                         : 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black border-yellow-200 hover:brightness-110 shadow-yellow-500/25 cursor-pointer'
                     } ${fonts.bowlbyOneSC.className}`}
                     title={isTumbaActive ? 'En Tumba no se puede pedir' : 'Pedir aumento de apuesta'}
                   >
-                    <span>{isTumbaActive ? '🪦 EN TUMBA' : '🔥 PEDIR'}</span>
+                    <span>{isTumbaActive ? '🪦 TUMBA' : '🔥 PEDIR'}</span>
                     {!isTumbaActive && (
-                      <span className="text-[10px] bg-black text-yellow-300 px-1.5 py-0.5 rounded-md font-extrabold">
+                      <span className="text-[9px] sm:text-[10px] bg-black text-yellow-300 px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded-md font-extrabold">
                         {currentStake === 1 ? '3' : (currentStake === 3 ? '6' : '9')}
                       </span>
                     )}
@@ -1688,10 +1704,10 @@ export default function GameTwoVsTwo() {
           </div>
 
           {/* Tus Cartas en Abanico Interactivo (SIN PARPADEO) */}
-          <div className="flex items-center justify-center gap-2 sm:gap-3 my-1">
+          <div className="flex items-center justify-center gap-1.5 sm:gap-3 my-0.5 sm:my-1">
             {myCards.map((card, index) => {
               const isTurn = currentTurn === mySeatIndex && !isProcessingMove && !isCleaningTable;
-              let rotClass = index === 0 ? 'rotate-[-6deg]' : (index === 1 ? 'rotate-0' : 'rotate-[6deg]');
+              let rotClass = index === 0 ? 'rotate-[-4deg]' : (index === 1 ? 'rotate-0' : 'rotate-[4deg]');
 
               return (
                 <button
@@ -1699,7 +1715,7 @@ export default function GameTwoVsTwo() {
                   type="button"
                   disabled={!isTurn}
                   onClick={() => handlePlayMyCard(card)}
-                  className={`w-20 h-28 sm:w-24 sm:h-36 rounded-2xl overflow-hidden border-2 transition-all duration-200 transform ${rotClass} ${
+                  className={`w-[66px] h-[96px] xs:w-[76px] xs:h-[110px] sm:w-24 sm:h-36 rounded-xl sm:rounded-2xl overflow-hidden border-2 transition-all duration-200 transform ${rotClass} ${
                     isTurn
                       ? 'border-amber-400 hover:-translate-y-3 hover:scale-105 active:scale-95 shadow-2xl shadow-amber-500/30 ring-2 ring-yellow-400/60 cursor-pointer'
                       : 'border-slate-600 opacity-80 cursor-not-allowed'
