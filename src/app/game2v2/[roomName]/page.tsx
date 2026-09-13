@@ -1025,6 +1025,62 @@ export default function GameTwoVsTwo() {
     const houseCommission = Math.floor(totalPot * 0.20);
     const teamPrize = totalPot - houseCommission;
     const myShare = Math.floor(teamPrize / 2);
+    const netCoinsChange = isPlayerTeamWinner ? (myShare - betAmount) : -betAmount;
+
+    // Obtener el ID del usuario actual
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
+    let currentUserId = user?.id ? parseInt(user.id.toString(), 10) : 0;
+    let storedUser: any = null;
+    if (typeof window !== 'undefined') {
+      try {
+        const storedStr = localStorage.getItem("pericon_user");
+        if (storedStr) {
+          storedUser = JSON.parse(storedStr);
+          if ((!currentUserId || isNaN(currentUserId)) && storedUser.id) {
+            currentUserId = parseInt(storedUser.id.toString(), 10);
+          }
+        }
+      } catch {}
+    }
+
+    const currentCoins = user?.coins ?? storedUser?.coins ?? 1000;
+    const estimatedNewCoins = Math.max(0, currentCoins + netCoinsChange);
+
+    // Actualizar Redux
+    dispatch(setGamePlayer({
+      ...user,
+      coins: estimatedNewCoins,
+      wins: isPlayerTeamWinner ? (user?.wins || 0) + 1 : (user?.wins || 0),
+      losses: !isPlayerTeamWinner ? (user?.losses || 0) + 1 : (user?.losses || 0)
+    }));
+
+    // Registrar resultado en la Base de Datos en Supabase
+    if (currentUserId > 0) {
+      fetch(`${apiUrl}/api/user/record-match`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUserId,
+          won: isPlayerTeamWinner,
+          coinsChange: netCoinsChange
+        })
+      })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && typeof window !== 'undefined' && storedUser) {
+          storedUser.coins = data.coins;
+          storedUser.wins = data.wins;
+          storedUser.losses = data.losses;
+          localStorage.setItem("pericon_user", JSON.stringify(storedUser));
+        }
+      })
+      .catch(err => console.error("Error al registrar partida 2v2 en base de datos:", err));
+    } else if (typeof window !== 'undefined' && storedUser) {
+      storedUser.coins = estimatedNewCoins;
+      if (isPlayerTeamWinner) storedUser.wins = (storedUser.wins || 0) + 1;
+      else storedUser.losses = (storedUser.losses || 0) + 1;
+      localStorage.setItem("pericon_user", JSON.stringify(storedUser));
+    }
 
     if (isPlayerTeamWinner) {
       vibrateDevice('winMatch');
@@ -1032,18 +1088,39 @@ export default function GameTwoVsTwo() {
       playCoinWinSound();
       speakPhrase('¡Felicidades! Tu equipo ha ganado la partida de dos contra dos.');
 
-      const newCoins = (user?.coins || 100) + (myShare - betAmount);
-      dispatch(setGamePlayer({ ...user, coins: newCoins }));
-
       Swal.fire({
-        title: '¡VICTORIA EN EQUIPO! 🏆',
+        title: '🏆 ¡VICTORIA EN EQUIPO!',
         html: `
-          <div style="font-size: 14px; text-align: center; color: #cbd5e1;">
-            <p style="color: #fde047; font-weight: bold; font-size: 18px; margin-bottom: 8px;">¡Tu equipo dominó la mesa!</p>
-            <p>Puntos de tu equipo: <strong>${(mySeatIndexRef.current === 0 || mySeatIndexRef.current === 2) ? pointsTeam1Ref.current : pointsTeam2Ref.current}</strong></p>
-            <p>Puntos rivales: <strong>${(mySeatIndexRef.current === 0 || mySeatIndexRef.current === 2) ? pointsTeam2Ref.current : pointsTeam1Ref.current}</strong></p>
-            <div style="background: rgba(34, 197, 94, 0.2); border: 1px solid #22c55e; border-radius: 12px; padding: 10px; margin-top: 12px; color: #86efac;">
-              🪙 ¡Has ganado <strong>+${myShare} monedas</strong>! (Tu compañero recibió su parte igual).
+          <div style="font-family: inherit; font-size: 13px; text-align: left; padding: 4px 0;">
+            <p style="margin-bottom: 12px; font-weight: bold; color: #4ade80; font-size: 15px; text-align: center;">
+              ¡Tu equipo dominó la mesa de 2 vs 2!
+            </p>
+            <div style="background: rgba(0,0,0,0.45); border-radius: 12px; padding: 10px 14px; border: 1px solid rgba(250,204,21,0.25);">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span style="color: #cbd5e1;">🪙 Apuesta individual:</span>
+                <span style="font-weight: bold; color: #facc15;">${betAmount} monedas</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span style="color: #cbd5e1;">💰 Pozo total de la mesa (4 jug.):</span>
+                <span style="font-weight: bold; color: #facc15;">${totalPot} monedas</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span style="color: #cbd5e1;">🏛️ Comisión de sala (20%):</span>
+                <span style="font-weight: bold; color: #fb923c;">-${houseCommission} monedas</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span style="color: #cbd5e1;">👥 Premio al equipo ganador:</span>
+                <span style="font-weight: bold; color: #38bdf8;">${teamPrize} monedas</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span style="color: #cbd5e1;">🪙 Tu parte individual (50%):</span>
+                <span style="font-weight: bold; color: #4ade80;">+${myShare} monedas</span>
+              </div>
+              <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.15); margin: 8px 0;" />
+              <div style="display: flex; justify-content: space-between; font-size: 14px;">
+                <span style="font-weight: bold; color: #fff;">👛 Tu nuevo saldo:</span>
+                <span style="font-weight: 900; color: #fde047;">${estimatedNewCoins} monedas</span>
+              </div>
             </div>
           </div>
         `,
@@ -1057,14 +1134,24 @@ export default function GameTwoVsTwo() {
       });
     } else {
       speakPhrase('Partida terminada. Los rivales se llevaron la victoria.');
-      const newCoins = Math.max(0, (user?.coins || 100) - betAmount);
-      dispatch(setGamePlayer({ ...user, coins: newCoins }));
-
       Swal.fire({
-        title: 'PARTIDA PERDIDA 💔',
+        title: '💔 PARTIDA FINALIZADA',
         html: `
-          <div style="font-size: 14px; text-align: center; color: #cbd5e1;">
-            <p style="color: #f87171; font-weight: bold;">Los rivales alcanzaron los 10 puntos.</p>
+          <div style="font-family: inherit; font-size: 13px; text-align: left; padding: 4px 0;">
+            <p style="margin-bottom: 12px; font-weight: bold; color: #f87171; font-size: 15px; text-align: center;">
+              Los rivales alcanzaron los 10 puntos.
+            </p>
+            <div style="background: rgba(0,0,0,0.45); border-radius: 12px; padding: 10px 14px; border: 1px solid rgba(239,68,68,0.3);">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span style="color: #cbd5e1;">🪙 Apuesta perdida:</span>
+                <span style="font-weight: bold; color: #f87171;">-${betAmount} monedas</span>
+              </div>
+              <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.15); margin: 8px 0;" />
+              <div style="display: flex; justify-content: space-between; font-size: 14px;">
+                <span style="font-weight: bold; color: #fff;">👛 Tu nuevo saldo:</span>
+                <span style="font-weight: 900; color: #fde047;">${estimatedNewCoins} monedas</span>
+              </div>
+            </div>
           </div>
         `,
         icon: 'error',

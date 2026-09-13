@@ -101,7 +101,7 @@ const Duel = ({ open, duelToggle, }: any) => {
     }
 
     if (mode === "Solitario") {
-      router.push("/solitaire/999");
+      router.push(`/solitaire/999?bet=${bet}`);
       return;
     }
 

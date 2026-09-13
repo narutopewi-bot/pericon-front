@@ -1,10 +1,11 @@
 'use client'
 
 import React, { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation'
-import { useMediaQuery } from '@/components/use-media-query'
-import { RootState, useAppSelector } from '@/store/store'
-import { useParams } from 'next/navigation'
+import { useRouter, useParams, useSearchParams } from 'next/navigation';
+import { useMediaQuery } from '@/components/use-media-query';
+import { RootState, useAppSelector, useAppDispatch } from '@/store/store';
+import { setGamePlayer } from '@/store/slices/gameplayerSlice';
+import { playCoinWinSound } from '@/lib/soundEffects';
 
 import { useSignalRContext } from '@/lib/signalrcontext';
 import { Porcion, Baraja, isTrumpCard } from "@/lib/library";
@@ -48,11 +49,14 @@ interface Message {
 export default function Duel() {
 
   // Router
-  const router = useRouter()
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const dispatch = useAppDispatch();
 
   // Get roomName from the URL
-  const { roomName } = useParams()
+  const { roomName } = useParams();
   const gameplayer = useAppSelector((state: RootState) => state.gameplayer);
+  const betAmount = parseInt(searchParams?.get('bet') || '50', 10);
 
   // Game state
   const isDesktop = useMediaQuery('(min-width: 768px)')
@@ -1167,8 +1171,123 @@ export default function Duel() {
   };
 
   const endGame = async (x: number) => {
-    delay(1500);
-    router.push("/desk");
+    const isWinner = x === 1;
+    const coinsChange = isWinner ? betAmount : -betAmount;
+
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
+    let currentUserId = gameplayer?.id ? parseInt(gameplayer.id.toString(), 10) : 0;
+    let storedUser: any = null;
+    if (typeof window !== 'undefined') {
+      try {
+        const storedStr = localStorage.getItem("pericon_user");
+        if (storedStr) {
+          storedUser = JSON.parse(storedStr);
+          if ((!currentUserId || isNaN(currentUserId)) && storedUser.id) {
+            currentUserId = parseInt(storedUser.id.toString(), 10);
+          }
+        }
+      } catch {}
+    }
+
+    const currentCoins = gameplayer?.coins ?? storedUser?.coins ?? 1000;
+    const estimatedNewCoins = Math.max(0, currentCoins + coinsChange);
+
+    // Actualizar Redux
+    dispatch(setGamePlayer({
+      ...gameplayer,
+      coins: estimatedNewCoins,
+      wins: isWinner ? (gameplayer?.wins || 0) + 1 : (gameplayer?.wins || 0),
+      losses: !isWinner ? (gameplayer?.losses || 0) + 1 : (gameplayer?.losses || 0)
+    }));
+
+    // Registrar en base de datos PostgreSQL (Supabase)
+    if (currentUserId > 0) {
+      fetch(`${apiUrl}/api/user/record-match`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          userId: currentUserId,
+          won: isWinner,
+          coinsChange: coinsChange
+        })
+      })
+      .then(res => res.ok ? res.json() : null)
+      .then(data => {
+        if (data && typeof window !== 'undefined' && storedUser) {
+          storedUser.coins = data.coins;
+          storedUser.wins = data.wins;
+          storedUser.losses = data.losses;
+          localStorage.setItem("pericon_user", JSON.stringify(storedUser));
+        }
+      })
+      .catch(e => console.error("Error al registrar partida solitario:", e));
+    } else if (typeof window !== 'undefined' && storedUser) {
+      storedUser.coins = estimatedNewCoins;
+      if (isWinner) storedUser.wins = (storedUser.wins || 0) + 1;
+      else storedUser.losses = (storedUser.losses || 0) + 1;
+      localStorage.setItem("pericon_user", JSON.stringify(storedUser));
+    }
+
+    if (isWinner) {
+      playCoinWinSound();
+      Swal.fire({
+        title: '🏆 ¡VICTORIA CONTRA LA MÁQUINA!',
+        html: `
+          <div style="font-family: inherit; font-size: 13px; text-align: left; padding: 4px 0;">
+            <p style="margin-bottom: 12px; font-weight: bold; color: #4ade80; font-size: 15px; text-align: center;">
+              ¡Derrotaste a la computadora!
+            </p>
+            <div style="background: rgba(0,0,0,0.45); border-radius: 12px; padding: 10px 14px; border: 1px solid rgba(250,204,21,0.25);">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span style="color: #cbd5e1;">🪙 Recompensa ganada:</span>
+                <span style="font-weight: bold; color: #4ade80;">+${betAmount} monedas</span>
+              </div>
+              <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.15); margin: 8px 0;" />
+              <div style="display: flex; justify-content: space-between; font-size: 14px;">
+                <span style="font-weight: bold; color: #fff;">👛 Tu nuevo saldo:</span>
+                <span style="font-weight: 900; color: #fde047;">${estimatedNewCoins} monedas</span>
+              </div>
+            </div>
+          </div>
+        `,
+        icon: 'success',
+        confirmButtonText: 'Volver al Menú',
+        confirmButtonColor: '#22c55e',
+        background: '#1a0e06',
+        color: '#fff',
+      }).then(() => {
+        router.push("/desk");
+      });
+    } else {
+      Swal.fire({
+        title: '💔 PARTIDA PERDIDA',
+        html: `
+          <div style="font-family: inherit; font-size: 13px; text-align: left; padding: 4px 0;">
+            <p style="margin-bottom: 12px; font-weight: bold; color: #f87171; font-size: 15px; text-align: center;">
+              La máquina ganó esta partida.
+            </p>
+            <div style="background: rgba(0,0,0,0.45); border-radius: 12px; padding: 10px 14px; border: 1px solid rgba(239,68,68,0.3);">
+              <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span style="color: #cbd5e1;">🪙 Monedas descontadas:</span>
+                <span style="font-weight: bold; color: #f87171;">-${betAmount} monedas</span>
+              </div>
+              <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.15); margin: 8px 0;" />
+              <div style="display: flex; justify-content: space-between; font-size: 14px;">
+                <span style="font-weight: bold; color: #fff;">👛 Tu nuevo saldo:</span>
+                <span style="font-weight: 900; color: #fde047;">${estimatedNewCoins} monedas</span>
+              </div>
+            </div>
+          </div>
+        `,
+        icon: 'error',
+        confirmButtonText: 'Volver al Menú',
+        confirmButtonColor: '#d97706',
+        background: '#1a0e06',
+        color: '#fff',
+      }).then(() => {
+        router.push("/desk");
+      });
+    }
   };
 
   useEffect(() => {
