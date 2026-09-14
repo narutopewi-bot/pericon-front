@@ -77,6 +77,10 @@ const evaluatePericonCard = (cardId: number, lifeCardId: number): number => {
   return 0; // Carta común
 };
 
+const isTrumpCard = (cardId: number, lifeCardId: number): boolean => {
+  return evaluatePericonCard(cardId, lifeCardId) >= 11;
+};
+
 const doesCandidateBeatBest = (
   currentBestId: number,
   candidateId: number,
@@ -726,9 +730,9 @@ export default function GameTwoVsTwo() {
     if (playedCardsRef.current.length > 0) {
       const leadCardId = playedCardsRef.current[0].card.id;
       const lifeId = lifeCardRef.current.id;
-      const isLeadTrump = evaluatePericonCard(leadCardId, lifeId) >= 11;
-      const playerHasTrump = myCards.some(c => evaluatePericonCard(c.id, lifeId) >= 11);
-      const isSelectedTrump = evaluatePericonCard(card.id, lifeId) >= 11;
+      const isLeadTrump = isTrumpCard(leadCardId, lifeId);
+      const playerHasTrump = myCards.some(c => isTrumpCard(c.id, lifeId));
+      const isSelectedTrump = isTrumpCard(card.id, lifeId);
 
       if (isLeadTrump && playerHasTrump && !isSelectedTrump) {
         speakPhrase("¡Regla del Pelao! Debes lanzar un triunfo.");
@@ -769,10 +773,10 @@ export default function GameTwoVsTwo() {
     if (playedCardsRef.current.length > 0) {
       const leadCardId = playedCardsRef.current[0].card.id;
       const lifeId = lifeCardRef.current.id;
-      const isLeadTrump = evaluatePericonCard(leadCardId, lifeId) >= 11;
-      const playerHasTrump = myCards.some(c => evaluatePericonCard(c.id, lifeId) >= 11);
+      const isLeadTrump = isTrumpCard(leadCardId, lifeId);
+      const playerHasTrump = myCards.some(c => isTrumpCard(c.id, lifeId));
       if (isLeadTrump && playerHasTrump) {
-        const trump = myCards.find(c => evaluatePericonCard(c.id, lifeId) >= 11);
+        const trump = myCards.find(c => isTrumpCard(c.id, lifeId));
         if (trump) chosenCard = trump;
       }
     }
@@ -2102,6 +2106,23 @@ export default function GameTwoVsTwo() {
             </div>
           )}
 
+          {/* Indicador visual de Regla del Pelao */}
+          {(() => {
+            const currentLifeId = lifeCard?.id ?? -1;
+            const isLeadTrump = playedCards.length > 0 && isTrumpCard(playedCards[0].card.id, currentLifeId);
+            const playerHasTrump = myCards.some(c => isTrumpCard(c.id, currentLifeId));
+            const isPelaoActive = isLeadTrump && playerHasTrump;
+
+            return isPelaoActive && currentTurn === mySeatIndex ? (
+              <div className="flex justify-center mb-1 animate-pulse z-30">
+                <div className="flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 text-black px-3 sm:px-4 py-0.5 sm:py-1 rounded-full font-black text-[9px] sm:text-xs shadow-xl border-2 border-amber-300">
+                  <span className="text-xs sm:text-sm">⚡</span>
+                  <span>REGLA DEL PELAO: ¡Salieron con triunfo, debes lanzar triunfo!</span>
+                </div>
+              </div>
+            ) : null;
+          })()}
+
           {/* Barra de Acciones del Jugador: Identidad, Estado de Turno y Botón de PEDIR */}
           <div className="w-full max-w-md flex items-center justify-between gap-1 sm:gap-2 mb-0.5 sm:mb-1 px-1 sm:px-2">
             
@@ -2172,6 +2193,13 @@ export default function GameTwoVsTwo() {
           {/* Tus Cartas en Abanico Interactivo (100% VISIBLES SIN CORTARSE) */}
           <div className="flex items-center justify-center gap-1.5 sm:gap-3">
             {myCards.map((card, index) => {
+              const currentLifeId = lifeCard?.id ?? -1;
+              const isLeadTrump = playedCards.length > 0 && isTrumpCard(playedCards[0].card.id, currentLifeId);
+              const playerHasTrump = myCards.some(c => isTrumpCard(c.id, currentLifeId));
+              const isPelaoActive = isLeadTrump && playerHasTrump;
+              const isTrump = isTrumpCard(card.id, currentLifeId);
+              const isBlockedByPelao = isPelaoActive && !isTrump;
+
               const isTurn = currentTurn === mySeatIndex && !isProcessingMove && !isCleaningTable && tumbaCountdown === null && !isWaitingOppTumba && !isStakePending;
               let rotClass = index === 0 ? 'rotate-[-3deg]' : (index === 1 ? 'rotate-0' : 'rotate-[3deg]');
 
@@ -2179,15 +2207,32 @@ export default function GameTwoVsTwo() {
                 <button
                   key={card.id}
                   type="button"
-                  disabled={!isTurn}
+                  disabled={!isTurn || isBlockedByPelao}
                   onClick={() => handlePlayMyCard(card)}
-                  className={`w-[62px] h-[90px] xs:w-[70px] xs:h-[102px] sm:w-24 sm:h-36 rounded-xl sm:rounded-2xl overflow-hidden border-2 transition-all duration-200 transform ${rotClass} ${
-                    isTurn
+                  className={`w-[62px] h-[90px] xs:w-[70px] xs:h-[102px] sm:w-24 sm:h-36 rounded-xl sm:rounded-2xl overflow-hidden border-2 transition-all duration-200 transform relative ${rotClass} ${
+                    isBlockedByPelao
+                      ? 'opacity-30 grayscale filter pointer-events-none cursor-not-allowed scale-95 border-slate-700'
+                      : isPelaoActive && isTrump
+                      ? 'border-amber-400 ring-4 ring-amber-400 ring-offset-2 ring-offset-black shadow-2xl shadow-amber-500/60 scale-105 cursor-pointer animate-pulse'
+                      : isTurn
                       ? 'border-amber-400 hover:-translate-y-3 hover:scale-105 active:scale-95 shadow-2xl shadow-amber-500/30 ring-2 ring-yellow-400/60 cursor-pointer'
                       : 'border-slate-600 opacity-80 cursor-not-allowed'
                   }`}
-                  title={isTurn ? 'Toca para jugar esta carta' : 'Espera tu turno'}
+                  title={
+                    isBlockedByPelao
+                      ? 'Bloqueada por Regla del Pelao (Debes tirar triunfo)'
+                      : isPelaoActive && isTrump
+                      ? '¡Triunfo obligatorio para el Pelao!'
+                      : isTurn
+                      ? 'Toca para jugar esta carta'
+                      : 'Espera tu turno'
+                  }
                 >
+                  {isPelaoActive && isTrump && (
+                    <div className="absolute top-1 left-1/2 -translate-x-1/2 bg-amber-400 text-amber-950 font-black text-[7.5px] sm:text-[9.5px] px-1.5 py-0.2 rounded-full shadow-md border border-amber-200 uppercase tracking-tighter whitespace-nowrap z-30">
+                      Triunfo
+                    </div>
+                  )}
                   <img src={card.image} alt={`Carta ${card.number}`} className="w-full h-full object-contain bg-white" />
                 </button>
               );
