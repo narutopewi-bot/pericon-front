@@ -176,7 +176,10 @@ export default function GameTwoVsTwo() {
   // Cantes y Apuestas (1, 3, 6, 9)
   const [currentStake, setCurrentStake] = useState<number>(1);
   const currentStakeRef = useRef<number>(1);
-  const lastStakeAskedByRef = useRef<'team1' | 'team2' | null>(null);
+  const [isStakePending, setIsStakePending] = useState<boolean>(false);
+  const isStakePendingRef = useRef<boolean>(false);
+  const [lastStakeAskedBy, setLastStakeAskedBy] = useState<number | null>(null);
+  const lastStakeAskedByRef = useRef<number | null>(null);
 
   // Tumba
   const [isTumbaDeParaAtrasT1, setIsTumbaDeParaAtrasT1] = useState<boolean>(false);
@@ -212,7 +215,7 @@ export default function GameTwoVsTwo() {
     }, durationMs);
   };
 
-  const updatePoints = (newT1: number, newT2: number) => {
+  const updatePoints = (newT1: number, newT2: number, syncToServer: boolean = true) => {
     const oldT1 = pointsTeam1Ref.current;
     const oldT2 = pointsTeam2Ref.current;
     pointsTeam1Ref.current = newT1;
@@ -237,7 +240,7 @@ export default function GameTwoVsTwo() {
     setPointsTeam1(newT1);
     setPointsTeam2(newT2);
 
-    if (connection) {
+    if (syncToServer && connection) {
       connection.invoke('UpdatePoints2v2', roomName, newT1, newT2).catch(() => {});
     }
   };
@@ -356,8 +359,8 @@ export default function GameTwoVsTwo() {
       handleRemoteStakeAsked(data.seatIndex, data.nextStake);
     });
 
-    connection.on('StakeAnswered2v2', (data: { seatIndex: number; accepted: boolean }) => {
-      handleRemoteStakeAnswered(data.seatIndex, data.accepted);
+    connection.on('StakeAnswered2v2', (data: any) => {
+      handleRemoteStakeAnswered(data);
     });
 
 
@@ -591,7 +594,12 @@ export default function GameTwoVsTwo() {
     tricksTeam2Ref.current = 0;
     setCurrentStake(1);
     currentStakeRef.current = 1;
+    setIsStakePending(false);
+    isStakePendingRef.current = false;
+    setLastStakeAskedBy(null);
     lastStakeAskedByRef.current = null;
+    isProcessingMoveRef.current = false;
+    setIsProcessingMove(false);
 
     const myIdx = mySeatIndexRef.current >= 0 ? mySeatIndexRef.current : 0;
     const { hand, life } = parseHandCards(data.initHand, myIdx);
@@ -628,7 +636,12 @@ export default function GameTwoVsTwo() {
     tricksTeam2Ref.current = 0;
     setCurrentStake(1);
     currentStakeRef.current = 1;
+    setIsStakePending(false);
+    isStakePendingRef.current = false;
+    setLastStakeAskedBy(null);
     lastStakeAskedByRef.current = null;
+    isProcessingMoveRef.current = false;
+    setIsProcessingMove(false);
 
     const myIdx = mySeatIndexRef.current >= 0 ? mySeatIndexRef.current : 0;
     const { hand, life } = parseHandCards(data.initHand, myIdx);
@@ -707,7 +720,7 @@ export default function GameTwoVsTwo() {
 
   // Lanzar carta del jugador humano local
   const handlePlayMyCard = (card: Card) => {
-    if (currentTurnRef.current !== mySeatIndexRef.current || isProcessingMoveRef.current || isCleaningTable || isWaitingOppTumba || tumbaCountdown !== null) return;
+    if (currentTurnRef.current !== mySeatIndexRef.current || isProcessingMoveRef.current || isCleaningTable || isWaitingOppTumba || tumbaCountdown !== null || isStakePendingRef.current) return;
 
     // Regla del Pelao: Si salieron con un triunfo y poseemos triunfos en la mano, obligatorio tirar triunfo
     if (playedCardsRef.current.length > 0) {
@@ -749,7 +762,7 @@ export default function GameTwoVsTwo() {
 
   // Auto-juego cuando se agotan los 30s del turno
   const handleTurnTimeout = () => {
-    if (currentTurnRef.current !== mySeatIndexRef.current || isProcessingMoveRef.current || isCleaningTable || isWaitingOppTumba || tumbaCountdown !== null) return;
+    if (currentTurnRef.current !== mySeatIndexRef.current || isProcessingMoveRef.current || isCleaningTable || isWaitingOppTumba || tumbaCountdown !== null || isStakePendingRef.current) return;
     if (myCards.length === 0) return;
 
     let chosenCard = myCards[0];
@@ -1305,7 +1318,7 @@ export default function GameTwoVsTwo() {
 
   // Mecánica de PEDIR (3, 6, 9) sincronizada en vivo
   const handlePedirClick = () => {
-    if (isProcessingMoveRef.current || isCleaningTable) return;
+    if (isProcessingMoveRef.current || isCleaningTable || isStakePendingRef.current) return;
 
     // Si algún equipo está en Tumba, Pedir no está permitido
     const isTumba = (pointsTeam1Ref.current >= 9 || (isTumbaDeParaAtrasT1Ref.current && pointsTeam1Ref.current === 8)) ||
@@ -1329,6 +1342,20 @@ export default function GameTwoVsTwo() {
 
     if (current >= 9) return;
 
+    const myTeam = (mySeatIndexRef.current === 0 || mySeatIndexRef.current === 2) ? 1 : 2;
+    if (lastStakeAskedByRef.current === myTeam && current > 1) {
+      speakPhrase("Tu equipo cantó el último aumento.");
+      Swal.fire({
+        title: "¡TURNO DEL RIVAL!",
+        text: "Tu equipo cantó el último aumento. Deben esperar a que los rivales propongan el siguiente cante.",
+        icon: "info",
+        confirmButtonColor: "#3b82f6",
+        background: "#1a0e06",
+        color: "#fff"
+      });
+      return;
+    }
+
     Swal.fire({
       title: `¿Pedir ${nextStake} piedras?`,
       text: `Elevarás la apuesta de la mano de ${current} a ${nextStake} piedras para ambos equipos.`,
@@ -1341,7 +1368,7 @@ export default function GameTwoVsTwo() {
       background: '#1a0e06',
       color: '#fff',
     }).then((result) => {
-      if (result.isConfirmed && connection) {
+      if (result.isConfirmed && connection && !isStakePendingRef.current) {
         connection.invoke('PedirStake2v2', roomName, mySeatIndexRef.current, nextStake).catch(err => {
           console.error('Error al pedir cante:', err);
         });
@@ -1354,18 +1381,27 @@ export default function GameTwoVsTwo() {
     const myTeam = (mySeatIndexRef.current === 0 || mySeatIndexRef.current === 2) ? 1 : 2;
     const askerName = players[askerSeat]?.name || 'Un jugador';
 
+    setIsStakePending(true);
+    isStakePendingRef.current = true;
+    setLastStakeAskedBy(askerTeam);
+    lastStakeAskedByRef.current = askerTeam;
+
     if (askerTeam === myTeam) {
+      Swal.close();
       triggerAnnouncement({
         type: nextStake === 3 ? 'dame_tres' : (nextStake === 6 ? 'quiero_seis' : 'van_nueve'),
         title: `¡TU EQUIPO PIDE ${nextStake}!`,
         subtitle: 'Esperando respuesta de los rivales...',
         badge: `CANTE POR ${nextStake}`
-      }, 2200);
+      }, 2500);
+      speakPhrase(`¡Pedimos ${nextStake}! Esperando respuesta de los rivales.`);
     } else {
       // Los rivales pidieron: Mostrar modal interactivo para responder
+      Swal.close();
       playSynthSound('canto');
+      speakPhrase(`¡Los rivales piden ${nextStake}! ¿Quieren o no quieren?`);
       Swal.fire({
-        title: `¡${askerName} PIDE ${nextStake}!`,
+        title: `¡${askerName.toUpperCase()} PIDE ${nextStake}!`,
         text: `El equipo rival propone jugar por ${nextStake} piedras. ¿Aceptan?`,
         icon: 'warning',
         showCancelButton: true,
@@ -1373,41 +1409,51 @@ export default function GameTwoVsTwo() {
         cancelButtonText: 'NO QUIERO (Rechazar)',
         confirmButtonColor: '#22c55e',
         cancelButtonColor: '#ef4444',
+        allowOutsideClick: false,
+        allowEscapeKey: false,
         background: '#1a0e06',
         color: '#fff',
       }).then((res) => {
-        if (connection) {
-          connection.invoke('AnswerStake2v2', roomName, mySeatIndexRef.current, res.isConfirmed).catch(console.error);
+        if (connection && isStakePendingRef.current) {
+          if (res.isConfirmed) {
+            connection.invoke('AnswerStake2v2', roomName, mySeatIndexRef.current, true).catch(console.error);
+          } else if (res.dismiss === Swal.DismissReason.cancel) {
+            connection.invoke('AnswerStake2v2', roomName, mySeatIndexRef.current, false).catch(console.error);
+          }
         }
       });
     }
   };
 
-  const handleRemoteStakeAnswered = (responderSeat: number, accepted: boolean) => {
-    const current = currentStakeRef.current;
-    const nextStake = current === 1 ? 3 : (current === 3 ? 6 : 9);
+  const handleRemoteStakeAnswered = (data: any) => {
+    // Cerrar inmediatamente cualquier popup en pantalla (en ambos compañeros)
+    Swal.close();
+    setIsStakePending(false);
+    isStakePendingRef.current = false;
+
+    const accepted = !!data.accepted;
+    const current = Number(data.currentStake || currentStakeRef.current);
+    const myTeam = (mySeatIndexRef.current === 0 || mySeatIndexRef.current === 2) ? 1 : 2;
 
     if (accepted) {
-      setCurrentStake(nextStake);
-      currentStakeRef.current = nextStake;
+      setCurrentStake(current);
+      currentStakeRef.current = current;
       triggerAnnouncement({
         type: 'win_round',
         title: '¡ACEPTADO!',
-        subtitle: `Ahora se juega por ${nextStake} piedras`,
-        badge: `APUESTA: ${nextStake} PIEDRAS`
+        subtitle: `Ahora se juega por ${current} piedras`,
+        badge: `APUESTA: ${current} PIEDRAS`
       }, 2500);
-      speakPhrase(`¡Dijeron quiero! Jugamos por ${nextStake} piedras.`);
+      speakPhrase(`¡Dijeron quiero! Jugamos por ${current} piedras.`);
+      playSynthSound('canto');
     } else {
-      const challengerSeat = lastStakeAskedByRef.current ?? ((responderSeat + 1) % 4);
-      const challengerTeam = (challengerSeat === 0 || challengerSeat === 2) ? 1 : 2;
-      const myTeam = (mySeatIndexRef.current === 0 || mySeatIndexRef.current === 2) ? 1 : 2;
-      const reward = current === 1 ? 1 : (current === 3 ? 3 : 6);
+      const challengerTeam = Number(data.challengerTeam || lastStakeAskedByRef.current || 1);
+      const reward = Number(data.reward || (current === 3 ? 1 : (current === 6 ? 3 : 6)));
 
-      const oldT1 = pointsTeam1Ref.current;
-      const oldT2 = pointsTeam2Ref.current;
-      const newT1 = challengerTeam === 1 ? Math.min(10, oldT1 + reward) : oldT1;
-      const newT2 = challengerTeam === 2 ? Math.min(10, oldT2 + reward) : oldT2;
-      updatePoints(newT1, newT2);
+      // Puntos autoritativos calculados por el servidor
+      const newT1 = typeof data.pointsTeam1 === 'number' ? data.pointsTeam1 : pointsTeam1Ref.current;
+      const newT2 = typeof data.pointsTeam2 === 'number' ? data.pointsTeam2 : pointsTeam2Ref.current;
+      updatePoints(newT1, newT2, false);
 
       triggerAnnouncement({
         type: challengerTeam === myTeam ? 'win_round' : 'opp_win_round',
@@ -1419,17 +1465,23 @@ export default function GameTwoVsTwo() {
       }, 3000);
       speakPhrase(challengerTeam === myTeam ? `¡No quisieron! Sumamos ${reward} piedras.` : "No quisimos. Piedra para los rivales.");
 
+      // Bloquear cualquier jugada de cartas hasta que se reparta la nueva mano
+      isProcessingMoveRef.current = true;
+      setIsProcessingMove(true);
       playedCardsRef.current = [];
       setPlayedCards([]);
       setTrickResult(null);
+      setCurrentStake(1);
+      currentStakeRef.current = 1;
+      setLastStakeAskedBy(null);
+      lastStakeAskedByRef.current = null;
 
-      // Si se completaron puntos de victoria o tumba
-      if (newT1 >= 10 || newT2 >= 10) {
+      if (data.isGameOver || newT1 >= 10 || newT2 >= 10) {
         setTimeout(() => {
-          handleGameOver(challengerTeam === myTeam);
+          handleGameOver((data.winningTeamOfMatch ? data.winningTeamOfMatch === myTeam : challengerTeam === myTeam));
         }, 3000);
       } else {
-        // El anfitrión reparte la nueva mano rotando la salida
+        // Solo el anfitrión (Asiento 0) solicita el reparto de la nueva mano
         if (mySeatIndexRef.current === 0 && connection) {
           setTimeout(() => {
             const nextStarter = (handStarterRef.current + 1) % 4;
@@ -2070,7 +2122,7 @@ export default function GameTwoVsTwo() {
 
             {/* Banner de Turno con Temporizador de 30s y Auto-juego */}
             <div className="flex-1 flex items-center justify-center min-w-0">
-              {currentTurn === mySeatIndex && !isProcessingMove && !isCleaningTable && myCards.length > 0 && tumbaCountdown === null && !isWaitingOppTumba ? (
+              {currentTurn === mySeatIndex && !isProcessingMove && !isCleaningTable && myCards.length > 0 && tumbaCountdown === null && !isWaitingOppTumba && !isStakePending ? (
                 <GameTurnTimer
                   isMyTurn={true}
                   onTimeout={handleTurnTimeout}
@@ -2089,17 +2141,20 @@ export default function GameTwoVsTwo() {
               {(() => {
                 const isTumbaActive = (pointsTeam1 >= 9 || (isTumbaDeParaAtrasT1 && pointsTeam1 === 8)) ||
                                       (pointsTeam2 >= 9 || (isTumbaDeParaAtrasT2 && pointsTeam2 === 8));
+                const myTeam = (mySeatIndex === 0 || mySeatIndex === 2) ? 1 : 2;
+                const cannotRaise = lastStakeAskedBy === myTeam && currentStake > 1;
+                const isPedirDisabled = currentStake >= 9 || isProcessingMove || isCleaningTable || isTumbaActive || tumbaCountdown !== null || isWaitingOppTumba || isStakePending || cannotRaise;
                 return (
                   <button
                     type="button"
                     onClick={handlePedirClick}
-                    disabled={currentStake >= 9 || isProcessingMove || isCleaningTable || isTumbaActive || tumbaCountdown !== null || isWaitingOppTumba}
+                    disabled={isPedirDisabled}
                     className={`px-2 sm:px-4 py-0.5 sm:py-2 rounded-xl sm:rounded-2xl font-black text-[10px] sm:text-sm uppercase tracking-wider flex items-center gap-1 border-2 transition-all shadow-xl active:scale-95 shrink-0 ${
-                      currentStake >= 9 || isTumbaActive || tumbaCountdown !== null || isWaitingOppTumba
+                      isPedirDisabled
                         ? 'bg-slate-800 text-slate-500 border-slate-700 cursor-not-allowed'
                         : 'bg-gradient-to-r from-amber-500 to-yellow-400 text-black border-yellow-200 hover:brightness-110 shadow-yellow-500/25 cursor-pointer'
                     } ${fonts.bowlbyOneSC.className}`}
-                    title={isTumbaActive ? 'En Tumba no se puede pedir' : 'Pedir aumento de apuesta'}
+                    title={isTumbaActive ? 'En Tumba no se puede pedir' : cannotRaise ? 'Tu equipo cantó el último aumento' : 'Pedir aumento de apuesta'}
                   >
                     <span>{isTumbaActive ? '🪦 TUMBA' : '🔥 PEDIR'}</span>
                     {!isTumbaActive && (
@@ -2117,7 +2172,7 @@ export default function GameTwoVsTwo() {
           {/* Tus Cartas en Abanico Interactivo (100% VISIBLES SIN CORTARSE) */}
           <div className="flex items-center justify-center gap-1.5 sm:gap-3">
             {myCards.map((card, index) => {
-              const isTurn = currentTurn === mySeatIndex && !isProcessingMove && !isCleaningTable && tumbaCountdown === null && !isWaitingOppTumba;
+              const isTurn = currentTurn === mySeatIndex && !isProcessingMove && !isCleaningTable && tumbaCountdown === null && !isWaitingOppTumba && !isStakePending;
               let rotClass = index === 0 ? 'rotate-[-3deg]' : (index === 1 ? 'rotate-0' : 'rotate-[3deg]');
 
               return (
