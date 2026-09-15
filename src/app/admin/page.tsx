@@ -95,7 +95,22 @@ interface PromoCodeRow {
   expiresAt?: string | null;
 }
 
-type TabType = "dashboard" | "users" | "recharges" | "withdrawals" | "matches" | "reports" | "promos";
+interface ErrorLogRow {
+  id: number;
+  source: string;
+  roomName?: string;
+  username?: string;
+  userId?: number;
+  errorMessage: string;
+  stackTrace?: string;
+  extraData?: string;
+  status: string;
+  adminNotes?: string;
+  createdAt: string;
+  resolvedAt?: string;
+}
+
+type TabType = "dashboard" | "users" | "recharges" | "withdrawals" | "matches" | "reports" | "promos" | "errors";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -116,6 +131,15 @@ export default function AdminPage() {
   const [withdrawalStatusFilter, setWithdrawalStatusFilter] = useState<string>("PENDIENTE");
   const [userStatusFilter, setUserStatusFilter] = useState<"all" | "active" | "banned">("all");
   const [userSearch, setUserSearch] = useState("");
+
+  // Errores e Incidencias (Telemetría)
+  const [errorLogs, setErrorLogs] = useState<ErrorLogRow[]>([]);
+  const [errorStatusFilter, setErrorStatusFilter] = useState<string>("ALL");
+  const [errorSourceFilter, setErrorSourceFilter] = useState<string>("ALL");
+  const [errorCounts, setErrorCounts] = useState({ total: 0, new: 0, resolved: 0 });
+  const [selectedError, setSelectedError] = useState<ErrorLogRow | null>(null);
+  const [editingNotesId, setEditingNotesId] = useState<number | null>(null);
+  const [adminNoteInput, setAdminNoteInput] = useState("");
 
   // Datos
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -235,10 +259,82 @@ export default function AdminPage() {
       if (resUsers.ok) setUsers(await resUsers.json());
       if (resMatches.ok) setMatches(await resMatches.json());
       if (resPromos.ok) setPromos(await resPromos.json());
+      await fetchErrorLogs();
     } catch (err) {
       console.error("Error loading admin data:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchErrorLogs = async () => {
+    try {
+      const queryParams = new URLSearchParams();
+      if (errorStatusFilter !== "ALL") queryParams.append("status", errorStatusFilter);
+      if (errorSourceFilter !== "ALL") queryParams.append("source", errorSourceFilter);
+      const res = await fetch(`${apiUrl}/api/admin/errors?${queryParams.toString()}`);
+      if (res.ok) {
+        const data = await res.json();
+        setErrorLogs(data.items || []);
+        setErrorCounts({
+          total: data.totalErrors || 0,
+          new: data.newErrors || 0,
+          resolved: data.resolvedErrors || 0
+        });
+      }
+    } catch (err) {
+      console.error("Error loading error logs:", err);
+    }
+  };
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchErrorLogs();
+    }
+  }, [errorStatusFilter, errorSourceFilter, isAuthenticated]);
+
+  const handleUpdateErrorStatus = async (id: number, status: string, notes?: string) => {
+    try {
+      const res = await fetch(`${apiUrl}/api/admin/errors/${id}/status`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status, adminNotes: notes })
+      });
+      if (res.ok) {
+        setActionMessage(`✅ Incidencia #${id} marcada como ${status}`);
+        setEditingNotesId(null);
+        fetchErrorLogs();
+      }
+    } catch (err) {
+      console.error("Error updating error status:", err);
+    }
+  };
+
+  const handleDeleteError = async (id: number) => {
+    if (!confirm(`¿Eliminar reporte #${id}?`)) return;
+    try {
+      const res = await fetch(`${apiUrl}/api/admin/errors/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setActionMessage(`🗑️ Incidencia #${id} eliminada`);
+        if (selectedError?.id === id) setSelectedError(null);
+        fetchErrorLogs();
+      }
+    } catch (err) {
+      console.error("Error deleting error:", err);
+    }
+  };
+
+  const handleClearResolvedErrors = async () => {
+    if (!confirm("¿Deseas eliminar todas las incidencias marcadas como RESUELTO?")) return;
+    try {
+      const res = await fetch(`${apiUrl}/api/admin/errors/clear-resolved`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        setActionMessage(`🧹 ${data.message}`);
+        fetchErrorLogs();
+      }
+    } catch (err) {
+      console.error("Error clearing resolved errors:", err);
     }
   };
 
@@ -937,6 +1033,33 @@ export default function AdminPage() {
             <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-950/60 text-amber-300 border border-amber-400/30">
               {promos.length}
             </span>
+          </button>
+
+          {/* 8. Errores e Incidencias (Telemetría en Vivo) */}
+          <button
+            onClick={() => {
+              setActiveTab("errors");
+              setMobileMenuOpen(false);
+            }}
+            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
+              activeTab === "errors"
+                ? "bg-gradient-to-r from-red-600 to-amber-600 text-white shadow-md shadow-red-500/30"
+                : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-base">⚠️</span>
+              <span>Errores & Fallas</span>
+            </div>
+            {errorCounts.new > 0 ? (
+              <span className="px-2 py-0.5 rounded-full text-[10px] bg-red-500 text-white font-black animate-pulse border border-red-300">
+                {errorCounts.new} NUEVOS
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-950/60 text-amber-300 border border-amber-400/30">
+                {errorLogs.length}
+              </span>
+            )}
           </button>
         </nav>
 
@@ -2003,7 +2126,429 @@ export default function AdminPage() {
             </div>
           </div>
         )}
+
+        {/* ========================================================================= */}
+        {/* PESTAÑA 8: CENTRO DE MONITOREO DE ERRORES E INCIDENCIAS (TELEMETRÍA) */}
+        {/* ========================================================================= */}
+        {activeTab === "errors" && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Cabecera */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#180e07] border border-amber-500/30 p-5 rounded-2xl shadow-xl">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">⚠️</span>
+                  <h2 className="text-lg font-black text-amber-300">Monitoreo de Errores e Incidencias</h2>
+                  {errorCounts.new > 0 && (
+                    <span className="px-2.5 py-0.5 rounded-full text-[10px] font-black bg-red-600 text-white animate-pulse">
+                      {errorCounts.new} NUEVO{errorCounts.new > 1 ? 'S' : ''}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-amber-200/60 mt-1">
+                  Telemetría en tiempo real: reportes automáticos de salas 2v2, 1v1, reconexiones, jugadas y SignalR.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={fetchErrorLogs}
+                  className="px-3.5 py-2 bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 rounded-xl text-xs font-bold border border-amber-500/30 transition flex items-center gap-1.5 shadow"
+                >
+                  <span>🔄</span>
+                  <span>Actualizar</span>
+                </button>
+                <button
+                  onClick={handleClearResolvedErrors}
+                  className="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-xl text-xs font-bold border border-slate-700 transition flex items-center gap-1.5 shadow"
+                  title="Elimina de la base de datos todos los reportes marcados como RESUELTO"
+                >
+                  <span>🧹</span>
+                  <span>Limpiar Resueltos</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Tarjetas de Métricas de Errores */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-[#180e07] border border-amber-500/30 p-4 rounded-2xl shadow-lg flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/15 border border-amber-400/30 flex items-center justify-center text-2xl">
+                  📋
+                </div>
+                <div>
+                  <span className="text-[11px] text-amber-200/60 font-bold uppercase tracking-wider block">Total Reportes</span>
+                  <span className="text-2xl font-black text-amber-300 font-mono">{errorCounts.total}</span>
+                </div>
+              </div>
+
+              <div className={`bg-[#180e07] border ${errorCounts.new > 0 ? 'border-red-500/80 shadow-red-500/20 ring-1 ring-red-500/50' : 'border-amber-500/30'} p-4 rounded-2xl shadow-lg flex items-center gap-4`}>
+                <div className={`w-12 h-12 rounded-xl ${errorCounts.new > 0 ? 'bg-red-500/20 border border-red-500 text-red-400' : 'bg-slate-800 text-slate-400'} flex items-center justify-center text-2xl`}>
+                  🚨
+                </div>
+                <div>
+                  <span className="text-[11px] text-red-300/80 font-bold uppercase tracking-wider block">Nuevos / Pendientes</span>
+                  <span className={`text-2xl font-black font-mono ${errorCounts.new > 0 ? 'text-red-400 animate-pulse' : 'text-slate-400'}`}>
+                    {errorCounts.new}
+                  </span>
+                </div>
+              </div>
+
+              <div className="bg-[#180e07] border border-amber-500/30 p-4 rounded-2xl shadow-lg flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-green-500/15 border border-green-500/30 flex items-center justify-center text-2xl">
+                  ✅
+                </div>
+                <div>
+                  <span className="text-[11px] text-green-200/70 font-bold uppercase tracking-wider block">Incidencias Resueltas</span>
+                  <span className="text-2xl font-black text-green-400 font-mono">{errorCounts.resolved}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Barra de Filtros */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-[#180e07] border border-amber-500/30 p-3.5 rounded-2xl">
+              {/* Filtro por Estado */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] font-bold text-amber-200/60 uppercase mr-1">Estado:</span>
+                {[
+                  { id: "ALL", label: "Todos" },
+                  { id: "NUEVO", label: "🔴 Nuevos" },
+                  { id: "REVISADO", label: "🟡 En Revisión" },
+                  { id: "RESUELTO", label: "🟢 Resueltos" },
+                ].map((st) => (
+                  <button
+                    key={st.id}
+                    onClick={() => setErrorStatusFilter(st.id)}
+                    className={`px-3 py-1 rounded-xl text-xs font-bold transition ${
+                      errorStatusFilter === st.id
+                        ? "bg-amber-500 text-amber-950 font-black shadow"
+                        : "bg-[#24140a] text-amber-200/70 hover:text-amber-300 border border-amber-500/20"
+                    }`}
+                  >
+                    {st.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* Filtro por Módulo / Origen */}
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-[11px] font-bold text-amber-200/60 uppercase mr-1">Origen:</span>
+                {[
+                  { id: "ALL", label: "Todos" },
+                  { id: "Game2v2", label: "Módulo 2v2" },
+                  { id: "Game1v1", label: "Módulo 1v1" },
+                  { id: "SignalR", label: "SignalR" },
+                  { id: "Client", label: "Cliente Web" },
+                ].map((src) => (
+                  <button
+                    key={src.id}
+                    onClick={() => setErrorSourceFilter(src.id)}
+                    className={`px-2.5 py-1 rounded-xl text-[11px] font-bold transition ${
+                      errorSourceFilter === src.id
+                        ? "bg-amber-400/20 text-amber-300 border border-amber-400 shadow"
+                        : "bg-[#24140a] text-amber-200/50 hover:text-amber-200 border border-amber-500/20"
+                    }`}
+                  >
+                    {src.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Tabla de Errores e Incidencias */}
+            <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#24140a] border-b border-amber-500/30 text-amber-300 uppercase tracking-wider font-bold">
+                    <tr>
+                      <th className="p-3.5">ID / Fecha</th>
+                      <th className="p-3.5">Origen</th>
+                      <th className="p-3.5">Sala / Usuario</th>
+                      <th className="p-3.5">Detalle del Error</th>
+                      <th className="p-3.5">Estado</th>
+                      <th className="p-3.5 text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-amber-500/10">
+                    {errorLogs.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="text-center py-12 text-amber-200/40">
+                          <div className="flex flex-col items-center justify-center gap-2">
+                            <span className="text-3xl">✨</span>
+                            <span className="font-bold text-sm text-green-300">¡No hay errores registrados con estos filtros!</span>
+                            <span className="text-xs text-amber-200/50">El sistema opera con normalidad.</span>
+                          </div>
+                        </td>
+                      </tr>
+                    ) : (
+                      errorLogs.map((err) => {
+                        const isNew = err.status === "NUEVO";
+                        const isResolved = err.status === "RESUELTO";
+                        const isReviewed = err.status === "REVISADO";
+
+                        return (
+                          <tr key={err.id} className={`hover:bg-amber-500/5 transition ${isNew ? 'bg-red-950/10' : ''}`}>
+                            {/* ID y Fecha */}
+                            <td className="p-3.5 whitespace-nowrap">
+                              <span className="font-mono font-black text-amber-400 block">#{err.id}</span>
+                              <span className="text-[10px] text-amber-200/60 block">
+                                {new Date(err.createdAt).toLocaleDateString()} {new Date(err.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                              </span>
+                            </td>
+
+                            {/* Origen */}
+                            <td className="p-3.5 whitespace-nowrap">
+                              <span className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border shadow-sm ${
+                                err.source === 'Game2v2'
+                                  ? 'bg-purple-950/80 text-purple-200 border-purple-400/50'
+                                  : err.source === 'SignalR'
+                                  ? 'bg-blue-950/80 text-blue-200 border-blue-400/50'
+                                  : err.source === 'Game1v1'
+                                  ? 'bg-amber-950/80 text-amber-200 border-amber-400/50'
+                                  : 'bg-stone-900 text-stone-200 border-stone-600'
+                              }`}>
+                                {err.source}
+                              </span>
+                            </td>
+
+                            {/* Sala / Usuario */}
+                            <td className="p-3.5">
+                              {err.roomName && (
+                                <span className="font-mono text-[11px] font-bold text-sky-300 block max-w-[150px] truncate" title={err.roomName}>
+                                  🏠 {err.roomName}
+                                </span>
+                              )}
+                              <span className="text-[11px] text-amber-200/80 block max-w-[150px] truncate">
+                                👤 {err.username || 'Anónimo'} {err.userId ? `(ID: ${err.userId})` : ''}
+                              </span>
+                            </td>
+
+                            {/* Error / Descripción */}
+                            <td className="p-3.5">
+                              <p className="font-medium text-red-200 text-xs line-clamp-2 max-w-md" title={err.errorMessage}>
+                                {err.errorMessage}
+                              </p>
+                              {err.adminNotes && (
+                                <span className="text-[10px] text-amber-300/80 italic mt-0.5 block">
+                                  📝 Nota: {err.adminNotes}
+                                </span>
+                              )}
+                              <div className="flex items-center gap-2 mt-1">
+                                {(err.stackTrace || err.extraData) && (
+                                  <button
+                                    onClick={() => setSelectedError(err)}
+                                    className="text-[10px] text-amber-400 hover:text-amber-200 underline font-bold"
+                                  >
+                                    🔍 Ver Detalles & Stack
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+
+                            {/* Estado */}
+                            <td className="p-3.5 whitespace-nowrap">
+                              <span className={`px-2.5 py-1 rounded-full text-[10px] font-black uppercase tracking-wider border shadow ${
+                                isNew
+                                  ? 'bg-red-600 text-white border-red-300 animate-pulse'
+                                  : isReviewed
+                                  ? 'bg-amber-500/20 text-yellow-300 border-yellow-500/40'
+                                  : 'bg-green-950/80 text-green-300 border-green-500/40'
+                              }`}>
+                                {err.status}
+                              </span>
+                            </td>
+
+                            {/* Acciones */}
+                            <td className="p-3.5 text-center whitespace-nowrap">
+                              <div className="flex items-center justify-center gap-1.5">
+                                {!isResolved && (
+                                  <button
+                                    onClick={() => handleUpdateErrorStatus(err.id, "RESUELTO")}
+                                    className="px-2 py-1 bg-green-600 hover:bg-green-500 text-white text-[11px] font-bold rounded-lg transition shadow"
+                                    title="Marcar incidencia como resuelta"
+                                  >
+                                    ✓ Resolver
+                                  </button>
+                                )}
+                                {!isReviewed && !isResolved && (
+                                  <button
+                                    onClick={() => handleUpdateErrorStatus(err.id, "REVISADO")}
+                                    className="px-2 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-[11px] font-bold rounded-lg border border-amber-500/30 transition"
+                                    title="Marcar como revisado"
+                                  >
+                                    Revisar
+                                  </button>
+                                )}
+                                <button
+                                  onClick={() => setSelectedError(err)}
+                                  className="px-2 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 text-[11px] font-bold rounded-lg border border-slate-700 transition"
+                                  title="Ver detalles completos"
+                                >
+                                  Detalle
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteError(err.id)}
+                                  className="p-1 text-red-400 hover:text-red-300 hover:bg-red-950/50 rounded-lg transition text-xs"
+                                  title="Eliminar reporte"
+                                >
+                                  🗑️
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
       </main>
+
+      {/* ========================================================================= */}
+      {/* MODAL DE DETALLE DE INCIDENCIA / ERROR */}
+      {/* ========================================================================= */}
+      {selectedError && (
+        <div
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-4"
+          onClick={() => setSelectedError(null)}
+        >
+          <div
+            className="bg-[#180e07] border-2 border-amber-500/60 rounded-3xl p-6 max-w-2xl w-full text-white shadow-2xl relative max-h-[90vh] flex flex-col"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Encabezado del Modal */}
+            <div className="flex items-center justify-between pb-3 border-b border-amber-500/30 shrink-0">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">⚠️</span>
+                <div>
+                  <h3 className="text-sm font-black text-amber-300">
+                    Incidencia #{selectedError.id} • [{selectedError.source}]
+                  </h3>
+                  <span className="text-[10px] text-amber-200/60">
+                    Reportado el {new Date(selectedError.createdAt).toLocaleString()}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedError(null)}
+                className="text-amber-400 hover:text-white text-lg font-bold p-1"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Contenido con scroll */}
+            <div className="flex-1 overflow-y-auto space-y-4 py-4 pr-1">
+              {/* Info de Contexto */}
+              <div className="grid grid-cols-2 gap-2 bg-[#24140a] p-3 rounded-xl border border-amber-500/20 text-xs">
+                <div>
+                  <span className="text-amber-200/60 font-bold block text-[10px] uppercase">Sala:</span>
+                  <span className="text-sky-300 font-mono font-bold">{selectedError.roomName || 'No especificada'}</span>
+                </div>
+                <div>
+                  <span className="text-amber-200/60 font-bold block text-[10px] uppercase">Usuario:</span>
+                  <span className="text-amber-100 font-bold">{selectedError.username || 'Anónimo'} {selectedError.userId ? `(ID: ${selectedError.userId})` : ''}</span>
+                </div>
+                <div>
+                  <span className="text-amber-200/60 font-bold block text-[10px] uppercase">Estado Actual:</span>
+                  <span className="font-bold text-amber-300">{selectedError.status}</span>
+                </div>
+                <div>
+                  <span className="text-amber-200/60 font-bold block text-[10px] uppercase">Resuelto En:</span>
+                  <span className="text-slate-300 font-mono text-[11px]">
+                    {selectedError.resolvedAt ? new Date(selectedError.resolvedAt).toLocaleString() : 'Pendiente'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Mensaje de Error */}
+              <div>
+                <span className="text-xs font-black text-amber-300 uppercase tracking-wider block mb-1">
+                  Mensaje del Error:
+                </span>
+                <div className="bg-red-950/60 border border-red-500/50 p-3 rounded-xl text-red-200 text-xs font-medium">
+                  {selectedError.errorMessage}
+                </div>
+              </div>
+
+              {/* Metadatos Extra */}
+              {selectedError.extraData && (
+                <div>
+                  <span className="text-xs font-black text-amber-300 uppercase tracking-wider block mb-1">
+                    Datos Adicionales (JSON / Metadatos):
+                  </span>
+                  <pre className="bg-black/80 border border-amber-500/20 p-3 rounded-xl text-amber-200 text-[11px] font-mono overflow-x-auto max-h-40 whitespace-pre-wrap">
+                    {selectedError.extraData}
+                  </pre>
+                </div>
+              )}
+
+              {/* Stack Trace */}
+              {selectedError.stackTrace && (
+                <div>
+                  <span className="text-xs font-black text-amber-300 uppercase tracking-wider block mb-1">
+                    Pila de Llamadas (Stack Trace):
+                  </span>
+                  <pre className="bg-black/90 border border-red-500/20 p-3 rounded-xl text-red-300/80 text-[10px] font-mono overflow-x-auto max-h-48 whitespace-pre-wrap">
+                    {selectedError.stackTrace}
+                  </pre>
+                </div>
+              )}
+
+              {/* Notas del Administrador */}
+              <div>
+                <span className="text-xs font-black text-amber-300 uppercase tracking-wider block mb-1">
+                  Notas de Administración:
+                </span>
+                <textarea
+                  value={editingNotesId === selectedError.id ? adminNoteInput : (selectedError.adminNotes || '')}
+                  onChange={(e) => {
+                    setEditingNotesId(selectedError.id);
+                    setAdminNoteInput(e.target.value);
+                  }}
+                  placeholder="Escribe notas sobre la causa o solución de esta incidencia..."
+                  rows={2}
+                  className="w-full bg-[#24140a] border border-amber-500/40 rounded-xl px-3 py-2 text-xs text-white placeholder-amber-200/30 focus:outline-none focus:border-amber-400"
+                />
+              </div>
+            </div>
+
+            {/* Pie del Modal con Acciones */}
+            <div className="pt-3 border-t border-amber-500/30 flex items-center justify-between gap-2 shrink-0">
+              <button
+                onClick={() => handleDeleteError(selectedError.id)}
+                className="px-3 py-2 bg-red-950/80 hover:bg-red-900 text-red-300 rounded-xl text-xs font-bold border border-red-500/40 transition"
+              >
+                Eliminar Registro
+              </button>
+
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => {
+                    const notes = editingNotesId === selectedError.id ? adminNoteInput : selectedError.adminNotes;
+                    handleUpdateErrorStatus(selectedError.id, "REVISADO", notes);
+                    setSelectedError(prev => prev ? { ...prev, status: "REVISADO", adminNotes: notes } : null);
+                  }}
+                  className="px-3 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-xl text-xs font-bold border border-amber-500/30 transition"
+                >
+                  Guardar como Revisado
+                </button>
+                <button
+                  onClick={() => {
+                    const notes = editingNotesId === selectedError.id ? adminNoteInput : selectedError.adminNotes;
+                    handleUpdateErrorStatus(selectedError.id, "RESUELTO", notes);
+                    setSelectedError(prev => prev ? { ...prev, status: "RESUELTO", adminNotes: notes, resolvedAt: new Date().toISOString() } : null);
+                  }}
+                  className="px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-xl text-xs font-black transition shadow-lg shadow-green-600/20"
+                >
+                  ✓ Marcar Resuelto
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ========================================================================= */}
       {/* MODAL DE AJUSTE DE MONEDAS */}

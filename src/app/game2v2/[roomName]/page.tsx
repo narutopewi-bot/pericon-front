@@ -13,6 +13,7 @@ import { GameAnnouncement, AnnouncementData } from '@/components/game-announceme
 import { playCardSound, playSwooshSound, vibrateDevice, playSynthSound, speakPhrase } from '@/lib/gameEffects';
 import { playCardDealSound, playCardDropSound, playCoinWinSound, playCantoSound, playChatPopSound } from '@/lib/soundEffects';
 import GameTurnTimer from '@/components/game-turn-timer';
+import { reportAppError } from '@/lib/errorLogger';
 
 import * as fonts from '@/components/fonts';
 import { Copy, Check, Share2, Users, Clock, Sparkles } from 'lucide-react';
@@ -40,6 +41,8 @@ interface SeatInfo {
   team: number;
   role: string;
   isReady: boolean;
+  isConnected?: boolean;
+  disconnectedAt?: string;
 }
 
 interface RoomState {
@@ -140,11 +143,18 @@ export default function GameTwoVsTwo() {
     { name: 'Esperando Rival 2...', team: 2, role: 'Rival 2' },
   ]);
 
-  // Cartas en mano del jugador local
+  // Cartas en mano del jugador local y conteo por asiento (0, 1, 2, 3)
   const [myCards, setMyCards] = useState<Card[]>([]);
-  const [partnerCardCount, setPartnerCardCount] = useState<number>(3);
-  const [rival1CardCount, setRival1CardCount] = useState<number>(3);
-  const [rival2CardCount, setRival2CardCount] = useState<number>(3);
+  const [seatCardCounts, setSeatCardCounts] = useState<{ [seat: number]: number }>({ 0: 3, 1: 3, 2: 3, 3: 3 });
+
+  // Perspectiva relativa dinámica según el asiento del jugador
+  const partnerSeat = (mySeatIndex + 2) % 4;
+  const leftRivalSeat = (mySeatIndex + 1) % 4;
+  const rightRivalSeat = (mySeatIndex + 3) % 4;
+
+  const partnerCardCount = seatCardCounts[partnerSeat] ?? 3;
+  const rival1CardCount = seatCardCounts[leftRivalSeat] ?? 3;
+  const rival2CardCount = seatCardCounts[rightRivalSeat] ?? 3;
 
   // La Vida y Mesa Central
   const [lifeCard, setLifeCard] = useState<Card>({ id: -1, position: -1, suit: '', number: -1, image: '' });
@@ -275,8 +285,16 @@ export default function GameTwoVsTwo() {
     const joinRoom = async () => {
       try {
         await connection.invoke('JoinRoom2v2', roomName, myName, betAmount, preferredSlot);
-      } catch (err) {
+      } catch (err: any) {
         console.error('Error al invocar JoinRoom2v2:', err);
+        reportAppError({
+          source: 'Game2v2',
+          errorMessage: `Fallo al unirse a sala 2v2: ${err?.message || err}`,
+          roomName,
+          username: myName,
+          userId: user?.id,
+          extraData: { preferredSlot, betAmount }
+        });
       }
     };
 
@@ -611,9 +629,7 @@ export default function GameTwoVsTwo() {
     setMyCards(hand);
     setLifeCard(life);
     lifeCardRef.current = life;
-    setPartnerCardCount(3);
-    setRival1CardCount(3);
-    setRival2CardCount(3);
+    setSeatCardCounts({ 0: 3, 1: 3, 2: 3, 3: 3 });
 
     const starter = data.starterPlayer ?? 0;
     leadPlayerRef.current = starter;
@@ -653,9 +669,7 @@ export default function GameTwoVsTwo() {
     setMyCards(hand);
     setLifeCard(life);
     lifeCardRef.current = life;
-    setPartnerCardCount(3);
-    setRival1CardCount(3);
-    setRival2CardCount(3);
+    setSeatCardCounts({ 0: 3, 1: 3, 2: 3, 3: 3 });
 
     const starter = data.starterPlayer ?? 0;
     handStarterRef.current = starter;
@@ -672,13 +686,57 @@ export default function GameTwoVsTwo() {
   // Manejar reconexión a partida activa
   const handleGameReconnected = (data: any) => {
     setRoomState(prev => prev ? { ...prev, gameStarted: true } : null);
-    const myIdx = mySeatIndexRef.current >= 0 ? mySeatIndexRef.current : 0;
-    const { hand, life } = parseHandCards(data.initHand, myIdx);
 
+    // 1. Asignar mi propio asiento autoritativo según el servidor
+    let myIdx = mySeatIndexRef.current >= 0 ? mySeatIndexRef.current : 0;
+    if (typeof data.mySeatIndex === 'number') {
+      myIdx = data.mySeatIndex;
+      setMySeatIndex(myIdx);
+      mySeatIndexRef.current = myIdx;
+    }
+
+    // 2. Actualizar lista de jugadores si viene en la reconexión
+    if (Array.isArray(data.seats)) {
+      setPlayers(prev => {
+        const next = [...prev];
+        data.seats.forEach((s: any) => {
+          if (s.seatIndex >= 0 && s.seatIndex < 4) {
+            next[s.seatIndex] = {
+              name: s.name,
+              team: s.team,
+              role: s.role
+            };
+          }
+        });
+        return next;
+      });
+    }
+
+    // 3. Descomprimir cartas de la mano para MI asiento real
+    const { hand, life } = parseHandCards(data.initHand, myIdx);
     setLifeCard(life);
     lifeCardRef.current = life;
 
-    // Descontar cartas jugadas
+    // 4. Descontar TODAS las cartas ya jugadas en esta mano (bazas pasadas + baza actual)
+    const allPlayedInHand: any[] = Array.isArray(data.handPlayedCards)
+      ? data.handPlayedCards
+      : (data.currentTrick || []);
+
+    const myPlayedIds = allPlayedInHand
+      .filter((t: any) => t.seatIndex === myIdx)
+      .map((t: any) => t.cardId);
+
+    setMyCards(hand.filter(c => !myPlayedIds.includes(c.id)));
+
+    // 5. Calcular conteo exacto de cartas de cada jugador (0 a 3)
+    const counts: { [seat: number]: number } = { 0: 3, 1: 3, 2: 3, 3: 3 };
+    for (let s = 0; s < 4; s++) {
+      const countPlayed = allPlayedInHand.filter((t: any) => t.seatIndex === s).length;
+      counts[s] = Math.max(0, 3 - countPlayed);
+    }
+    setSeatCardCounts(counts);
+
+    // 6. Restaurar la baza actual en curso sobre la mesa
     if (data.currentTrick && Array.isArray(data.currentTrick)) {
       const parsedTrick: PlayedCard[] = data.currentTrick.map((t: any) => ({
         playerIndex: t.seatIndex,
@@ -686,13 +744,12 @@ export default function GameTwoVsTwo() {
       }));
       playedCardsRef.current = parsedTrick;
       setPlayedCards(parsedTrick);
-
-      const myPlayed = data.currentTrick.filter((t: any) => t.seatIndex === myIdx).map((t: any) => t.cardId);
-      setMyCards(hand.filter(c => !myPlayed.includes(c.id)));
     } else {
-      setMyCards(hand);
+      playedCardsRef.current = [];
+      setPlayedCards([]);
     }
 
+    // 7. Puntos, bazas y turno
     setPointsTeam1(data.pointsTeam1);
     setPointsTeam2(data.pointsTeam2);
     pointsTeam1Ref.current = data.pointsTeam1;
@@ -703,16 +760,33 @@ export default function GameTwoVsTwo() {
     tricksTeam1Ref.current = data.tricksTeam1;
     tricksTeam2Ref.current = data.tricksTeam2;
 
-    setCurrentStake(data.currentStake);
-    currentStakeRef.current = data.currentStake;
+    setCurrentStake(data.currentStake || 1);
+    currentStakeRef.current = data.currentStake || 1;
 
     setCurrentTurn(data.currentTurn);
     currentTurnRef.current = data.currentTurn;
-    leadPlayerRef.current = data.starterPlayer;
+    leadPlayerRef.current = data.starterPlayer ?? 0;
+    handStarterRef.current = data.starterPlayer ?? 0;
 
     setDisconnectedNotice(null);
     isProcessingMoveRef.current = false;
     setIsProcessingMove(false);
+
+    // 8. Restaurar estado de apuesta pendiente si la había
+    if (data.pendingStake && data.pendingStake > 0) {
+      setIsStakePending(true);
+      isStakePendingRef.current = true;
+      setLastStakeAskedBy(data.stakeAskerTeam);
+      lastStakeAskedByRef.current = data.stakeAskerTeam;
+
+      const myTeam = (myIdx === 0 || myIdx === 2) ? 1 : 2;
+      if (data.stakeAskerTeam !== myTeam) {
+        handleRemoteStakeAsked(data.stakeAskerSeat, data.pendingStake);
+      }
+    } else {
+      setIsStakePending(false);
+      isStakePendingRef.current = false;
+    }
 
     triggerAnnouncement({
       type: 'win_round',
@@ -792,13 +866,11 @@ export default function GameTwoVsTwo() {
     if (seatIndex === mySeatIndexRef.current) {
       vibrateDevice('pedir');
       setMyCards(prev => prev.filter(c => c.id !== cardId));
-    } else if (seatIndex === 1) {
-      setRival1CardCount(prev => Math.max(0, prev - 1));
-    } else if (seatIndex === 2) {
-      setPartnerCardCount(prev => Math.max(0, prev - 1));
-    } else if (seatIndex === 3) {
-      setRival2CardCount(prev => Math.max(0, prev - 1));
     }
+    setSeatCardCounts(prev => ({
+      ...prev,
+      [seatIndex]: Math.max(0, (prev[seatIndex] ?? 3) - 1)
+    }));
 
     playedCardsRef.current = [...playedCardsRef.current, { playerIndex: seatIndex, card }];
     setPlayedCards([...playedCardsRef.current]);
@@ -1026,8 +1098,10 @@ export default function GameTwoVsTwo() {
         handleGameOver(winningTeamOfMatch === myTeam);
       }, 3500);
     } else {
-      // Si soy el anfitrión (Asiento 0), solicito repartir la nueva mano rotando el turno
-      if (mySeatIndexRef.current === 0 && connection) {
+      // El anfitrión o el jugador activo con menor índice solicita repartir la nueva mano
+      const activeSeats = roomState?.seats?.filter(s => s.isConnected)?.map(s => s.seatIndex) || [0];
+      const lowestActiveSeat = activeSeats.length > 0 ? Math.min(...activeSeats) : 0;
+      if (mySeatIndexRef.current === lowestActiveSeat && connection) {
         setTimeout(() => {
           const nextStarter = (handStarterRef.current + 1) % 4;
           connection.invoke('DealNewHand2v2', roomName, nextStarter).catch(err => {
@@ -1375,6 +1449,14 @@ export default function GameTwoVsTwo() {
       if (result.isConfirmed && connection && !isStakePendingRef.current) {
         connection.invoke('PedirStake2v2', roomName, mySeatIndexRef.current, nextStake).catch(err => {
           console.error('Error al pedir cante:', err);
+          reportAppError({
+            source: 'Game2v2',
+            errorMessage: `Error al pedir aumento (${nextStake}): ${err?.message || err}`,
+            roomName,
+            username: user?.name,
+            userId: user?.id,
+            extraData: { nextStake, mySeatIndex: mySeatIndexRef.current }
+          });
         });
       }
     });
@@ -1420,9 +1502,27 @@ export default function GameTwoVsTwo() {
       }).then((res) => {
         if (connection && isStakePendingRef.current) {
           if (res.isConfirmed) {
-            connection.invoke('AnswerStake2v2', roomName, mySeatIndexRef.current, true).catch(console.error);
+            connection.invoke('AnswerStake2v2', roomName, mySeatIndexRef.current, true).catch(err => {
+              console.error(err);
+              reportAppError({
+                source: 'Game2v2',
+                errorMessage: `Error al responder cante (Aceptar): ${err?.message || err}`,
+                roomName,
+                username: user?.name,
+                userId: user?.id
+              });
+            });
           } else if (res.dismiss === Swal.DismissReason.cancel) {
-            connection.invoke('AnswerStake2v2', roomName, mySeatIndexRef.current, false).catch(console.error);
+            connection.invoke('AnswerStake2v2', roomName, mySeatIndexRef.current, false).catch(err => {
+              console.error(err);
+              reportAppError({
+                source: 'Game2v2',
+                errorMessage: `Error al responder cante (Rechazar): ${err?.message || err}`,
+                roomName,
+                username: user?.name,
+                userId: user?.id
+              });
+            });
           }
         }
       });
@@ -1485,8 +1585,10 @@ export default function GameTwoVsTwo() {
           handleGameOver((data.winningTeamOfMatch ? data.winningTeamOfMatch === myTeam : challengerTeam === myTeam));
         }, 3000);
       } else {
-        // Solo el anfitrión (Asiento 0) solicita el reparto de la nueva mano
-        if (mySeatIndexRef.current === 0 && connection) {
+        // El anfitrión o el jugador activo con menor índice solicita repartir la nueva mano
+        const activeSeats = roomState?.seats?.filter(s => s.isConnected)?.map(s => s.seatIndex) || [0];
+        const lowestActiveSeat = activeSeats.length > 0 ? Math.min(...activeSeats) : 0;
+        if (mySeatIndexRef.current === lowestActiveSeat && connection) {
           setTimeout(() => {
             const nextStarter = (handStarterRef.current + 1) % 4;
             connection.invoke('DealNewHand2v2', roomName, nextStarter).catch(err => {
@@ -1878,68 +1980,84 @@ export default function GameTwoVsTwo() {
       {/* 3. TABLERO DE JUEGO (MESA EN CRUZ 2 VS 2) */}
       <div className="flex-1 w-full max-w-5xl mx-auto flex flex-col justify-between px-1 sm:px-4 py-0.5 sm:py-2 relative overflow-hidden">
         
-        {/* ARRIBA: PUESTO 2 - COMPAÑERO (EQUIPO 1 - AZUL) */}
-        <div className="w-full flex flex-col items-center justify-center relative z-10 shrink-0">
-          <div className="bg-gradient-to-r from-blue-950/90 to-sky-950/90 border-2 border-blue-400/60 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-xl sm:rounded-2xl flex items-center gap-1.5 sm:gap-2 shadow-lg shadow-blue-500/20">
-            <div className="w-4 h-4 sm:w-6 sm:h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-[8px] sm:text-[10px] font-black border border-blue-200 shrink-0">
-              🤝
-            </div>
-            <div className="text-left leading-tight">
-              <span className="text-[10px] sm:text-xs font-bold text-blue-100 block max-w-[110px] sm:max-w-none truncate">{players[2].name}</span>
-              <span className="text-[7px] sm:text-[8px] text-blue-300 uppercase font-black">Compañero (Azul)</span>
-            </div>
-            {currentTurn === 2 && (
-              <span className="text-[7px] sm:text-[8px] bg-blue-500 text-white font-extrabold px-1.5 py-0.5 rounded-full animate-pulse">
-                TURNO
-              </span>
-            )}
-          </div>
+        {/* ARRIBA: COMPAÑERO */}
+        {(() => {
+          const partner = players[partnerSeat] || { name: 'Compañero', team: (mySeatIndex % 2 === 0 ? 1 : 2), role: 'Compañero' };
+          const isPartnerTurn = currentTurn === partnerSeat;
+          const isPartnerTeam1 = partnerSeat === 0 || partnerSeat === 2;
 
-          {/* Cartas ocultas del Compañero */}
-          <div className="flex items-center -space-x-2.5 sm:-space-x-4 mt-0.5">
-            {Array.from({ length: partnerCardCount }).map((_, i) => (
-              <div key={i} className="w-6 h-8 sm:w-12 sm:h-16 rounded sm:rounded-lg overflow-hidden border border-blue-400/40 shadow">
-                <img src="/card_back.png" alt="Carta" className="w-full h-full object-cover" />
+          return (
+            <div className="w-full flex flex-col items-center justify-center relative z-10 shrink-0">
+              <div className={`bg-gradient-to-r ${isPartnerTeam1 ? 'from-blue-950/90 to-sky-950/90 border-blue-400/60 shadow-blue-500/20' : 'from-red-950/90 to-rose-950/90 border-red-400/60 shadow-red-500/20'} border-2 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-xl sm:rounded-2xl flex items-center gap-1.5 sm:gap-2 shadow-lg`}>
+                <div className={`w-4 h-4 sm:w-6 sm:h-6 rounded-full ${isPartnerTeam1 ? 'bg-blue-500 border-blue-200' : 'bg-red-500 border-red-200'} text-white flex items-center justify-center text-[8px] sm:text-[10px] font-black border shrink-0`}>
+                  🤝
+                </div>
+                <div className="text-left leading-tight">
+                  <span className={`text-[10px] sm:text-xs font-bold ${isPartnerTeam1 ? 'text-blue-100' : 'text-red-100'} block max-w-[110px] sm:max-w-none truncate`}>{partner.name}</span>
+                  <span className={`text-[7px] sm:text-[8px] ${isPartnerTeam1 ? 'text-blue-300' : 'text-red-300'} uppercase font-black`}>Compañero ({isPartnerTeam1 ? 'Azul' : 'Rojo'})</span>
+                </div>
+                {isPartnerTurn && (
+                  <span className={`text-[7px] sm:text-[8px] ${isPartnerTeam1 ? 'bg-blue-500' : 'bg-red-500'} text-white font-extrabold px-1.5 py-0.5 rounded-full animate-pulse`}>
+                    TURNO
+                  </span>
+                )}
               </div>
-            ))}
-          </div>
-        </div>
+
+              {/* Cartas ocultas del Compañero */}
+              <div className="flex items-center -space-x-2.5 sm:-space-x-4 mt-0.5">
+                {Array.from({ length: partnerCardCount }).map((_, i) => (
+                  <div key={i} className={`w-6 h-8 sm:w-12 sm:h-16 rounded sm:rounded-lg overflow-hidden border ${isPartnerTeam1 ? 'border-blue-400/40' : 'border-red-400/40'} shadow`}>
+                    <img src="/card_back.png" alt="Carta" className="w-full h-full object-cover" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
 
         {/* FILA MEDIA: RIVAL 1 (IZQ), TAPETE CENTRAL (4 CARTAS), RIVAL 2 (DER) */}
         <div className="w-full flex items-center justify-between relative my-auto gap-0.5 sm:gap-2 shrink-0">
           
-          {/* IZQUIERDA: PUESTO 1 - RIVAL 1 (EQUIPO 2 - ROJO) */}
-          <div className="flex flex-col items-center justify-center z-10 w-12 sm:w-24 shrink-0 relative">
-            <div className={`bg-gradient-to-b from-red-950/90 to-rose-950/90 border-2 ${currentTurn === 1 ? 'border-yellow-400 ring-2 ring-yellow-400/50' : 'border-red-500/60'} p-1 sm:p-1.5 rounded-xl sm:rounded-2xl flex flex-col items-center text-center shadow-lg shadow-red-500/20 w-full`}>
-              <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-red-600 text-white flex items-center justify-center text-[9px] sm:text-xs font-bold border border-red-200 shrink-0">
-                ⚔️
-              </div>
-              <span className="text-[9px] sm:text-[11px] font-bold text-red-100 mt-0.5 truncate w-full">{players[1].name}</span>
-              <span className="text-[7px] sm:text-[8px] text-red-300 font-black uppercase">Rival 1</span>
-              {currentTurn === 1 && (
-                <span className="text-[7px] sm:text-[8px] bg-red-500 text-white font-extrabold px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded-full mt-0.5 animate-pulse">
-                  TURNO
-                </span>
-              )}
-            </div>
+          {/* IZQUIERDA: RIVAL 1 */}
+          {(() => {
+            const rival1 = players[leftRivalSeat] || { name: 'Rival 1', team: (leftRivalSeat % 2 === 0 ? 1 : 2), role: 'Rival 1' };
+            const isRival1Turn = currentTurn === leftRivalSeat;
+            const isRival1Team1 = leftRivalSeat === 0 || leftRivalSeat === 2;
 
-            {/* Cartas ocultas de Rival 1: En móvil tarjeta compacta con contador, en desktop abanico */}
-            <div className="mt-0.5 sm:hidden relative">
-              <div className="w-6 h-8 rounded overflow-hidden border border-red-500/40 shadow">
-                <img src="/card_back.png" alt="Carta" className="w-full h-full object-cover" />
-              </div>
-              <span className="absolute -bottom-1 -right-1 bg-red-600 text-white text-[8px] font-black px-1 rounded-full border border-red-300 shadow leading-tight">
-                {rival1CardCount}
-              </span>
-            </div>
-            <div className="hidden sm:flex sm:flex-col -space-y-6 mt-1.5">
-              {Array.from({ length: rival1CardCount }).map((_, i) => (
-                <div key={i} className="w-12 h-16 rounded-lg overflow-hidden border border-red-500/40 shadow">
-                  <img src="/card_back.png" alt="Carta" className="w-full h-full object-cover" />
+            return (
+              <div className="flex flex-col items-center justify-center z-10 w-12 sm:w-24 shrink-0 relative">
+                <div className={`bg-gradient-to-b ${isRival1Team1 ? 'from-blue-950/90 to-sky-950/90' : 'from-red-950/90 to-rose-950/90'} border-2 ${isRival1Turn ? 'border-yellow-400 ring-2 ring-yellow-400/50' : (isRival1Team1 ? 'border-blue-500/60' : 'border-red-500/60')} p-1 sm:p-1.5 rounded-xl sm:rounded-2xl flex flex-col items-center text-center shadow-lg ${isRival1Team1 ? 'shadow-blue-500/20' : 'shadow-red-500/20'} w-full`}>
+                  <div className={`w-5 h-5 sm:w-7 sm:h-7 rounded-full ${isRival1Team1 ? 'bg-blue-600 border-blue-200' : 'bg-red-600 border-red-200'} text-white flex items-center justify-center text-[9px] sm:text-xs font-bold border shrink-0`}>
+                    ⚔️
+                  </div>
+                  <span className={`text-[9px] sm:text-[11px] font-bold ${isRival1Team1 ? 'text-blue-100' : 'text-red-100'} mt-0.5 truncate w-full`}>{rival1.name}</span>
+                  <span className={`text-[7px] sm:text-[8px] ${isRival1Team1 ? 'text-blue-300' : 'text-red-300'} font-black uppercase`}>Rival 1</span>
+                  {isRival1Turn && (
+                    <span className={`text-[7px] sm:text-[8px] ${isRival1Team1 ? 'bg-blue-500' : 'bg-red-500'} text-white font-extrabold px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded-full mt-0.5 animate-pulse`}>
+                      TURNO
+                    </span>
+                  )}
                 </div>
-              ))}
-            </div>
-          </div>
+
+                {/* Cartas ocultas de Rival 1: En móvil tarjeta compacta con contador, en desktop abanico */}
+                <div className="mt-0.5 sm:hidden relative">
+                  <div className={`w-6 h-8 rounded overflow-hidden border ${isRival1Team1 ? 'border-blue-500/40' : 'border-red-500/40'} shadow`}>
+                    <img src="/card_back.png" alt="Carta" className="w-full h-full object-cover" />
+                  </div>
+                  <span className={`absolute -bottom-1 -right-1 ${isRival1Team1 ? 'bg-blue-600 border-blue-300' : 'bg-red-600 border-red-300'} text-white text-[8px] font-black px-1 rounded-full border shadow leading-tight`}>
+                    {rival1CardCount}
+                  </span>
+                </div>
+                <div className="hidden sm:flex sm:flex-col -space-y-6 mt-1.5">
+                  {Array.from({ length: rival1CardCount }).map((_, i) => (
+                    <div key={i} className={`w-12 h-16 rounded-lg overflow-hidden border ${isRival1Team1 ? 'border-blue-500/40' : 'border-red-500/40'} shadow`}>
+                      <img src="/card_back.png" alt="Carta" className="w-full h-full object-cover" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
           {/* TAPETE VERDE CENTRAL: 4 CARTAS EN MESA BIEN DISTRIBUIDAS */}
           <div className="flex-1 mx-0.5 sm:mx-3 min-h-[165px] xs:min-h-[185px] sm:min-h-[280px] max-h-[225px] sm:max-h-none rounded-2xl sm:rounded-3xl bg-gradient-to-b from-[#1b4332] via-[#2d6a4f] to-[#1b4332] border-2 sm:border-4 border-amber-600/60 shadow-2xl shadow-green-950/60 flex flex-col items-center justify-between p-1.5 sm:p-3 relative overflow-hidden">
@@ -2000,12 +2118,12 @@ export default function GameTwoVsTwo() {
 
                     {/* Identificación del Jugador debajo de su carta */}
                     <div className="flex flex-col items-center mt-0.5">
-                      <span className={`text-[6.5px] sm:text-[9.5px] font-black uppercase px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded-full shadow ${
+                      <span className={`text-[6.5px] sm:text-[9.5px] font-black uppercase px-1 sm:px-1.5 py-0.2 sm:py-0.5 rounded-full shadow max-w-[65px] sm:max-w-[90px] truncate ${
                         isTeam1
                           ? 'bg-blue-950/90 text-blue-200 border border-blue-400/50'
                           : 'bg-red-950/90 text-red-200 border border-red-400/50'
                       }`}>
-                        {playerInfo.role}
+                        {pIdx === mySeatIndex ? 'Tú' : (pIdx === partnerSeat ? 'Compañero' : (playerInfo?.name || playerInfo?.role))}
                       </span>
 
                       {/* Insignia de Resultado de la Baza */}
@@ -2043,38 +2161,46 @@ export default function GameTwoVsTwo() {
 
           </div>
 
-          {/* DERECHA: PUESTO 3 - RIVAL 2 (EQUIPO 2 - ROJO) */}
-          <div className="flex flex-col items-center justify-center z-10 w-12 sm:w-24 shrink-0 relative">
-            <div className={`bg-gradient-to-b from-red-950/90 to-rose-950/90 border-2 ${currentTurn === 3 ? 'border-yellow-400 ring-2 ring-yellow-400/50' : 'border-red-500/60'} p-1 sm:p-1.5 rounded-xl sm:rounded-2xl flex flex-col items-center text-center shadow-lg shadow-red-500/20 w-full`}>
-              <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-full bg-red-600 text-white flex items-center justify-center text-[9px] sm:text-xs font-bold border border-red-200 shrink-0">
-                ⚔️
-              </div>
-              <span className="text-[9px] sm:text-[11px] font-bold text-red-100 mt-0.5 truncate w-full">{players[3].name}</span>
-              <span className="text-[7px] sm:text-[8px] text-red-300 font-black uppercase">Rival 2</span>
-              {currentTurn === 3 && (
-                <span className="text-[7px] sm:text-[8px] bg-red-500 text-white font-extrabold px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded-full mt-0.5 animate-pulse">
-                  TURNO
-                </span>
-              )}
-            </div>
+          {/* DERECHA: RIVAL 2 */}
+          {(() => {
+            const rival2 = players[rightRivalSeat] || { name: 'Rival 2', team: (rightRivalSeat % 2 === 0 ? 1 : 2), role: 'Rival 2' };
+            const isRival2Turn = currentTurn === rightRivalSeat;
+            const isRival2Team1 = rightRivalSeat === 0 || rightRivalSeat === 2;
 
-            {/* Cartas ocultas de Rival 2: En móvil tarjeta compacta con contador, en desktop abanico */}
-            <div className="mt-0.5 sm:hidden relative">
-              <div className="w-6 h-8 rounded overflow-hidden border border-red-500/40 shadow">
-                <img src="/card_back.png" alt="Carta" className="w-full h-full object-cover" />
-              </div>
-              <span className="absolute -bottom-1 -right-1 bg-red-600 text-white text-[8px] font-black px-1 rounded-full border border-red-300 shadow leading-tight">
-                {rival2CardCount}
-              </span>
-            </div>
-            <div className="hidden sm:flex sm:flex-col -space-y-6 mt-1.5">
-              {Array.from({ length: rival2CardCount }).map((_, i) => (
-                <div key={i} className="w-12 h-16 rounded-lg overflow-hidden border border-red-500/40 shadow">
-                  <img src="/card_back.png" alt="Carta" className="w-full h-full object-cover" />
+            return (
+              <div className="flex flex-col items-center justify-center z-10 w-12 sm:w-24 shrink-0 relative">
+                <div className={`bg-gradient-to-b ${isRival2Team1 ? 'from-blue-950/90 to-sky-950/90' : 'from-red-950/90 to-rose-950/90'} border-2 ${isRival2Turn ? 'border-yellow-400 ring-2 ring-yellow-400/50' : (isRival2Team1 ? 'border-blue-500/60' : 'border-red-500/60')} p-1 sm:p-1.5 rounded-xl sm:rounded-2xl flex flex-col items-center text-center shadow-lg ${isRival2Team1 ? 'shadow-blue-500/20' : 'shadow-red-500/20'} w-full`}>
+                  <div className={`w-5 h-5 sm:w-7 sm:h-7 rounded-full ${isRival2Team1 ? 'bg-blue-600 border-blue-200' : 'bg-red-600 border-red-200'} text-white flex items-center justify-center text-[9px] sm:text-xs font-bold border shrink-0`}>
+                    ⚔️
+                  </div>
+                  <span className={`text-[9px] sm:text-[11px] font-bold ${isRival2Team1 ? 'text-blue-100' : 'text-red-100'} mt-0.5 truncate w-full`}>{rival2.name}</span>
+                  <span className={`text-[7px] sm:text-[8px] ${isRival2Team1 ? 'text-blue-300' : 'text-red-300'} font-black uppercase`}>Rival 2</span>
+                  {isRival2Turn && (
+                    <span className={`text-[7px] sm:text-[8px] ${isRival2Team1 ? 'bg-blue-500' : 'bg-red-500'} text-white font-extrabold px-1 py-0.2 sm:px-1.5 sm:py-0.5 rounded-full mt-0.5 animate-pulse`}>
+                      TURNO
+                    </span>
+                  )}
                 </div>
-              ))}
-            </div>
-          </div>
+
+                {/* Cartas ocultas de Rival 2: En móvil tarjeta compacta con contador, en desktop abanico */}
+                <div className="mt-0.5 sm:hidden relative">
+                  <div className={`w-6 h-8 rounded overflow-hidden border ${isRival2Team1 ? 'border-blue-500/40' : 'border-red-500/40'} shadow`}>
+                    <img src="/card_back.png" alt="Carta" className="w-full h-full object-cover" />
+                  </div>
+                  <span className={`absolute -bottom-1 -right-1 ${isRival2Team1 ? 'bg-blue-600 border-blue-300' : 'bg-red-600 border-red-300'} text-white text-[8px] font-black px-1 rounded-full border shadow leading-tight`}>
+                    {rival2CardCount}
+                  </span>
+                </div>
+                <div className="hidden sm:flex sm:flex-col -space-y-6 mt-1.5">
+                  {Array.from({ length: rival2CardCount }).map((_, i) => (
+                    <div key={i} className={`w-12 h-16 rounded-lg overflow-hidden border ${isRival2Team1 ? 'border-blue-500/40' : 'border-red-500/40'} shadow`}>
+                      <img src="/card_back.png" alt="Carta" className="w-full h-full object-cover" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })()}
 
         </div>
 
