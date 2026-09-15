@@ -1728,9 +1728,11 @@ export default function Duel() {
                     <div className=''>
                       <div className='relative w-[85px] sm:w-[100px] h-[80px] sm:h-[90px] flex justify-center items-center'>
                         <div className='absolute inset-0 bg-white z-0 w-[70px] sm:w-[82px] h-[75px] sm:h-[90px] ml-[8px] sm:ml-[10px]' />
-                        <Image
-                          src={'/avatar.png'} alt='avatar' width={70} height={70}
-                          className='absolute z-10 w-[60px] h-[60px] sm:w-[70px] sm:h-[70px]' />
+                        <img
+                          src={gameplayer?.avatarUrl && gameplayer.avatarUrl.length > 5 ? gameplayer.avatarUrl : '/avatar.png'}
+                          alt='avatar'
+                          className='absolute z-10 w-[60px] h-[60px] sm:w-[70px] sm:h-[70px] object-cover rounded-full'
+                        />
                         <div className='absolute z-20'>
                           <Image
                             src='/overlay.png' alt='overlay' width={120} height={120} />

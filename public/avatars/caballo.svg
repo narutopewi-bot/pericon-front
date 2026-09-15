@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <radialGradient id="bg_cb" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#064e3b"/>
+      <stop offset="100%" stop-color="#022c22"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+  </defs>
+  <circle cx="50" cy="50" r="48" fill="url(#bg_cb)" stroke="url(#gold)" stroke-width="3"/>
+  <!-- Crin negra elegante -->
+  <path d="M38 18 C30 25 24 45 28 65 C22 55 24 35 34 22 Z" fill="#1c1917"/>
+  <!-- Orejas -->
+  <polygon points="40,24 43,14 47,22" fill="#e2e8f0" stroke="#64748b" stroke-width="1.5"/>
+  <polygon points="50,22 54,12 57,20" fill="#e2e8f0" stroke="#64748b" stroke-width="1.5"/>
+  <!-- Cabeza de corcel criollo -->
+  <path d="M42 22 Q58 20 62 38 L68 62 Q64 74 52 74 L42 56 Q36 40 42 22 Z" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+  <!-- Ojo noble -->
+  <ellipse cx="50" cy="38" rx="4" ry="5" fill="#1e293b"/>
+  <circle cx="49" cy="36" r="1.5" fill="#fff"/>
+  <!-- Hocico y belfos -->
+  <ellipse cx="60" cy="67" rx="5" ry="4" fill="#cbd5e1"/>
+  <ellipse cx="61" cy="67" rx="2" ry="2" fill="#0f172a"/>
+  <!-- Brida dorada llanera -->
+  <line x1="42" y1="42" x2="60" y2="67" stroke="url(#gold)" stroke-width="2.5"/>
+  <circle cx="48" cy="50" r="3" fill="url(#gold)"/>
+</svg>

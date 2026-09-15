@@ -2254,8 +2254,12 @@ export default function GameTwoVsTwo() {
             
             {/* Identidad del Jugador Local */}
             <div className="flex items-center gap-1 sm:gap-2 bg-blue-950/80 border border-blue-500/50 px-2 py-0.5 sm:py-1.5 rounded-xl sm:rounded-2xl shadow shrink-0">
-              <div className="w-4 h-4 sm:w-7 sm:h-7 rounded-full bg-blue-600 text-white font-black text-[9px] sm:text-xs flex items-center justify-center border border-blue-200 shrink-0">
-                🛡️
+              <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-full overflow-hidden border border-blue-200 shrink-0 bg-blue-600 flex items-center justify-center text-xs font-black">
+                <img
+                  src={user?.avatarUrl && user.avatarUrl.length > 5 ? user.avatarUrl : '/avatar.png'}
+                  alt={user?.name || 'Tú'}
+                  className="w-full h-full object-cover"
+                />
               </div>
               <div className="text-left leading-tight">
                 <span className="text-[10px] sm:text-xs font-bold text-blue-100 block max-w-[70px] sm:max-w-[120px] truncate">

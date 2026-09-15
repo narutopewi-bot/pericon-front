@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <radialGradient id="bg_g" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#1e3a8a"/>
+      <stop offset="100%" stop-color="#091238"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="100%" stop-color="#ca8a04"/>
+    </linearGradient>
+  </defs>
+  <circle cx="50" cy="50" r="48" fill="url(#bg_g)" stroke="url(#gold)" stroke-width="3"/>
+  <!-- Plumaje de la cabeza -->
+  <path d="M26 48 C26 22 74 22 74 48 Q78 72 50 82 Q22 72 26 48 Z" fill="#f8fafc" stroke="#cbd5e1" stroke-width="2"/>
+  <path d="M50 18 L53 26 L50 24 L47 26 Z" fill="#e2e8f0"/>
+  <!-- Ojos rapaces amarillos -->
+  <circle cx="38" cy="46" r="6" fill="#eab308"/>
+  <circle cx="38" cy="46" r="3.5" fill="#000"/>
+  <circle cx="37" cy="45" r="1.2" fill="#fff"/>
+  <circle cx="62" cy="46" r="6" fill="#eab308"/>
+  <circle cx="62" cy="46" r="3.5" fill="#000"/>
+  <circle cx="61" cy="45" r="1.2" fill="#fff"/>
+  <!-- Pico curvo de gavilán -->
+  <path d="M45 52 Q50 50 55 52 L53 68 C51 72 49 72 47 68 Z" fill="url(#gold)" stroke="#854d0e" stroke-width="2"/>
+  <circle cx="48" cy="55" r="1" fill="#000"/>
+  <circle cx="52" cy="55" r="1" fill="#000"/>
+</svg>

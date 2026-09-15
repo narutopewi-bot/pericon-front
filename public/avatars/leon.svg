@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <radialGradient id="bg_l" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#7c2d12"/>
+      <stop offset="100%" stop-color="#2a0d05"/>
+    </radialGradient>
+    <linearGradient id="mane" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#78350f"/>
+    </linearGradient>
+  </defs>
+  <circle cx="50" cy="50" r="48" fill="url(#bg_l)" stroke="#f59e0b" stroke-width="3"/>
+  <!-- Melena majestuosa de león -->
+  <circle cx="50" cy="50" r="32" fill="url(#mane)" stroke="#451a03" stroke-width="2"/>
+  <!-- Rostro -->
+  <ellipse cx="50" cy="52" rx="20" ry="18" fill="#fde68a" stroke="#d97706" stroke-width="2"/>
+  <!-- Orejas redondas -->
+  <circle cx="34" cy="32" r="6" fill="#f59e0b" stroke="#78350f" stroke-width="1.5"/>
+  <circle cx="34" cy="32" r="3.5" fill="#fde68a"/>
+  <circle cx="66" cy="32" r="6" fill="#f59e0b" stroke="#78350f" stroke-width="1.5"/>
+  <circle cx="66" cy="32" r="3.5" fill="#fde68a"/>
+  <!-- Ojos feroces -->
+  <polygon points="40,46 46,48 41,51" fill="#78350f"/>
+  <circle cx="43" cy="48" r="1.5" fill="#000"/>
+  <polygon points="60,46 54,48 59,51" fill="#78350f"/>
+  <circle cx="57" cy="48" r="1.5" fill="#000"/>
+  <!-- Nariz triangular -->
+  <polygon points="46,55 54,55 50,60" fill="#78350f"/>
+  <!-- Bigotera y hocico -->
+  <path d="M44 61 Q50 63 56 61 Q50 67 44 61 Z" fill="#fff"/>
+  <line x1="38" y1="58" x2="30" y2="57" stroke="#78350f" stroke-width="1.5"/>
+  <line x1="62" y1="58" x2="70" y2="57" stroke="#78350f" stroke-width="1.5"/>
+</svg>

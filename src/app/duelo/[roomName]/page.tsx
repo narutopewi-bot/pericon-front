@@ -508,12 +508,10 @@ export default function Duel() {
                     <div className=''>
                       <div className='relative w-[100px] h-[90px] flex justify-center items-center'>
                         <div className='absolute inset-0 bg-white z-0 w-[82px] h-[90px] ml-[10px]' />
-                        <Image
-                          src={'/avatar.png'}
+                        <img
+                          src={user?.avatarUrl && user.avatarUrl.length > 5 ? user.avatarUrl : '/avatar.png'}
                           alt='avatar'
-                          width={70}
-                          height={70}
-                          className='absolute z-10'
+                          className='absolute z-10 w-[70px] h-[70px] object-cover rounded-full'
                         />
                         <div className='absolute z-20'>
                           <Image

@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <radialGradient id="bg_p" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#451a03"/>
+      <stop offset="100%" stop-color="#1c0a00"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="100%" stop-color="#d97706"/>
+    </linearGradient>
+  </defs>
+  <circle cx="50" cy="50" r="48" fill="url(#bg_p)" stroke="url(#gold)" stroke-width="3"/>
+  <!-- Rostro Don Patrón -->
+  <ellipse cx="50" cy="56" rx="20" ry="22" fill="#fed7aa" stroke="#c2410c" stroke-width="1.5"/>
+  <!-- Ojos -->
+  <circle cx="42" cy="52" r="3" fill="#451a03"/>
+  <circle cx="43" cy="51" r="1" fill="#fff"/>
+  <circle cx="58" cy="52" r="3" fill="#451a03"/>
+  <circle cx="59" cy="51" r="1" fill="#fff"/>
+  <!-- Cejas pobladas -->
+  <path d="M37 46 Q43 44 47 47" stroke="#1c1917" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <path d="M53 47 Q57 44 63 46" stroke="#1c1917" stroke-width="3" stroke-linecap="round" fill="none"/>
+  <!-- Gran Bigote Caroreño -->
+  <path d="M50 63 C42 60 30 63 26 70 C34 70 44 66 50 67 C56 66 66 70 74 70 C70 63 58 60 50 63 Z" fill="#1c1917"/>
+  <!-- Nariz -->
+  <path d="M48 53 Q50 60 52 53" stroke="#ea580c" stroke-width="2" stroke-linecap="round" fill="none"/>
+  <!-- Sombrero de Don Patrón -->
+  <ellipse cx="50" cy="36" rx="42" ry="12" fill="#78350f" stroke="#451a03" stroke-width="2"/>
+  <path d="M28 35 C28 15 72 15 72 35 Z" fill="#92400e" stroke="#451a03" stroke-width="2"/>
+  <path d="M28 35 C35 38 65 38 72 35" fill="none" stroke="url(#gold)" stroke-width="4"/>
+  <!-- Pañuelo Criollo -->
+  <path d="M36 78 Q50 88 64 78 L50 94 Z" fill="#b91c1c" stroke="#7f1d1d" stroke-width="1.5"/>
+</svg>

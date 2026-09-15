@@ -593,6 +593,13 @@ export default function Desk() {
         isOpen={profileOpen}
         onClose={() => setProfileOpen(false)}
         player={dataplayer}
+        onProfileUpdated={(updated) => {
+          setDataplayer((prev) => ({
+            ...prev,
+            name: updated.username || updated.name || prev.name,
+            avatarUrl: updated.avatarUrl !== undefined ? updated.avatarUrl : prev.avatarUrl,
+          }));
+        }}
       />
 
       {/* Modal del Monedero y Recargas */}

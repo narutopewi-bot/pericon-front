@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <radialGradient id="bg_d" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#450a0a"/>
+      <stop offset="100%" stop-color="#1c0303"/>
+    </radialGradient>
+    <linearGradient id="flame" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="50%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#dc2626"/>
+    </linearGradient>
+  </defs>
+  <circle cx="50" cy="50" r="48" fill="url(#bg_d)" stroke="#ef4444" stroke-width="3"/>
+  <!-- Cuernos afilados de diablo danzante -->
+  <path d="M34 32 C26 12 18 10 16 6 C24 16 34 22 36 34 Z" fill="url(#flame)" stroke="#991b1b" stroke-width="1"/>
+  <path d="M66 32 C74 12 82 10 84 6 C76 16 66 22 64 34 Z" fill="url(#flame)" stroke="#991b1b" stroke-width="1"/>
+  <!-- Máscara roja tradicional -->
+  <path d="M30 35 Q50 30 70 35 Q74 65 50 82 Q26 65 30 35 Z" fill="#b91c1c" stroke="#450a0a" stroke-width="2.5"/>
+  <!-- Ojos brillantes misteriosos -->
+  <polygon points="36,46 47,50 38,54" fill="#fbbf24"/>
+  <polygon points="64,46 53,50 62,54" fill="#fbbf24"/>
+  <!-- Dientes afilados / Colmillos de triunfo -->
+  <path d="M38 65 Q50 62 62 65 Q50 74 38 65 Z" fill="#000"/>
+  <polygon points="42,64 45,69 47,64" fill="#fff"/>
+  <polygon points="53,64 55,69 58,64" fill="#fff"/>
+  <!-- Bigotes llameantes -->
+  <path d="M32 60 Q20 62 16 68 Q24 67 32 63" stroke="#f97316" stroke-width="2" fill="none"/>
+  <path d="M68 60 Q80 62 84 68 Q76 67 68 63" stroke="#f97316" stroke-width="2" fill="none"/>
+</svg>

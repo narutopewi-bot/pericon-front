@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+  <defs>
+    <radialGradient id="bg_r" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#831843"/>
+      <stop offset="100%" stop-color="#3b071a"/>
+    </radialGradient>
+    <linearGradient id="gold" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fef08a"/>
+      <stop offset="50%" stop-color="#f59e0b"/>
+      <stop offset="100%" stop-color="#b45309"/>
+    </linearGradient>
+  </defs>
+  <circle cx="50" cy="50" r="48" fill="url(#bg_r)" stroke="url(#gold)" stroke-width="3"/>
+  <!-- Cabello ondeado -->
+  <circle cx="50" cy="50" r="28" fill="#1c1917"/>
+  <!-- Rostro hermosa doña -->
+  <ellipse cx="50" cy="56" rx="18" ry="20" fill="#fde047" opacity="0.3"/>
+  <ellipse cx="50" cy="56" rx="17" ry="19" fill="#fed7aa" stroke="#f43f5e" stroke-width="1"/>
+  <!-- Ojos encantadores con pestañas -->
+  <ellipse cx="43" cy="53" rx="3.5" ry="2.5" fill="#1e293b"/>
+  <path d="M39 51 Q43 47 47 51" stroke="#000" stroke-width="1.8" fill="none"/>
+  <ellipse cx="57" cy="53" rx="3.5" ry="2.5" fill="#1e293b"/>
+  <path d="M53 51 Q57 47 61 51" stroke="#000" stroke-width="1.8" fill="none"/>
+  <!-- Labios carmesí -->
+  <path d="M45 66 Q50 69 55 66 Q50 72 45 66 Z" fill="#e11d48"/>
+  <!-- Corona Real de Oro -->
+  <polygon points="32,36 36,20 43,28 50,15 57,28 64,20 68,36" fill="url(#gold)" stroke="#b45309" stroke-width="1.5"/>
+  <circle cx="50" cy="15" r="2.5" fill="#38bdf8"/>
+  <circle cx="36" cy="20" r="2" fill="#ec4899"/>
+  <circle cx="64" cy="20" r="2" fill="#ec4899"/>
+  <!-- Zarcillos de perla -->
+  <circle cx="31" cy="58" r="2.5" fill="#fff" stroke="url(#gold)" stroke-width="1"/>
+  <circle cx="69" cy="58" r="2.5" fill="#fff" stroke="url(#gold)" stroke-width="1"/>
+</svg>

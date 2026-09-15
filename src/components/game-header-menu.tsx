@@ -69,11 +69,11 @@ export default function GameHeaderMenu({
             className="flex items-center gap-2 bg-[#2a1708]/90 hover:bg-[#3d220c] border border-amber-500/50 rounded-full py-1 px-2.5 transition shadow-sm group"
           >
             <div className="relative w-7 h-7 rounded-full border border-amber-400 overflow-hidden bg-black/40 flex items-center justify-center text-xs font-black text-amber-300">
-              {player.avatarUrl && player.avatarUrl.length > 5 ? (
-                <img src={player.avatarUrl} alt={player.name} className="w-full h-full object-cover rounded-full" />
-              ) : (
-                <span>{player.name ? player.name.slice(0, 2).toUpperCase() : "PJ"}</span>
-              )}
+              <img
+                src={player.avatarUrl && player.avatarUrl.length > 5 ? player.avatarUrl : "/avatar.png"}
+                alt={player.name || "Jugador"}
+                className="w-full h-full object-cover rounded-full"
+              />
             </div>
 
             <div className="flex flex-col items-start text-left">
