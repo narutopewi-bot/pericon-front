@@ -61,6 +61,9 @@ const VENEZUELAN_BANKS = [
   "Otro banco..."
 ];
 
+// Variable configurable para el monto mínimo de retiro en monedas (1 moneda = 1 Bs.)
+export const MIN_WITHDRAWAL_COINS = 1500;
+
 export default function WalletModal({ isOpen, onClose, userId, coins: propCoins }: WalletModalProps) {
   const dispatch = useDispatch();
   const reduxPlayer = useSelector((state: RootState) => state.gameplayer);
@@ -85,8 +88,8 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
 
-  // Formulario de Retiro (con soporte para borrar sin trabarse en 1)
-  const [withdrawCoins, setWithdrawCoins] = useState<string>("50");
+  // Formulario de Retiro (con soporte para borrar sin trabarse y mínimo configurable)
+  const [withdrawCoins, setWithdrawCoins] = useState<string>(MIN_WITHDRAWAL_COINS.toString());
   const [withdrawBank, setWithdrawBank] = useState<string>(VENEZUELAN_BANKS[0]);
   const [withdrawPhone, setWithdrawPhone] = useState<string>("");
   const [withdrawIdCard, setWithdrawIdCard] = useState<string>("");
@@ -383,13 +386,13 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
     }
 
     const numCoins = parseInt(withdrawCoins, 10) || 0;
-    if (numCoins <= 0) {
-      setWithdrawError("Ingresa una cantidad de monedas válida para retirar (mínimo 1 moneda).");
+    if (numCoins < MIN_WITHDRAWAL_COINS) {
+      setWithdrawError(`El monto mínimo de retiro es de ${MIN_WITHDRAWAL_COINS.toLocaleString()} monedas (Bs. ${MIN_WITHDRAWAL_COINS.toLocaleString()}).`);
       return;
     }
 
     if (numCoins > currentCoins) {
-      setWithdrawError(`Saldo insuficiente. Tienes ${currentCoins} monedas disponibles y deseas retirar ${numCoins}.`);
+      setWithdrawError(`Saldo insuficiente. Tienes ${currentCoins.toLocaleString()} monedas disponibles y deseas retirar ${numCoins.toLocaleString()}.`);
       return;
     }
 
@@ -442,7 +445,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
         // Limpiar formulario y cambiar automáticamente a la pestaña de Retiros
         setWithdrawPhone("");
         setWithdrawIdCard("");
-        setWithdrawCoins("50");
+        setWithdrawCoins(MIN_WITHDRAWAL_COINS.toString());
         setActiveTab("history");
         setHistoryTab("withdrawals");
         fetchHistory();
@@ -656,7 +659,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
                       value={amountBs}
                       onChange={(e) => {
                         const val = e.target.value;
-                        if (val === "" || /^d+$/.test(val)) {
+                        if (val === "" || /^[0-9]+$/.test(val)) {
                           setAmountBs(val);
                         }
                       }}
@@ -759,9 +762,14 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
 
               {/* Cantidad de monedas a retirar con borrado libre */}
               <div>
-                <label className="text-[11px] text-emerald-200/90 font-bold block mb-1">
-                  Cantidad de Monedas a Retirar:
-                </label>
+                <div className="flex justify-between items-center mb-1">
+                  <label className="text-[11px] text-emerald-200/90 font-bold">
+                    Cantidad de Monedas a Retirar:
+                  </label>
+                  <span className="text-[10px] text-amber-300 font-bold bg-amber-950/60 border border-amber-500/40 px-2 py-0.5 rounded-md">
+                    Mínimo: {MIN_WITHDRAWAL_COINS.toLocaleString()} monedas
+                  </span>
+                </div>
                 <div className="relative">
                   <input
                     type="text"
@@ -769,12 +777,12 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
                     value={withdrawCoins}
                     onChange={(e) => {
                       const val = e.target.value;
-                      if (val === "" || /^d+$/.test(val)) {
+                      if (val === "" || /^[0-9]+$/.test(val)) {
                         setWithdrawCoins(val);
                       }
                     }}
                     className="w-full bg-black/70 border border-emerald-500/40 rounded-xl px-3 py-2 text-sm text-white font-black focus:outline-none focus:border-emerald-400"
-                    placeholder="50"
+                    placeholder={MIN_WITHDRAWAL_COINS.toString()}
                     required
                   />
                   <span className="absolute right-3 top-2 text-xs font-extrabold text-emerald-400">
@@ -783,14 +791,30 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
                 </div>
                 <div className="flex justify-between items-center mt-1 text-[10px] text-emerald-300/70">
                   <span>Tu saldo disponible: {currentCoins.toLocaleString()} monedas</span>
-                  <button
-                    type="button"
-                    onClick={() => setWithdrawCoins(currentCoins.toString())}
-                    className="underline text-amber-300 hover:text-amber-200"
-                  >
-                    Retirar todo ({currentCoins})
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setWithdrawCoins(MIN_WITHDRAWAL_COINS.toString())}
+                      className="underline text-emerald-400 hover:text-emerald-300"
+                    >
+                      Mínimo ({MIN_WITHDRAWAL_COINS.toLocaleString()})
+                    </button>
+                    {currentCoins >= MIN_WITHDRAWAL_COINS && (
+                      <button
+                        type="button"
+                        onClick={() => setWithdrawCoins(currentCoins.toString())}
+                        className="underline text-amber-300 hover:text-amber-200"
+                      >
+                        Retirar todo ({currentCoins.toLocaleString()})
+                      </button>
+                    )}
+                  </div>
                 </div>
+                {currentCoins < MIN_WITHDRAWAL_COINS && (
+                  <p className="text-amber-400 text-[10px] font-semibold mt-1">
+                    ⚠️ Tu saldo actual ({currentCoins.toLocaleString()} monedas) es menor al mínimo requerido para retirar ({MIN_WITHDRAWAL_COINS.toLocaleString()} monedas).
+                  </p>
+                )}
               </div>
 
               {/* Banco Receptor */}
