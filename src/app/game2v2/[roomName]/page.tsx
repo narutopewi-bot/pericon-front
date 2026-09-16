@@ -134,6 +134,10 @@ export default function GameTwoVsTwo() {
   const [mySeatIndex, setMySeatIndex] = useState<number>(-1);
   const mySeatIndexRef = useRef<number>(-1);
   const [copiedLink, setCopiedLink] = useState<boolean>(false);
+  const userRef = useRef(user);
+  useEffect(() => { userRef.current = user; }, [user]);
+  const betAmountRef = useRef(betAmount);
+  useEffect(() => { betAmountRef.current = betAmount; }, [betAmount]);
 
   // Jugadores en la mesa (Asientos 0, 1, 2, 3)
   const [players, setPlayers] = useState([
@@ -278,27 +282,35 @@ export default function GameTwoVsTwo() {
   useEffect(() => {
     if (!connection) return;
 
-    const myName = user?.name && user.name !== 'nulo' ? user.name : 'Jugador';
-    const slotParam = searchParams.get('slot');
-    const preferredSlot = slotParam ? parseInt(slotParam, 10) : -1;
-
-    const joinRoom = async () => {
+    const syncJoinRoom = async () => {
       try {
-        await connection.invoke('JoinRoom2v2', roomName, myName, betAmount, preferredSlot);
+        const currentUser = userRef.current;
+        const myName = currentUser?.name && currentUser.name !== 'nulo' ? currentUser.name : 'Jugador';
+        const myUserId = currentUser?.id?.toString() || '';
+        const slotParam = searchParams.get('slot');
+        const preferredSlot = mySeatIndexRef.current >= 0 ? mySeatIndexRef.current : (slotParam ? parseInt(slotParam, 10) : -1);
+        await connection.invoke('JoinRoom2v2', roomName, myName, betAmountRef.current, preferredSlot, myUserId);
       } catch (err: any) {
         console.error('Error al invocar JoinRoom2v2:', err);
-        reportAppError({
-          source: 'Game2v2',
-          errorMessage: `Fallo al unirse a sala 2v2: ${err?.message || err}`,
-          roomName,
-          username: myName,
-          userId: user?.id,
-          extraData: { preferredSlot, betAmount }
-        });
       }
     };
 
-    joinRoom();
+    syncJoinRoom();
+
+    const handleReconnected = () => {
+      console.log('[SignalR 2v2] Reconexión exitosa detectada. Re-sincronizando sala...');
+      syncJoinRoom();
+    };
+    connection.onreconnected(handleReconnected);
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        console.log('[SignalR 2v2] Teléfono activo / pestaña visible. Sincronizando estado...');
+        syncJoinRoom();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleVisibilityChange);
 
     // Evento: Actualización de estado de la sala (quién entra, quién sale)
     connection.on('RoomUpdate2v2', (data: RoomState) => {
@@ -306,8 +318,16 @@ export default function GameTwoVsTwo() {
       setRoomState(data);
       if (data.bet) setBetAmount(data.bet);
 
-      // Determinar mi propio asiento
-      const mySeat = data.seats.find(s => s.connectionId === connection.connectionId || s.name === myName);
+      const currentUser = userRef.current;
+      const myName = currentUser?.name && currentUser.name !== 'nulo' ? currentUser.name : 'Jugador';
+      const myUserId = currentUser?.id?.toString() || '';
+
+      // Determinar mi propio asiento (por ConnectionId, UserId o Nombre)
+      const mySeat = data.seats.find(s =>
+        s.connectionId === connection.connectionId ||
+        (myUserId && (s as any).userId === myUserId) ||
+        (myName !== 'Jugador' && s.name === myName)
+      );
       if (mySeat) {
         setMySeatIndex(mySeat.seatIndex);
         mySeatIndexRef.current = mySeat.seatIndex;
@@ -457,6 +477,8 @@ export default function GameTwoVsTwo() {
     });
 
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleVisibilityChange);
       connection.off('RoomUpdate2v2');
       connection.off('GameStarted2v2');
       connection.off('NewHandDealt2v2');
@@ -471,9 +493,8 @@ export default function GameTwoVsTwo() {
       connection.off('TumbaPassedNotice2v2');
       connection.off('TumbaAcceptedNotice2v2');
       if (tumbaCountdownTimerRef.current) clearInterval(tumbaCountdownTimerRef.current);
-      connection.invoke('LeaveRoom2v2', roomName).catch(() => {});
     };
-  }, [connection, roomName, user, searchParams]);
+  }, [connection, roomName]);
 
   // Reglas oficiales de La Tumba y Obligado 2 vs 2 (10 segundos de análisis y confirmación)
   const checkTumbaOnNewHand = (starterPlayer: number) => {
@@ -1765,7 +1786,12 @@ export default function GameTwoVsTwo() {
                 background: '#1a0e06',
                 color: '#fff'
               }).then((res) => {
-                if (res.isConfirmed) router.push('/desk');
+                if (res.isConfirmed) {
+                  if (connection) {
+                    connection.invoke('LeaveRoom2v2', roomName).catch(() => {});
+                  }
+                  router.push('/desk');
+                }
               });
             }}
             className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-red-950/80 hover:bg-red-700 border border-red-500/40 flex items-center justify-center text-white text-xs font-bold transition active:scale-95"
@@ -1810,7 +1836,12 @@ export default function GameTwoVsTwo() {
               </div>
 
               <button
-                onClick={() => router.push('/desk')}
+                onClick={() => {
+                  if (connection) {
+                    connection.invoke('LeaveRoom2v2', roomName).catch(() => {});
+                  }
+                  router.push('/desk');
+                }}
                 className="text-xs text-red-400 hover:text-red-300 font-bold underline transition"
               >
                 Cancelar y volver al escritorio
@@ -1910,8 +1941,13 @@ export default function GameTwoVsTwo() {
                             {seat ? (isTeam1 ? '🛡️' : '⚔️') : '⏳'}
                           </div>
                           <div className="truncate flex-1 leading-tight">
-                            <span className="text-xs font-extrabold block truncate">
-                              {seat ? `${seat.name} ${isMe ? '(Tú)' : ''}` : `Esperando ${roleTitle}...`}
+                            <span className="text-xs font-extrabold block truncate flex items-center gap-1.5">
+                              <span className="truncate">{seat ? `${seat.name} ${isMe ? '(Tú)' : ''}` : `Esperando ${roleTitle}...`}</span>
+                              {seat && seat.isConnected === false && (
+                                <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] px-1.5 py-0.2 rounded-full font-black animate-pulse shrink-0">
+                                  Reconectando...
+                                </span>
+                              )}
                             </span>
                             <span className="text-[10px] text-slate-400 font-semibold block">
                               {roleTitle} • {roleTeam}
@@ -1967,9 +2003,28 @@ export default function GameTwoVsTwo() {
                 ) : (
                   <div className="flex items-center justify-center gap-2 text-xs text-amber-300/80 font-bold py-2">
                     <Clock size={14} className="animate-spin" />
-                    <span>Esperando a que se unan {4 - connectedCount} jugador(es) más...</span>
+                    <span>
+                      {roomState?.seats?.length === 4
+                        ? `Esperando que todos estén activos (${connectedCount} de 4 conectados)...`
+                        : `Esperando a que se unan ${4 - connectedCount} jugador(es) más...`}
+                    </span>
                   </div>
                 )}
+              </div>
+
+              <div className="mt-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (connection) {
+                      connection.invoke('LeaveRoom2v2', roomName).catch(() => {});
+                    }
+                    router.push('/desk');
+                  }}
+                  className="text-xs text-red-400 hover:text-red-300 font-bold underline transition py-1"
+                >
+                  Cancelar y volver al escritorio
+                </button>
               </div>
 
             </div>
