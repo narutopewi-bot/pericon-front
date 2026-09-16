@@ -141,6 +141,29 @@ export default function GameTwoVsTwo() {
   const betAmountRef = useRef(betAmount);
   useEffect(() => { betAmountRef.current = betAmount; }, [betAmount]);
 
+  // Inicialización de usuario invitado persistente para evitar colisiones de asientos en enlaces compartidos
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    let storedGuestId = localStorage.getItem('pericon_guest_id');
+    let storedGuestName = localStorage.getItem('pericon_guest_name');
+
+    if (!user?.id || user.id === '' || !user?.name || user.name === '' || user.name === 'nulo') {
+      if (!storedGuestId) {
+        storedGuestId = `guest_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+        localStorage.setItem('pericon_guest_id', storedGuestId);
+      }
+      if (!storedGuestName) {
+        storedGuestName = `Jugador_${Math.floor(100 + Math.random() * 900)}`;
+        localStorage.setItem('pericon_guest_name', storedGuestName);
+      }
+      dispatch(setGamePlayer({
+        id: storedGuestId,
+        name: storedGuestName,
+        avatarUrl: user?.avatarUrl || ''
+      }));
+    }
+  }, [dispatch, user?.id, user?.name]);
+
   // Jugadores en la mesa (Asientos 0, 1, 2, 3)
   const [players, setPlayers] = useState<Array<{ name: string; team: number; role: string; avatarUrl?: string }>>([
     { name: 'Anfitrión (Tú)', team: 1, role: 'Anfitrión', avatarUrl: user?.avatarUrl || '' },
@@ -287,12 +310,32 @@ export default function GameTwoVsTwo() {
     const syncJoinRoom = async () => {
       try {
         const currentUser = userRef.current;
-        const myName = currentUser?.name && currentUser.name !== 'nulo' ? currentUser.name : 'Jugador';
-        const myUserId = currentUser?.id?.toString() || '';
+        let myName = currentUser?.name && currentUser.name !== 'nulo' ? currentUser.name : '';
+        let myUserId = currentUser?.id?.toString() || '';
         const myAvatar = currentUser?.avatarUrl || '';
+
+        // Si redux aún no ha poblado el usuario, usar credenciales persistentes de localStorage
+        if (!myUserId && typeof window !== 'undefined') {
+          let storedGuestId = localStorage.getItem('pericon_guest_id');
+          if (!storedGuestId) {
+            storedGuestId = `guest_${Date.now()}_${Math.floor(Math.random() * 10000)}`;
+            localStorage.setItem('pericon_guest_id', storedGuestId);
+          }
+          myUserId = storedGuestId;
+        }
+
+        if ((!myName || myName === 'Jugador') && typeof window !== 'undefined') {
+          let storedGuestName = localStorage.getItem('pericon_guest_name');
+          if (!storedGuestName) {
+            storedGuestName = `Jugador_${Math.floor(100 + Math.random() * 900)}`;
+            localStorage.setItem('pericon_guest_name', storedGuestName);
+          }
+          myName = storedGuestName;
+        }
+
         const slotParam = searchParams.get('slot');
         const preferredSlot = mySeatIndexRef.current >= 0 ? mySeatIndexRef.current : (slotParam ? parseInt(slotParam, 10) : -1);
-        await connection.invoke('JoinRoom2v2', roomName, myName, betAmountRef.current, preferredSlot, myUserId, myAvatar);
+        await connection.invoke('JoinRoom2v2', roomName, myName || 'Jugador', betAmountRef.current, preferredSlot, myUserId, myAvatar);
       } catch (err: any) {
         console.error('Error al invocar JoinRoom2v2:', err);
       }
@@ -315,21 +358,39 @@ export default function GameTwoVsTwo() {
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleVisibilityChange);
 
+    // Evento: Sala llena
+    connection.on('RoomFull2v2', (data: { message: string }) => {
+      Swal.fire({
+        title: 'Mesa Llena',
+        text: data?.message || 'La mesa 2 vs 2 ya cuenta con los 4 jugadores completos.',
+        icon: 'info',
+        confirmButtonText: 'Regresar',
+        confirmButtonColor: '#f59e0b',
+        background: '#1a0e06',
+        color: '#fff'
+      }).then(() => {
+        router.push('/desk');
+      });
+    });
+
     // Evento: Actualización de estado de la sala (quién entra, quién sale)
     connection.on('RoomUpdate2v2', (data: RoomState) => {
       console.log('[RoomUpdate2v2 recibido]', data);
-      setRoomState(data);
+      setRoomState(prev => ({
+        ...data,
+        gameStarted: prev?.gameStarted || data.gameStarted
+      }));
       if (data.bet) setBetAmount(data.bet);
 
       const currentUser = userRef.current;
-      const myName = currentUser?.name && currentUser.name !== 'nulo' ? currentUser.name : 'Jugador';
-      const myUserId = currentUser?.id?.toString() || '';
+      const myName = currentUser?.name && currentUser.name !== 'nulo' ? currentUser.name : '';
+      const myUserId = currentUser?.id?.toString() || (typeof window !== 'undefined' ? localStorage.getItem('pericon_guest_id') : '');
 
       // Determinar mi propio asiento (por ConnectionId, UserId o Nombre)
       const mySeat = data.seats.find(s =>
         s.connectionId === connection.connectionId ||
         (myUserId && (s as any).userId === myUserId) ||
-        (myName !== 'Jugador' && s.name === myName)
+        (myName && myName !== 'Jugador' && s.name === myName)
       );
       if (mySeat) {
         setMySeatIndex(mySeat.seatIndex);
@@ -453,7 +514,9 @@ export default function GameTwoVsTwo() {
           handleGameOver(winningTeam === myTeam);
         }, 2000);
       } else {
-        if (mySeatIndexRef.current === 0) {
+        const activeSeats = (roomState?.seats || []).filter(s => s.isConnected !== false).map(s => s.seatIndex);
+        const lowestActive = activeSeats.length > 0 ? Math.min(...activeSeats) : 0;
+        if (mySeatIndexRef.current === lowestActive) {
           const nextStarter = (handStarterRef.current + 1) % 4;
           setTimeout(() => {
             connection.invoke('DealNewHand2v2', roomName, nextStarter).catch(e => console.error("Error al pedir DealNewHand2v2:", e));
@@ -648,7 +711,26 @@ export default function GameTwoVsTwo() {
     isProcessingMoveRef.current = false;
     setIsProcessingMove(false);
 
-    const myIdx = mySeatIndexRef.current >= 0 ? mySeatIndexRef.current : 0;
+    setRoomState(prev => prev ? { ...prev, gameStarted: true } : ({ gameStarted: true } as any));
+
+    let resolvedSeatIdx = mySeatIndexRef.current;
+    if (Array.isArray(data.seats)) {
+      const currentUser = userRef.current;
+      const myName = currentUser?.name && currentUser.name !== 'nulo' ? currentUser.name : '';
+      const myUserId = currentUser?.id?.toString() || (typeof window !== 'undefined' ? localStorage.getItem('pericon_guest_id') : '');
+      const matchSeat = data.seats.find((s: any) =>
+        (connection?.connectionId && s.connectionId === connection.connectionId) ||
+        (myUserId && s.userId === myUserId) ||
+        (myName && myName !== 'Jugador' && s.name === myName)
+      );
+      if (matchSeat) {
+        resolvedSeatIdx = matchSeat.seatIndex;
+        setMySeatIndex(resolvedSeatIdx);
+        mySeatIndexRef.current = resolvedSeatIdx;
+      }
+    }
+
+    const myIdx = resolvedSeatIdx >= 0 ? resolvedSeatIdx : 0;
     const { hand, life } = parseHandCards(data.initHand, myIdx);
 
     setMyCards(hand);
@@ -1647,11 +1729,13 @@ export default function GameTwoVsTwo() {
     }
   };
 
-  // Copiar link de la sala
+  // Copiar link de la sala limpio
   const handleCopyShareLink = () => {
     if (typeof window === 'undefined') return;
-    const url = window.location.href;
-    navigator.clipboard.writeText(url).then(() => {
+    const origin = window.location.origin;
+    const path = window.location.pathname;
+    const cleanUrl = `${origin}${path}?bet=${betAmountRef.current}&friendly=1`;
+    navigator.clipboard.writeText(cleanUrl).then(() => {
       setCopiedLink(true);
       setTimeout(() => setCopiedLink(false), 2500);
       Swal.fire({
@@ -1668,11 +1752,13 @@ export default function GameTwoVsTwo() {
     });
   };
 
-  // Compartir directamente por WhatsApp
+  // Compartir directamente por WhatsApp limpio
   const handleShareWhatsApp = () => {
     if (typeof window === 'undefined') return;
-    const url = window.location.href;
-    const text = `¡Únete a mi mesa de Pericón 2 vs 2!\nEntra aquí para jugar conmigo: ${url}`;
+    const origin = window.location.origin;
+    const path = window.location.pathname;
+    const cleanUrl = `${origin}${path}?bet=${betAmountRef.current}&friendly=1`;
+    const text = `¡Únete a mi mesa de Pericón 2 vs 2!\nEntra aquí para jugar conmigo: ${cleanUrl}`;
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
   };
 
@@ -1681,7 +1767,7 @@ export default function GameTwoVsTwo() {
     if (typeof window === 'undefined') return;
     const origin = window.location.origin;
     const path = window.location.pathname;
-    const link = `${origin}${path}?slot=${slotIndex}`;
+    const link = `${origin}${path}?bet=${betAmountRef.current}&friendly=1&slot=${slotIndex}`;
 
     navigator.clipboard.writeText(link).then(() => {
       Swal.fire({
@@ -1703,7 +1789,7 @@ export default function GameTwoVsTwo() {
     if (typeof window === 'undefined') return;
     const origin = window.location.origin;
     const path = window.location.pathname;
-    const link = `${origin}${path}?slot=${slotIndex}`;
+    const link = `${origin}${path}?bet=${betAmountRef.current}&friendly=1&slot=${slotIndex}`;
     const text = `¡Únete a mi mesa de Pericón 2 vs 2 como mi ${roleName}!\nEntra directo aquí: ${link}`;
     window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
   };
@@ -1719,7 +1805,7 @@ export default function GameTwoVsTwo() {
   };
 
   const isMatchmaking = roomName.startsWith('match-') || searchParams.get('match') === 'auto';
-  const isGameRunning = roomState?.gameStarted === true;
+  const isGameRunning = roomState?.gameStarted === true || myCards.length > 0;
   const connectedCount = roomState?.seats?.length || 0;
 
   return (

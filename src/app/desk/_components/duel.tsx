@@ -116,7 +116,7 @@ const Duel = ({ open, duelToggle, }: any) => {
         console.log(`Uniéndose al matchmaking para ${mode} con apuesta ${bet}...`);
         setOnQueue(true);
         setQueueCount(1);
-        await connection.invoke("JoinMatchmaking", mode, bet);
+        await connection.invoke("JoinMatchmaking", mode, bet, user?.name || "", user?.id || "", user?.avatarUrl || "");
       } catch (err) {
         console.error("Error al unirse al matchmaking:", err);
       }
