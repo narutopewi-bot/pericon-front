@@ -186,6 +186,10 @@ export default function AdminPage() {
   const [adjustingUser, setAdjustingUser] = useState<UserRow | null>(null);
   const [adjustAmount, setAdjustAmount] = useState<number>(100);
   const [copiedText, setCopiedText] = useState<string | null>(null);
+  const [resettingUser, setResettingUser] = useState<UserRow | null>(null);
+  const [newPasswordInput, setNewPasswordInput] = useState<string>("");
+  const [resettingLoading, setResettingLoading] = useState<boolean>(false);
+  const [resetSuccessModal, setResetSuccessModal] = useState<{ username: string; password: string; phone?: string } | null>(null);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
   const [adminToken, setAdminToken] = useState<string>("");
@@ -781,6 +785,47 @@ export default function AdminPage() {
       }
     } catch {
       alert("Error al conectar con el servidor.");
+    }
+  };
+
+  // RESETEAR CONTRASEÑA DE USUARIO (ADMIN)
+  const handleOpenResetModal = (u: UserRow) => {
+    setResettingUser(u);
+    const gen = "Pericon" + Math.floor(1000 + Math.random() * 9000) + "*";
+    setNewPasswordInput(gen);
+  };
+
+  const handleConfirmResetPassword = async () => {
+    if (!resettingUser || !newPasswordInput.trim()) return;
+    if (newPasswordInput.length < 6) {
+      alert("La contraseña debe tener al menos 6 caracteres.");
+      return;
+    }
+
+    setResettingLoading(true);
+    try {
+      const res = await adminFetch(`${apiUrl}/api/admin/user/${resettingUser.id}/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ newPassword: newPasswordInput }),
+      });
+      const data = await res.json();
+      setResettingLoading(false);
+
+      if (res.ok) {
+        setResetSuccessModal({
+          username: resettingUser.username,
+          password: newPasswordInput,
+          phone: resettingUser.phoneNumber,
+        });
+        setResettingUser(null);
+        setActionMessage(`🔑 Contraseña de ${resettingUser.username} actualizada con éxito.`);
+      } else {
+        alert(data.message || "Error al restablecer contraseña.");
+      }
+    } catch {
+      setResettingLoading(false);
+      alert("Error de conexión con el servidor.");
     }
   };
 
@@ -1682,6 +1727,15 @@ export default function AdminPage() {
                                   className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg text-xs font-bold border border-amber-500/40 transition-all"
                                 >
                                   🪙 Monedas
+                                </button>
+
+                                {/* Botón Reset Clave */}
+                                <button
+                                  onClick={() => handleOpenResetModal(u)}
+                                  title="Cambiar o Resetear Contraseña"
+                                  className="px-2.5 py-1 bg-cyan-950/60 hover:bg-cyan-900 text-cyan-300 rounded-lg text-xs font-bold border border-cyan-500/40 transition-all"
+                                >
+                                  🔑 Clave
                                 </button>
 
                                 {/* Botón Banear / Habilitar */}
@@ -3416,6 +3470,110 @@ export default function AdminPage() {
                 Cerrar Visor
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL PARA CAMBIAR O RESETEAR CONTRASEÑA */}
+      {/* ========================================================================= */}
+      {resettingUser && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#180e07] border-2 border-amber-500/60 rounded-3xl p-6 max-w-sm w-full text-white shadow-2xl space-y-4">
+            <div className="flex items-center gap-2 text-amber-400">
+              <span className="text-xl">🔑</span>
+              <h3 className="text-base font-bold">Resetear Contraseña</h3>
+            </div>
+            <p className="text-xs text-amber-200/70">
+              Usuario: <span className="font-bold text-white">{resettingUser.username}</span> ({resettingUser.email})
+            </p>
+
+            <div>
+              <label className="text-[11px] font-bold text-amber-300 uppercase block mb-1">
+                Nueva Contraseña
+              </label>
+              <input
+                type="text"
+                value={newPasswordInput}
+                onChange={(e) => setNewPasswordInput(e.target.value)}
+                className="w-full bg-[#24140a] border border-amber-500/40 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-400 font-mono tracking-wider"
+                placeholder="Mínimo 6 caracteres"
+              />
+            </div>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  const gen = "Pericon" + Math.floor(1000 + Math.random() * 9000) + "*";
+                  setNewPasswordInput(gen);
+                }}
+                className="w-full py-1.5 bg-[#24140a] hover:bg-amber-500/20 text-amber-300 rounded-lg text-xs font-bold border border-amber-500/30 transition-all"
+              >
+                🎲 Generar Otra Clave
+              </button>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                onClick={() => setResettingUser(null)}
+                disabled={resettingLoading}
+                className="flex-1 py-2.5 bg-[#24140a] hover:bg-[#301b0f] text-amber-200/80 rounded-xl text-xs font-bold transition-all"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleConfirmResetPassword}
+                disabled={resettingLoading}
+                className="flex-1 py-2.5 bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-black rounded-xl text-xs font-black transition-all"
+              >
+                {resettingLoading ? "Guardando..." : "Guardar Clave"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* MODAL DE ÉXITO CON BOTÓN DIRECTO DE WHATSAPP */}
+      {/* ========================================================================= */}
+      {resetSuccessModal && (
+        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-[#180e07] border-2 border-emerald-500/60 rounded-3xl p-6 max-w-sm w-full text-white shadow-2xl text-center space-y-4">
+            <div className="w-12 h-12 mx-auto rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-2xl">
+              ✓
+            </div>
+            <h3 className="text-base font-extrabold text-emerald-400">
+              ¡Contraseña Restablecida!
+            </h3>
+            <div className="p-3 bg-[#24140a] rounded-xl border border-amber-500/30 text-left text-xs space-y-1">
+              <p><span className="text-amber-300/70">Usuario:</span> <strong className="text-white">{resetSuccessModal.username}</strong></p>
+              <p><span className="text-amber-300/70">Nueva clave:</span> <strong className="text-emerald-300 font-mono text-sm">{resetSuccessModal.password}</strong></p>
+            </div>
+
+            {resetSuccessModal.phone ? (
+              <a
+                href={`https://wa.me/${resetSuccessModal.phone.replace(/[^0-9]/g, "").replace(/^0/, "58")}?text=${encodeURIComponent(
+                  `Hola ${resetSuccessModal.username}, tu contraseña de acceso a El Pericón ha sido restablecida con éxito.\n\n🔑 Tu nueva contraseña es: ${resetSuccessModal.password}\n\nPuedes ingresar ahora en: https://pericon.lat/iniciar-sesion`
+                )}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center justify-center gap-2 w-full py-2.5 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs uppercase tracking-wider transition shadow-lg"
+              >
+                📱 Enviar Clave por WhatsApp
+              </a>
+            ) : (
+              <p className="text-[11px] text-amber-200/60">
+                El usuario no tiene WhatsApp registrado. Cópiale la clave para hacérsela llegar.
+              </p>
+            )}
+
+            <button
+              onClick={() => setResetSuccessModal(null)}
+              className="w-full py-2 bg-[#24140a] hover:bg-[#301b0f] text-amber-200/80 rounded-xl text-xs font-bold transition-all"
+            >
+              Cerrar
+            </button>
           </div>
         </div>
       )}
