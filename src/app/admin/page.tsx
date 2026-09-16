@@ -188,13 +188,32 @@ export default function AdminPage() {
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
+  const [adminToken, setAdminToken] = useState<string>("");
+
+  const getAdminHeaders = (extraHeaders: Record<string, string> = {}) => {
+    const t = adminToken || (typeof window !== "undefined" ? sessionStorage.getItem("guardian_admin_token") : "") || "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela";
+    return {
+      "X-Admin-Token": t,
+      ...extraHeaders,
+    };
+  };
+
+  const adminFetch = (url: string, init: RequestInit = {}) => {
+    const headers = getAdminHeaders((init.headers as Record<string, string>) || {});
+    return fetch(url, {
+      ...init,
+      headers,
+    });
+  };
 
   // Verificar sesión existente en sessionStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
       const auth = sessionStorage.getItem("guardian_session_auth");
+      const token = sessionStorage.getItem("guardian_admin_token");
       if (auth === "true") {
         setIsAuthenticated(true);
+        if (token) setAdminToken(token);
       }
     }
   }, []);
@@ -225,6 +244,10 @@ export default function AdminPage() {
         setIsAuthenticated(true);
         if (typeof window !== "undefined") {
           sessionStorage.setItem("guardian_session_auth", "true");
+          if (data.token) {
+            sessionStorage.setItem("guardian_admin_token", data.token);
+            setAdminToken(data.token);
+          }
         }
         return;
       }
@@ -232,8 +255,11 @@ export default function AdminPage() {
       // Fallback directo si las credenciales coinciden exactamente
       if (cleanUser === "Guardian" && cleanPass === "Guardian.2026") {
         setIsAuthenticated(true);
+        const fallbackToken = "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela";
+        setAdminToken(fallbackToken);
         if (typeof window !== "undefined") {
           sessionStorage.setItem("guardian_session_auth", "true");
+          sessionStorage.setItem("guardian_admin_token", fallbackToken);
         }
         return;
       }
@@ -242,8 +268,11 @@ export default function AdminPage() {
     } catch {
       if (cleanUser === "Guardian" && cleanPass === "Guardian.2026") {
         setIsAuthenticated(true);
+        const fallbackToken = "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela";
+        setAdminToken(fallbackToken);
         if (typeof window !== "undefined") {
           sessionStorage.setItem("guardian_session_auth", "true");
+          sessionStorage.setItem("guardian_admin_token", fallbackToken);
         }
       } else {
         setAuthError("Error al conectar con el servidor. Verifica las credenciales.");
@@ -255,8 +284,10 @@ export default function AdminPage() {
 
   const handleLogout = () => {
     setIsAuthenticated(false);
+    setAdminToken("");
     if (typeof window !== "undefined") {
       sessionStorage.removeItem("guardian_session_auth");
+      sessionStorage.removeItem("guardian_admin_token");
     }
   };
 
@@ -264,13 +295,13 @@ export default function AdminPage() {
     setLoading(true);
     try {
       const [resStats, resRecharges, resWithdrawals, resUsers, resMatches, resPromos, resAnnounce] = await Promise.all([
-        fetch(`${apiUrl}/api/admin/stats`),
-        fetch(`${apiUrl}/api/admin/recharges?status=${rechargeStatusFilter}`),
-        fetch(`${apiUrl}/api/admin/withdrawals?status=${withdrawalStatusFilter}`),
-        fetch(`${apiUrl}/api/admin/users`),
-        fetch(`${apiUrl}/api/admin/matches`),
-        fetch(`${apiUrl}/api/admin/promos`),
-        fetch(`${apiUrl}/api/admin/announcements`),
+        adminFetch(`${apiUrl}/api/admin/stats`),
+        adminFetch(`${apiUrl}/api/admin/recharges?status=${rechargeStatusFilter}`),
+        adminFetch(`${apiUrl}/api/admin/withdrawals?status=${withdrawalStatusFilter}`),
+        adminFetch(`${apiUrl}/api/admin/users`),
+        adminFetch(`${apiUrl}/api/admin/matches`),
+        adminFetch(`${apiUrl}/api/admin/promos`),
+        adminFetch(`${apiUrl}/api/admin/announcements`),
       ]);
 
       if (resStats.ok) setStats(await resStats.json());
@@ -290,7 +321,7 @@ export default function AdminPage() {
 
   const loadAnnouncements = async () => {
     try {
-      const res = await fetch(`${apiUrl}/api/admin/announcements`);
+      const res = await adminFetch(`${apiUrl}/api/admin/announcements`);
       if (res.ok) {
         setAnnouncements(await res.json());
       }
@@ -304,7 +335,7 @@ export default function AdminPage() {
       const queryParams = new URLSearchParams();
       if (errorStatusFilter !== "ALL") queryParams.append("status", errorStatusFilter);
       if (errorSourceFilter !== "ALL") queryParams.append("source", errorSourceFilter);
-      const res = await fetch(`${apiUrl}/api/admin/errors?${queryParams.toString()}`);
+      const res = await adminFetch(`${apiUrl}/api/admin/errors?${queryParams.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setErrorLogs(data.items || []);
@@ -327,7 +358,7 @@ export default function AdminPage() {
 
   const handleUpdateErrorStatus = async (id: number, status: string, notes?: string) => {
     try {
-      const res = await fetch(`${apiUrl}/api/admin/errors/${id}/status`, {
+      const res = await adminFetch(`${apiUrl}/api/admin/errors/${id}/status`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ status, adminNotes: notes })
@@ -345,7 +376,7 @@ export default function AdminPage() {
   const handleDeleteError = async (id: number) => {
     if (!confirm(`¿Eliminar reporte #${id}?`)) return;
     try {
-      const res = await fetch(`${apiUrl}/api/admin/errors/${id}`, { method: "DELETE" });
+      const res = await adminFetch(`${apiUrl}/api/admin/errors/${id}`, { method: "DELETE" });
       if (res.ok) {
         setActionMessage(`🗑️ Incidencia #${id} eliminada`);
         if (selectedError?.id === id) setSelectedError(null);
@@ -359,7 +390,7 @@ export default function AdminPage() {
   const handleClearResolvedErrors = async () => {
     if (!confirm("¿Deseas eliminar todas las incidencias marcadas como RESUELTO?")) return;
     try {
-      const res = await fetch(`${apiUrl}/api/admin/errors/clear-resolved`, { method: "POST" });
+      const res = await adminFetch(`${apiUrl}/api/admin/errors/clear-resolved`, { method: "POST" });
       if (res.ok) {
         const data = await res.json();
         setActionMessage(`🧹 ${data.message}`);
@@ -506,7 +537,7 @@ export default function AdminPage() {
     if (!broadcastMessage.trim()) return;
     setBroadcasting(true);
     try {
-      const res = await fetch(`${apiUrl}/api/admin/broadcast-announcement`, {
+      const res = await adminFetch(`${apiUrl}/api/admin/broadcast-announcement`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -533,7 +564,7 @@ export default function AdminPage() {
   // Activar o Pausar Comunicado
   const handleToggleAnnouncement = async (id: number) => {
     try {
-      const res = await fetch(`${apiUrl}/api/admin/announcement/${id}/toggle`, {
+      const res = await adminFetch(`${apiUrl}/api/admin/announcement/${id}/toggle`, {
         method: "POST",
       });
       const data = await res.json();
@@ -552,7 +583,7 @@ export default function AdminPage() {
   const handleDeleteAnnouncement = async (id: number) => {
     if (!confirm("¿Deseas eliminar este comunicado permanentemente?")) return;
     try {
-      const res = await fetch(`${apiUrl}/api/admin/announcement/${id}`, {
+      const res = await adminFetch(`${apiUrl}/api/admin/announcement/${id}`, {
         method: "DELETE",
       });
       const data = await res.json();
@@ -635,7 +666,7 @@ export default function AdminPage() {
     if (!newPromoCode.trim() || newPromoCoins <= 0) return;
     setCreatingPromo(true);
     try {
-      const res = await fetch(`${apiUrl}/api/admin/promos`, {
+      const res = await adminFetch(`${apiUrl}/api/admin/promos`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -662,7 +693,7 @@ export default function AdminPage() {
   // Activar o Pausar Cupón
   const handleTogglePromo = async (id: number) => {
     try {
-      const res = await fetch(`${apiUrl}/api/admin/promos/${id}/toggle`, {
+      const res = await adminFetch(`${apiUrl}/api/admin/promos/${id}/toggle`, {
         method: "POST",
       });
       const data = await res.json();
@@ -704,7 +735,7 @@ export default function AdminPage() {
     }
 
     try {
-      const res = await fetch(`${apiUrl}/api/admin/user/${u.id}/toggle-ban`, {
+      const res = await adminFetch(`${apiUrl}/api/admin/user/${u.id}/toggle-ban`, {
         method: "POST",
       });
       const data = await res.json();
@@ -723,7 +754,7 @@ export default function AdminPage() {
   const handleSaveCoinsAdjustment = async () => {
     if (!adjustingUser) return;
     try {
-      const res = await fetch(`${apiUrl}/api/admin/user/${adjustingUser.id}/adjust-coins`, {
+      const res = await adminFetch(`${apiUrl}/api/admin/user/${adjustingUser.id}/adjust-coins`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ amount: adjustAmount }),
@@ -757,7 +788,7 @@ export default function AdminPage() {
   const handleApproveRecharge = async (id: number) => {
     setActionMessage(null);
     try {
-      const res = await fetch(`${apiUrl}/api/admin/recharge/${id}/approve`, {
+      const res = await adminFetch(`${apiUrl}/api/admin/recharge/${id}/approve`, {
         method: "POST",
       });
       const data = await res.json();
@@ -794,7 +825,7 @@ export default function AdminPage() {
 
     setActionMessage(null);
     try {
-      const res = await fetch(`${apiUrl}/api/admin/recharge/${id}/reject`, {
+      const res = await adminFetch(`${apiUrl}/api/admin/recharge/${id}/reject`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason }),
@@ -825,7 +856,7 @@ export default function AdminPage() {
 
     setActionMessage(null);
     try {
-      const res = await fetch(`${apiUrl}/api/admin/withdrawal/${w.id}/approve`, {
+      const res = await adminFetch(`${apiUrl}/api/admin/withdrawal/${w.id}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reference: ref.trim() }),
@@ -852,7 +883,7 @@ export default function AdminPage() {
 
     setActionMessage(null);
     try {
-      const res = await fetch(`${apiUrl}/api/admin/withdrawal/${w.id}/reject`, {
+      const res = await adminFetch(`${apiUrl}/api/admin/withdrawal/${w.id}/reject`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason }),
