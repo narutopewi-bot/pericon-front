@@ -40,6 +40,7 @@ interface SeatInfo {
   name: string;
   team: number;
   role: string;
+  avatarUrl?: string;
   isReady: boolean;
   isConnected?: boolean;
   disconnectedAt?: string;
@@ -75,7 +76,8 @@ const evaluatePericonCard = (cardId: number, lifeCardId: number): number => {
   if (lifeSuit >= 0 && cardSuit === lifeSuit && faceVal === 2) return 24;
 
   if (lifeSuit >= 0 && cardSuit === lifeSuit) {
-    return 11 + faceVal; // 12 a 23
+    if (faceVal === 1) return 14; // El As de la vida vale 5 y medio (no mata al 4 ni al 5)
+    return 11 + faceVal; // 4=15, 5=16, 6=17, 7=18, 10=21, 11=22, 12=23
   }
   return 0; // Carta común
 };
@@ -140,8 +142,8 @@ export default function GameTwoVsTwo() {
   useEffect(() => { betAmountRef.current = betAmount; }, [betAmount]);
 
   // Jugadores en la mesa (Asientos 0, 1, 2, 3)
-  const [players, setPlayers] = useState([
-    { name: 'Anfitrión (Tú)', team: 1, role: 'Anfitrión' },
+  const [players, setPlayers] = useState<Array<{ name: string; team: number; role: string; avatarUrl?: string }>>([
+    { name: 'Anfitrión (Tú)', team: 1, role: 'Anfitrión', avatarUrl: user?.avatarUrl || '' },
     { name: 'Esperando Rival 1...', team: 2, role: 'Rival 1' },
     { name: 'Esperando Compañero...', team: 1, role: 'Compañero' },
     { name: 'Esperando Rival 2...', team: 2, role: 'Rival 2' },
@@ -287,9 +289,10 @@ export default function GameTwoVsTwo() {
         const currentUser = userRef.current;
         const myName = currentUser?.name && currentUser.name !== 'nulo' ? currentUser.name : 'Jugador';
         const myUserId = currentUser?.id?.toString() || '';
+        const myAvatar = currentUser?.avatarUrl || '';
         const slotParam = searchParams.get('slot');
         const preferredSlot = mySeatIndexRef.current >= 0 ? mySeatIndexRef.current : (slotParam ? parseInt(slotParam, 10) : -1);
-        await connection.invoke('JoinRoom2v2', roomName, myName, betAmountRef.current, preferredSlot, myUserId);
+        await connection.invoke('JoinRoom2v2', roomName, myName, betAmountRef.current, preferredSlot, myUserId, myAvatar);
       } catch (err: any) {
         console.error('Error al invocar JoinRoom2v2:', err);
       }
@@ -341,7 +344,8 @@ export default function GameTwoVsTwo() {
             next[s.seatIndex] = {
               name: s.name,
               team: s.team,
-              role: s.role
+              role: s.role,
+              avatarUrl: s.avatarUrl
             };
           }
         });
@@ -657,6 +661,23 @@ export default function GameTwoVsTwo() {
     setCurrentTurn(starter);
     currentTurnRef.current = starter;
 
+    if (Array.isArray(data.seats)) {
+      setPlayers(prev => {
+        const next = [...prev];
+        data.seats.forEach((s: any) => {
+          if (s.seatIndex >= 0 && s.seatIndex < 4) {
+            next[s.seatIndex] = {
+              name: s.name,
+              team: s.team,
+              role: s.role,
+              avatarUrl: s.avatarUrl
+            };
+          }
+        });
+        return next;
+      });
+    }
+
     setTimeout(() => {
       setIsDealing(false);
       checkTumbaOnNewHand(starter);
@@ -683,6 +704,10 @@ export default function GameTwoVsTwo() {
     lastStakeAskedByRef.current = null;
     isProcessingMoveRef.current = false;
     setIsProcessingMove(false);
+
+    if (typeof data.pointsTeam1 === 'number' && typeof data.pointsTeam2 === 'number') {
+      updatePoints(data.pointsTeam1, data.pointsTeam2, false);
+    }
 
     const myIdx = mySeatIndexRef.current >= 0 ? mySeatIndexRef.current : 0;
     const { hand, life } = parseHandCards(data.initHand, myIdx);
@@ -725,7 +750,8 @@ export default function GameTwoVsTwo() {
             next[s.seatIndex] = {
               name: s.name,
               team: s.team,
-              role: s.role
+              role: s.role,
+              avatarUrl: s.avatarUrl
             };
           }
         });
@@ -1933,13 +1959,17 @@ export default function GameTwoVsTwo() {
                         }`}
                       >
                         <div className="flex items-center gap-2.5">
-                          <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm font-black shrink-0 ${
-                            seat
-                              ? (isTeam1 ? 'bg-blue-600 text-white shadow' : 'bg-red-600 text-white shadow')
-                              : 'bg-slate-800 text-slate-400'
-                          }`}>
-                            {seat ? (isTeam1 ? '🛡️' : '⚔️') : '⏳'}
-                          </div>
+                          {seat && seat.avatarUrl && seat.avatarUrl.length > 5 ? (
+                            <img src={seat.avatarUrl} alt={seat.name} className="w-8 h-8 rounded-xl object-cover border border-amber-400/40 shrink-0" />
+                          ) : (
+                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm font-black shrink-0 ${
+                              seat
+                                ? (isTeam1 ? 'bg-blue-600 text-white shadow' : 'bg-red-600 text-white shadow')
+                                : 'bg-slate-800 text-slate-400'
+                            }`}>
+                              {seat ? (isTeam1 ? '🛡️' : '⚔️') : '⏳'}
+                            </div>
+                          )}
                           <div className="truncate flex-1 leading-tight">
                             <span className="text-xs font-extrabold block truncate flex items-center gap-1.5">
                               <span className="truncate">{seat ? `${seat.name} ${isMe ? '(Tú)' : ''}` : `Esperando ${roleTitle}...`}</span>
@@ -2044,9 +2074,13 @@ export default function GameTwoVsTwo() {
           return (
             <div className="w-full flex flex-col items-center justify-center relative z-10 shrink-0">
               <div className={`bg-gradient-to-r ${isPartnerTeam1 ? 'from-blue-950/90 to-sky-950/90 border-blue-400/60 shadow-blue-500/20' : 'from-red-950/90 to-rose-950/90 border-red-400/60 shadow-red-500/20'} border-2 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-xl sm:rounded-2xl flex items-center gap-1.5 sm:gap-2 shadow-lg`}>
-                <div className={`w-4 h-4 sm:w-6 sm:h-6 rounded-full ${isPartnerTeam1 ? 'bg-blue-500 border-blue-200' : 'bg-red-500 border-red-200'} text-white flex items-center justify-center text-[8px] sm:text-[10px] font-black border shrink-0`}>
-                  🤝
-                </div>
+                {partner.avatarUrl && partner.avatarUrl.length > 5 ? (
+                  <img src={partner.avatarUrl} alt={partner.name} className="w-4 h-4 sm:w-6 sm:h-6 rounded-full object-cover border border-blue-200 shrink-0" />
+                ) : (
+                  <div className={`w-4 h-4 sm:w-6 sm:h-6 rounded-full ${isPartnerTeam1 ? 'bg-blue-500 border-blue-200' : 'bg-red-500 border-red-200'} text-white flex items-center justify-center text-[8px] sm:text-[10px] font-black border shrink-0`}>
+                    🤝
+                  </div>
+                )}
                 <div className="text-left leading-tight">
                   <span className={`text-[10px] sm:text-xs font-bold ${isPartnerTeam1 ? 'text-blue-100' : 'text-red-100'} block max-w-[110px] sm:max-w-none truncate`}>{partner.name}</span>
                   <span className={`text-[7px] sm:text-[8px] ${isPartnerTeam1 ? 'text-blue-300' : 'text-red-300'} uppercase font-black`}>Compañero ({isPartnerTeam1 ? 'Azul' : 'Rojo'})</span>
@@ -2082,9 +2116,13 @@ export default function GameTwoVsTwo() {
             return (
               <div className="flex flex-col items-center justify-center z-10 w-12 sm:w-24 shrink-0 relative">
                 <div className={`bg-gradient-to-b ${isRival1Team1 ? 'from-blue-950/90 to-sky-950/90' : 'from-red-950/90 to-rose-950/90'} border-2 ${isRival1Turn ? 'border-yellow-400 ring-2 ring-yellow-400/50' : (isRival1Team1 ? 'border-blue-500/60' : 'border-red-500/60')} p-1 sm:p-1.5 rounded-xl sm:rounded-2xl flex flex-col items-center text-center shadow-lg ${isRival1Team1 ? 'shadow-blue-500/20' : 'shadow-red-500/20'} w-full`}>
-                  <div className={`w-5 h-5 sm:w-7 sm:h-7 rounded-full ${isRival1Team1 ? 'bg-blue-600 border-blue-200' : 'bg-red-600 border-red-200'} text-white flex items-center justify-center text-[9px] sm:text-xs font-bold border shrink-0`}>
-                    ⚔️
-                  </div>
+                  {rival1.avatarUrl && rival1.avatarUrl.length > 5 ? (
+                    <img src={rival1.avatarUrl} alt={rival1.name} className="w-5 h-5 sm:w-7 sm:h-7 rounded-full object-cover border border-red-200 shrink-0" />
+                  ) : (
+                    <div className={`w-5 h-5 sm:w-7 sm:h-7 rounded-full ${isRival1Team1 ? 'bg-blue-600 border-blue-200' : 'bg-red-600 border-red-200'} text-white flex items-center justify-center text-[9px] sm:text-xs font-bold border shrink-0`}>
+                      ⚔️
+                    </div>
+                  )}
                   <span className={`text-[9px] sm:text-[11px] font-bold ${isRival1Team1 ? 'text-blue-100' : 'text-red-100'} mt-0.5 truncate w-full`}>{rival1.name}</span>
                   <span className={`text-[7px] sm:text-[8px] ${isRival1Team1 ? 'text-blue-300' : 'text-red-300'} font-black uppercase`}>Rival 1</span>
                   {isRival1Turn && (
@@ -2225,9 +2263,13 @@ export default function GameTwoVsTwo() {
             return (
               <div className="flex flex-col items-center justify-center z-10 w-12 sm:w-24 shrink-0 relative">
                 <div className={`bg-gradient-to-b ${isRival2Team1 ? 'from-blue-950/90 to-sky-950/90' : 'from-red-950/90 to-rose-950/90'} border-2 ${isRival2Turn ? 'border-yellow-400 ring-2 ring-yellow-400/50' : (isRival2Team1 ? 'border-blue-500/60' : 'border-red-500/60')} p-1 sm:p-1.5 rounded-xl sm:rounded-2xl flex flex-col items-center text-center shadow-lg ${isRival2Team1 ? 'shadow-blue-500/20' : 'shadow-red-500/20'} w-full`}>
-                  <div className={`w-5 h-5 sm:w-7 sm:h-7 rounded-full ${isRival2Team1 ? 'bg-blue-600 border-blue-200' : 'bg-red-600 border-red-200'} text-white flex items-center justify-center text-[9px] sm:text-xs font-bold border shrink-0`}>
-                    ⚔️
-                  </div>
+                  {rival2.avatarUrl && rival2.avatarUrl.length > 5 ? (
+                    <img src={rival2.avatarUrl} alt={rival2.name} className="w-5 h-5 sm:w-7 sm:h-7 rounded-full object-cover border border-red-200 shrink-0" />
+                  ) : (
+                    <div className={`w-5 h-5 sm:w-7 sm:h-7 rounded-full ${isRival2Team1 ? 'bg-blue-600 border-blue-200' : 'bg-red-600 border-red-200'} text-white flex items-center justify-center text-[9px] sm:text-xs font-bold border shrink-0`}>
+                      ⚔️
+                    </div>
+                  )}
                   <span className={`text-[9px] sm:text-[11px] font-bold ${isRival2Team1 ? 'text-blue-100' : 'text-red-100'} mt-0.5 truncate w-full`}>{rival2.name}</span>
                   <span className={`text-[7px] sm:text-[8px] ${isRival2Team1 ? 'text-blue-300' : 'text-red-300'} font-black uppercase`}>Rival 2</span>
                   {isRival2Turn && (
