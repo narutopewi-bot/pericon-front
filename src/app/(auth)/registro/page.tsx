@@ -44,6 +44,13 @@ const FormSchema = z
       .email({
         message: "El correo no es válido",
       }),
+    phone: z
+      .string({
+        required_error: "Se requiere un número de WhatsApp",
+      })
+      .min(10, {
+        message: "Ingresa tu WhatsApp (mínimo 10 dígitos, ej: 04121234567)",
+      }),
     password: z.string().min(6, {
       message: "La contraseña debe tener al menos 6 caracteres",
     }),
@@ -71,6 +78,7 @@ export default function SignUp() {
     defaultValues: {
       username: "",
       email: "",
+      phone: "",
       password: "",
       password_confirmation: "",
       terms: false,
@@ -92,6 +100,7 @@ export default function SignUp() {
         body: JSON.stringify({
           username: data.username,
           email: data.email,
+          phoneNumber: data.phone,
           password: data.password,
         }),
       });
@@ -167,6 +176,24 @@ export default function SignUp() {
                         <Input placeholder="Correo electrónico" autoComplete="off" {...field} />
                       </FormControl>
                       <FormMessage error={formState.errors.email} />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="phone"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormControl>
+                        <Input
+                          placeholder="Número de WhatsApp (Ej. 04121234567)"
+                          type="tel"
+                          inputMode="tel"
+                          autoComplete="tel"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage error={formState.errors.phone} />
                     </FormItem>
                   )}
                 />

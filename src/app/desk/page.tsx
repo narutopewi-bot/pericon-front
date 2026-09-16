@@ -139,7 +139,24 @@ export default function Desk() {
   const [walletOpen, setWalletOpen] = useState(false);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
-  const [globalAnnouncement, setGlobalAnnouncement] = useState<{ message: string; createdAt: string } | null>(null);
+
+  interface AnnouncementPayload {
+    id?: number;
+    title?: string;
+    message: string;
+    type?: string;
+    createdAt?: string;
+  }
+  const [globalAnnouncement, setGlobalAnnouncement] = useState<AnnouncementPayload | null>(null);
+
+  const handleDismissAnnouncement = () => {
+    if (globalAnnouncement?.id && typeof window !== "undefined") {
+      try {
+        localStorage.setItem(`pericon_dismissed_announcement_${globalAnnouncement.id}`, "true");
+      } catch {}
+    }
+    setGlobalAnnouncement(null);
+  };
 
   const dispatch = useDispatch();
   const connection = useSignalRContext(); 
@@ -234,6 +251,21 @@ export default function Desk() {
       if (!seen) {
         setTutorialOpen(true);
       }
+
+      // Consultar aviso global activo del servidor
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
+      fetch(`${apiUrl}/api/admin/announcement/active`)
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (data && data.announcement) {
+            const ann = data.announcement;
+            const isDismissed = localStorage.getItem(`pericon_dismissed_announcement_${ann.id}`);
+            if (!isDismissed) {
+              setGlobalAnnouncement(ann);
+            }
+          }
+        })
+        .catch(() => {});
 
       const stored = localStorage.getItem("pericon_user");
       if (stored) {
@@ -331,7 +363,7 @@ export default function Desk() {
       }));
     });
 
-    connection.on('GlobalAnnouncement', (data: { message: string; createdAt: string }) => {
+    connection.on('GlobalAnnouncement', (data: AnnouncementPayload) => {
       console.log('[GlobalAnnouncement recibido]', data);
       setGlobalAnnouncement(data);
       playChatPopSound();
@@ -405,18 +437,43 @@ export default function Desk() {
         onOpenLeaderboard={() => setLeaderboardOpen(true)}
       />
 
-      {/* Banner de Anuncio Global en Vivo */}
+      {/* Banner de Anuncio Global en Vivo y Persistente */}
       {globalAnnouncement && (
-        <div className="w-full bg-gradient-to-r from-amber-600 via-yellow-400 to-amber-600 text-black px-4 py-2 flex items-center justify-between shadow-xl z-30 animate-in slide-in-from-top duration-300">
-          <div className="flex items-center gap-2 max-w-4xl mx-auto flex-1 text-center justify-center">
-            <span className="text-base animate-bounce">📢</span>
-            <span className="font-black text-xs sm:text-sm tracking-wide">
-              {globalAnnouncement.message}
+        <div
+          className={`w-full px-4 py-2.5 flex items-center justify-between shadow-2xl z-30 animate-in slide-in-from-top duration-300 border-b ${
+            globalAnnouncement.type === "alerta"
+              ? "bg-gradient-to-r from-red-600 via-amber-600 to-red-600 text-white border-red-400"
+              : globalAnnouncement.type === "torneo"
+              ? "bg-gradient-to-r from-amber-500 via-yellow-300 to-amber-500 text-amber-950 font-black border-amber-300"
+              : globalAnnouncement.type === "promo"
+              ? "bg-gradient-to-r from-purple-700 via-pink-600 to-amber-500 text-white border-pink-400"
+              : "bg-gradient-to-r from-amber-600 via-yellow-400 to-amber-600 text-black border-amber-400"
+          }`}
+        >
+          <div className="flex items-center gap-3 max-w-5xl mx-auto flex-1 justify-center text-center">
+            <span className="text-xl animate-bounce shrink-0">
+              {globalAnnouncement.type === "torneo" && "🏆"}
+              {globalAnnouncement.type === "alerta" && "⚠️"}
+              {globalAnnouncement.type === "promo" && "🎁"}
+              {globalAnnouncement.type !== "torneo" &&
+                globalAnnouncement.type !== "alerta" &&
+                globalAnnouncement.type !== "promo" &&
+                "📢"}
             </span>
+            <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2.5 text-left sm:text-center">
+              {globalAnnouncement.title && (
+                <span className="font-black text-xs sm:text-sm uppercase tracking-wider underline decoration-amber-900/40">
+                  {globalAnnouncement.title}:
+                </span>
+              )}
+              <span className="font-extrabold text-xs sm:text-sm tracking-wide">
+                {globalAnnouncement.message}
+              </span>
+            </div>
           </div>
           <button
-            onClick={() => setGlobalAnnouncement(null)}
-            className="text-black hover:text-amber-950 font-black text-xs px-2.5 py-1 rounded-lg bg-black/10 hover:bg-black/20 transition"
+            onClick={handleDismissAnnouncement}
+            className="text-inherit hover:opacity-70 font-black text-xs px-2.5 py-1 rounded-lg bg-black/15 hover:bg-black/25 transition shrink-0 ml-2"
             title="Cerrar anuncio"
           >
             ✕

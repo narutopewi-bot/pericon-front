@@ -72,6 +72,7 @@ interface UserRow {
   id: number;
   username: string;
   email: string;
+  phoneNumber?: string;
   coins: number;
   wins: number;
   losses: number;
@@ -110,7 +111,17 @@ interface ErrorLogRow {
   resolvedAt?: string;
 }
 
-type TabType = "dashboard" | "users" | "recharges" | "withdrawals" | "matches" | "reports" | "promos" | "errors";
+interface AnnouncementRow {
+  id: number;
+  title: string;
+  message: string;
+  type: string;
+  isActive: boolean;
+  createdAt: string;
+  expiresAt?: string | null;
+}
+
+type TabType = "dashboard" | "users" | "whatsapp" | "broadcast" | "recharges" | "withdrawals" | "matches" | "reports" | "promos" | "errors";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -151,10 +162,18 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
-  // Anuncio Global en Vivo
+  // Anuncio Global y Comunicados a Jugadores
   const [broadcastTitle, setBroadcastTitle] = useState("📢 COMUNICADO OFICIAL");
   const [broadcastMessage, setBroadcastMessage] = useState("");
+  const [broadcastType, setBroadcastType] = useState<string>("info");
   const [broadcasting, setBroadcasting] = useState(false);
+  const [announcements, setAnnouncements] = useState<AnnouncementRow[]>([]);
+
+  // Directorio de WhatsApp
+  const [whatsappSearch, setWhatsappSearch] = useState("");
+  const [whatsappFilter, setWhatsappFilter] = useState<"all" | "with_phone" | "without_phone">("all");
+  const [whatsappTemplate, setWhatsappTemplate] = useState<"torneo" | "novedades" | "promo" | "libre">("torneo");
+  const [customWaMessage, setCustomWaMessage] = useState("");
 
   // Formulario de Creación de Cupón
   const [newPromoCode, setNewPromoCode] = useState("");
@@ -244,13 +263,14 @@ export default function AdminPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [resStats, resRecharges, resWithdrawals, resUsers, resMatches, resPromos] = await Promise.all([
+      const [resStats, resRecharges, resWithdrawals, resUsers, resMatches, resPromos, resAnnounce] = await Promise.all([
         fetch(`${apiUrl}/api/admin/stats`),
         fetch(`${apiUrl}/api/admin/recharges?status=${rechargeStatusFilter}`),
         fetch(`${apiUrl}/api/admin/withdrawals?status=${withdrawalStatusFilter}`),
         fetch(`${apiUrl}/api/admin/users`),
         fetch(`${apiUrl}/api/admin/matches`),
         fetch(`${apiUrl}/api/admin/promos`),
+        fetch(`${apiUrl}/api/admin/announcements`),
       ]);
 
       if (resStats.ok) setStats(await resStats.json());
@@ -259,11 +279,23 @@ export default function AdminPage() {
       if (resUsers.ok) setUsers(await resUsers.json());
       if (resMatches.ok) setMatches(await resMatches.json());
       if (resPromos.ok) setPromos(await resPromos.json());
+      if (resAnnounce.ok) setAnnouncements(await resAnnounce.json());
       await fetchErrorLogs();
     } catch (err) {
       console.error("Error loading admin data:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadAnnouncements = async () => {
+    try {
+      const res = await fetch(`${apiUrl}/api/admin/announcements`);
+      if (res.ok) {
+        setAnnouncements(await res.json());
+      }
+    } catch (err) {
+      console.error("Error cargando comunicados:", err);
     }
   };
 
@@ -468,7 +500,7 @@ export default function AdminPage() {
     downloadCSV(`reporte_financiero_pericon_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
   };
 
-  // Transmitir Anuncio Global en Vivo
+  // Transmitir Anuncio Global en Vivo y Guardarlo en Base de Datos
   const handleBroadcastAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!broadcastMessage.trim()) return;
@@ -480,13 +512,14 @@ export default function AdminPage() {
         body: JSON.stringify({
           title: broadcastTitle.trim() || "📢 COMUNICADO OFICIAL",
           message: broadcastMessage.trim(),
-          type: "info",
+          type: broadcastType,
         }),
       });
       const data = await res.json();
       if (res.ok) {
         setActionMessage(`📢 ${data.message}`);
         setBroadcastMessage("");
+        loadAnnouncements();
       } else {
         alert(data.message || "Error al transmitir anuncio.");
       }
@@ -495,6 +528,105 @@ export default function AdminPage() {
     } finally {
       setBroadcasting(false);
     }
+  };
+
+  // Activar o Pausar Comunicado
+  const handleToggleAnnouncement = async (id: number) => {
+    try {
+      const res = await fetch(`${apiUrl}/api/admin/announcement/${id}/toggle`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setActionMessage(`📢 ${data.message}`);
+        loadAnnouncements();
+      } else {
+        alert(data.message || "Error al cambiar estado del comunicado.");
+      }
+    } catch {
+      alert("Error al conectar con el servidor.");
+    }
+  };
+
+  // Eliminar Comunicado
+  const handleDeleteAnnouncement = async (id: number) => {
+    if (!confirm("¿Deseas eliminar este comunicado permanentemente?")) return;
+    try {
+      const res = await fetch(`${apiUrl}/api/admin/announcement/${id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setActionMessage(`🗑️ ${data.message}`);
+        loadAnnouncements();
+      } else {
+        alert(data.message || "Error al eliminar comunicado.");
+      }
+    } catch {
+      alert("Error al conectar con el servidor.");
+    }
+  };
+
+  // Funciones de Apoyo para Directorio de WhatsApp
+  const cleanPhoneDigits = (phone?: string) => {
+    if (!phone) return "";
+    let digits = phone.replace(/\D/g, "");
+    if (digits.startsWith("0")) {
+      digits = "58" + digits.slice(1);
+    } else if (digits.length === 10 && (digits.startsWith("412") || digits.startsWith("414") || digits.startsWith("424") || digits.startsWith("416") || digits.startsWith("426"))) {
+      digits = "58" + digits;
+    }
+    return digits;
+  };
+
+  const getWhatsAppMessageText = (username: string) => {
+    if (whatsappTemplate === "torneo") {
+      return `¡Hola ${username}! 🏆 Te escribe la administración de El Pericón. Te invitamos al próximo gran torneo en nuestra plataforma. ¡Participa y gana fabulosos premios!`;
+    }
+    if (whatsappTemplate === "promo") {
+      return `¡Hola ${username}! 🎁 Te escribe El Pericón. Tenemos promociones activas y recargas con bonificación especial para ti. ¡Entra a jugar hoy!`;
+    }
+    if (whatsappTemplate === "novedades") {
+      return `¡Hola ${username}! 📢 En El Pericón hemos lanzado nuevas actualizaciones y salas disponibles para ti. ¡Entra y pruébalas!`;
+    }
+    return customWaMessage.trim();
+  };
+
+  const getWhatsAppLink = (phone?: string, username: string = "Jugador") => {
+    const clean = cleanPhoneDigits(phone);
+    if (!clean) return "#";
+    const text = getWhatsAppMessageText(username);
+    return text ? `https://wa.me/${clean}?text=${encodeURIComponent(text)}` : `https://wa.me/${clean}`;
+  };
+
+  const copyAllWhatsAppNumbers = () => {
+    const phones = users
+      .map((u) => cleanPhoneDigits(u.phoneNumber))
+      .filter((p) => Boolean(p));
+    const uniquePhones = Array.from(new Set(phones));
+    if (uniquePhones.length === 0) {
+      alert("No hay números de WhatsApp registrados aún.");
+      return;
+    }
+    const text = uniquePhones.map((p) => `+${p}`).join(", ");
+    copyToClipboard(text, "whatsapp_all");
+    setActionMessage(`📋 ${uniquePhones.length} números de WhatsApp copiados al portapapeles.`);
+  };
+
+  const exportWhatsAppCSV = () => {
+    const headers = ["ID", "Usuario", "Email", "WhatsApp_Formato_Internacional", "Monedas", "Estado", "Fecha_Registro"];
+    const rows = users
+      .filter((u) => Boolean(u.phoneNumber && u.phoneNumber.trim()))
+      .map((u) => [
+        u.id,
+        u.username,
+        u.email,
+        `+${cleanPhoneDigits(u.phoneNumber)}`,
+        u.coins,
+        u.isActive ? "ACTIVO" : "BANEADO",
+        u.createdAt,
+      ]);
+    downloadCSV(`directorio_whatsapp_pericon_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
   };
 
   // Crear Nuevo Cupón Promocional
@@ -742,7 +874,8 @@ export default function AdminPage() {
     return users.filter((u) => {
       const matchesSearch =
         u.username.toLowerCase().includes(userSearch.toLowerCase()) ||
-        u.email.toLowerCase().includes(userSearch.toLowerCase());
+        u.email.toLowerCase().includes(userSearch.toLowerCase()) ||
+        (u.phoneNumber && u.phoneNumber.toLowerCase().includes(userSearch.toLowerCase()));
       if (!matchesSearch) return false;
 
       if (userStatusFilter === "active") return u.isActive;
@@ -750,6 +883,27 @@ export default function AdminPage() {
       return true;
     });
   }, [users, userSearch, userStatusFilter]);
+
+  // Usuarios con y sin WhatsApp para métricas
+  const usersWithPhone = useMemo(() => users.filter((u) => Boolean(u.phoneNumber && u.phoneNumber.trim())), [users]);
+  const usersWithoutPhone = useMemo(() => users.filter((u) => !u.phoneNumber || !u.phoneNumber.trim()), [users]);
+
+  // Directorio de WhatsApp filtrado
+  const filteredWhatsAppUsers = useMemo(() => {
+    return users.filter((u) => {
+      const q = whatsappSearch.toLowerCase().trim();
+      const matchesSearch =
+        !q ||
+        u.username.toLowerCase().includes(q) ||
+        u.email.toLowerCase().includes(q) ||
+        (u.phoneNumber && u.phoneNumber.toLowerCase().includes(q));
+      if (!matchesSearch) return false;
+
+      if (whatsappFilter === "with_phone") return Boolean(u.phoneNumber && u.phoneNumber.trim());
+      if (whatsappFilter === "without_phone") return !u.phoneNumber || !u.phoneNumber.trim();
+      return true;
+    });
+  }, [users, whatsappSearch, whatsappFilter]);
 
   // Cálculos para reportes financieros
   const financialSummary = useMemo(() => {
@@ -929,7 +1083,55 @@ export default function AdminPage() {
             </span>
           </button>
 
-          {/* 3. Recargas */}
+          {/* 3. Directorio de WhatsApp (NUEVO) */}
+          <button
+            onClick={() => {
+              setActiveTab("whatsapp");
+              setMobileMenuOpen(false);
+            }}
+            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
+              activeTab === "whatsapp"
+                ? "bg-emerald-500 text-emerald-950 shadow-md shadow-emerald-500/30"
+                : "text-amber-100/70 hover:bg-emerald-500/10 hover:text-emerald-300"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-base">📱</span>
+              <span>Directorio WhatsApp</span>
+            </div>
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-emerald-950/60 text-emerald-300 border border-emerald-400/30 font-bold">
+              {usersWithPhone.length}
+            </span>
+          </button>
+
+          {/* 4. Avisos y Comunicados a Usuarios (NUEVO) */}
+          <button
+            onClick={() => {
+              setActiveTab("broadcast");
+              setMobileMenuOpen(false);
+            }}
+            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
+              activeTab === "broadcast"
+                ? "bg-gradient-to-r from-amber-500 to-yellow-400 text-amber-950 shadow-md shadow-amber-500/30"
+                : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-base">📢</span>
+              <span>Avisos a Usuarios</span>
+            </div>
+            {announcements.some((a) => a.isActive) ? (
+              <span className="px-2 py-0.5 rounded-full text-[10px] bg-green-500 text-white font-black animate-pulse">
+                ACTIVO
+              </span>
+            ) : (
+              <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-950/60 text-amber-300 border border-amber-400/30">
+                {announcements.length}
+              </span>
+            )}
+          </button>
+
+          {/* 5. Recargas */}
           <button
             onClick={() => {
               setActiveTab("recharges");
@@ -1473,6 +1675,541 @@ export default function AdminPage() {
                     )}
                   </tbody>
                 </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* PESTAÑA: DIRECTORIO DE WHATSAPP (NUEVO) */}
+        {/* ========================================================================= */}
+        {activeTab === "whatsapp" && (
+          <div className="space-y-6">
+            {/* Encabezado y Estadísticas de WhatsApp */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h1 className={`${fonts.bowlbyOneSC.className} text-xl md:text-2xl text-emerald-400 tracking-wide flex items-center gap-2`}>
+                  <span>📱</span>
+                  <span>Directorio de WhatsApp de Jugadores</span>
+                </h1>
+                <p className="text-xs text-amber-200/60 mt-0.5">
+                  Conéctate directamente con tus jugadores para invitarlos a torneos, avisar mantenimientos o difundir eventos.
+                </p>
+              </div>
+
+              {/* Botones de acción masiva */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                <button
+                  onClick={copyAllWhatsAppNumbers}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-lg shadow-emerald-600/30 transition active:scale-95"
+                  title="Copiar todos los números registrados para listas de difusión de WhatsApp"
+                >
+                  <span>📋</span>
+                  <span>Copiar Todos los Números</span>
+                </button>
+
+                <button
+                  onClick={exportWhatsAppCSV}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-[#24140a] hover:bg-[#341d0e] text-amber-300 border border-amber-500/40 text-xs font-bold transition shadow"
+                  title="Exportar directorio telefónico a archivo Excel/CSV"
+                >
+                  <span>📥</span>
+                  <span>Exportar Excel</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Tarjetas de Resumen de Contacto */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div className="bg-gradient-to-br from-[#1c0f07] to-[#251409] border border-amber-500/30 rounded-2xl p-4 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/20 text-amber-400 flex items-center justify-center text-2xl font-bold border border-amber-500/30">
+                  👥
+                </div>
+                <div>
+                  <span className="text-[11px] font-bold text-amber-300/70 uppercase">Total Jugadores</span>
+                  <p className="text-2xl font-black text-white">{users.length}</p>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-[#0c2214] to-[#122e1b] border border-emerald-500/40 rounded-2xl p-4 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center text-2xl font-bold border border-emerald-500/40">
+                  📱
+                </div>
+                <div>
+                  <span className="text-[11px] font-bold text-emerald-300/80 uppercase">Con WhatsApp Registrado</span>
+                  <p className="text-2xl font-black text-emerald-300">{usersWithPhone.length}</p>
+                </div>
+              </div>
+
+              <div className="bg-gradient-to-br from-[#1c0f07] to-[#201107] border border-amber-500/20 rounded-2xl p-4 flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-200/50 flex items-center justify-center text-2xl font-bold border border-amber-500/20">
+                  ⏳
+                </div>
+                <div>
+                  <span className="text-[11px] font-bold text-amber-200/50 uppercase">Sin Teléfono Aún</span>
+                  <p className="text-2xl font-black text-amber-200/60">{usersWithoutPhone.length}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Selector de Plantilla de Mensaje de WhatsApp */}
+            <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-4 shadow-lg space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-lg">💬</span>
+                  <span className="text-xs font-black text-amber-300 uppercase tracking-wider">
+                    Plantilla de Mensaje al Abrir WhatsApp:
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 text-xs font-bold">
+                  {[
+                    { id: "torneo", label: "🏆 Convocatoria a Torneo" },
+                    { id: "promo", label: "🎁 Bono y Promoción" },
+                    { id: "novedades", label: "📢 Nuevas Salas y Mejoras" },
+                    { id: "libre", label: "✍️ Mensaje Personalizado" },
+                  ].map((tpl) => (
+                    <button
+                      key={tpl.id}
+                      onClick={() => setWhatsappTemplate(tpl.id as any)}
+                      className={`px-3 py-1 rounded-lg transition-all text-[11px] ${
+                        whatsappTemplate === tpl.id
+                          ? "bg-emerald-600 text-white shadow-md shadow-emerald-600/30 font-black"
+                          : "bg-[#24140a] text-amber-200/70 hover:text-white border border-amber-500/20"
+                      }`}
+                    >
+                      {tpl.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {whatsappTemplate === "libre" ? (
+                <textarea
+                  value={customWaMessage}
+                  onChange={(e) => setCustomWaMessage(e.target.value)}
+                  placeholder="Escribe el mensaje que se cargará automáticamente al abrir el chat con el jugador..."
+                  rows={2}
+                  className="w-full bg-[#24140a] border border-amber-500/40 rounded-xl px-3 py-2 text-xs text-white placeholder-amber-200/30 focus:outline-none focus:border-amber-400"
+                />
+              ) : (
+                <div className="p-2.5 rounded-xl bg-[#24140a] border border-amber-500/20 text-xs text-amber-200/80 italic">
+                  &ldquo;{getWhatsAppMessageText("NombreUsuario")}&rdquo;
+                </div>
+              )}
+            </div>
+
+            {/* Filtros de Búsqueda */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <input
+                type="text"
+                placeholder="Buscar por usuario, teléfono o correo..."
+                value={whatsappSearch}
+                onChange={(e) => setWhatsappSearch(e.target.value)}
+                className="bg-[#1e1008] border border-amber-500/30 rounded-xl px-3.5 py-2 text-xs text-white placeholder-amber-200/30 focus:outline-none focus:border-amber-400 w-full sm:w-72"
+              />
+
+              <div className="flex rounded-xl bg-[#1e1008] border border-amber-500/30 p-0.5 text-xs font-bold self-start sm:self-auto">
+                <button
+                  onClick={() => setWhatsappFilter("all")}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                    whatsappFilter === "all" ? "bg-amber-500 text-amber-950" : "text-amber-200/60 hover:text-white"
+                  }`}
+                >
+                  Todos ({users.length})
+                </button>
+                <button
+                  onClick={() => setWhatsappFilter("with_phone")}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                    whatsappFilter === "with_phone" ? "bg-emerald-600 text-white" : "text-amber-200/60 hover:text-white"
+                  }`}
+                >
+                  Con WhatsApp ({usersWithPhone.length})
+                </button>
+                <button
+                  onClick={() => setWhatsappFilter("without_phone")}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                    whatsappFilter === "without_phone" ? "bg-amber-800 text-white" : "text-amber-200/60 hover:text-white"
+                  }`}
+                >
+                  Sin WhatsApp ({usersWithoutPhone.length})
+                </button>
+              </div>
+            </div>
+
+            {/* Tabla del Directorio de WhatsApp */}
+            <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#24140a] border-b border-amber-500/30 text-amber-300 uppercase tracking-wider font-bold">
+                    <tr>
+                      <th className="p-3.5">ID</th>
+                      <th className="p-3.5">Usuario</th>
+                      <th className="p-3.5">Teléfono / WhatsApp</th>
+                      <th className="p-3.5">Saldo</th>
+                      <th className="p-3.5">Estado</th>
+                      <th className="p-3.5">Fecha Registro</th>
+                      <th className="p-3.5 text-center">Contactar WhatsApp</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-amber-500/10">
+                    {filteredWhatsAppUsers.length === 0 ? (
+                      <tr>
+                        <td colSpan={7} className="text-center py-10 text-amber-200/40">
+                          No se encontraron jugadores que coincidan con la búsqueda.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredWhatsAppUsers.map((u) => {
+                        const hasPhone = Boolean(u.phoneNumber && u.phoneNumber.trim());
+                        const cleanPhone = cleanPhoneDigits(u.phoneNumber);
+                        const waLink = getWhatsAppLink(u.phoneNumber, u.username);
+
+                        return (
+                          <tr key={u.id} className="hover:bg-amber-500/5 transition-colors">
+                            <td className="p-3.5 font-mono text-amber-200/50">#{u.id}</td>
+                            <td className="p-3.5">
+                              <div className="font-bold text-white flex items-center gap-1.5">
+                                {u.username}
+                                {u.username.toLowerCase() === "guardian" && (
+                                  <span className="text-xs" title="Administrador Principal">🛡️</span>
+                                )}
+                              </div>
+                              <div className="text-[11px] text-amber-200/40">{u.email}</div>
+                            </td>
+                            <td className="p-3.5">
+                              {hasPhone ? (
+                                <div className="flex items-center gap-2">
+                                  <span className="font-mono text-emerald-400 font-bold bg-emerald-950/50 px-2 py-0.5 rounded-md border border-emerald-500/30">
+                                    +{cleanPhone}
+                                  </span>
+                                  <button
+                                    onClick={() => copyToClipboard(`+${cleanPhone}`, `tel_${u.id}`)}
+                                    title="Copiar número"
+                                    className="p-1 rounded hover:bg-amber-500/20 text-amber-300 text-xs transition"
+                                  >
+                                    {copiedText === `tel_${u.id}` ? "✓" : "📋"}
+                                  </button>
+                                </div>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-950/40 text-amber-200/40 border border-amber-500/20">
+                                  Pendiente por registrar
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-3.5 font-black text-amber-300">
+                              🪙 {u.coins.toLocaleString()}
+                            </td>
+                            <td className="p-3.5">
+                              {u.isActive ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-500/20 text-green-400 border border-green-500/40">
+                                  ACTIVO
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-red-500/20 text-red-400 border border-red-500/40">
+                                  BANEADO
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-3.5 text-amber-200/50 text-[11px]">
+                              {new Date(u.createdAt).toLocaleDateString()}
+                            </td>
+                            <td className="p-3.5 text-center">
+                              {hasPhone ? (
+                                <a
+                                  href={waLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-600 to-green-500 hover:from-emerald-500 hover:to-green-400 text-white font-black text-xs shadow-md shadow-green-600/20 active:scale-95 transition"
+                                >
+                                  <span>💬</span>
+                                  <span>Abrir WhatsApp</span>
+                                </a>
+                              ) : (
+                                <span className="text-[11px] text-amber-200/30 italic">
+                                  Sin WhatsApp
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* PESTAÑA: AVISOS Y COMUNICADOS A USUARIOS (NUEVO) */}
+        {/* ========================================================================= */}
+        {activeTab === "broadcast" && (
+          <div className="space-y-6">
+            {/* Encabezado */}
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h1 className={`${fonts.bowlbyOneSC.className} text-xl md:text-2xl text-amber-400 tracking-wide flex items-center gap-2`}>
+                  <span>📢</span>
+                  <span>Avisos y Comunicados a Jugadores</span>
+                </h1>
+                <p className="text-xs text-amber-200/60 mt-0.5">
+                  Publica anuncios instantáneos en pantalla para todos los jugadores activos y guárdalos para quienes entren después.
+                </p>
+              </div>
+            </div>
+
+            {/* Tarjeta de Estado del Comunicado Activo */}
+            {announcements.find((a) => a.isActive) ? (
+              (() => {
+                const active = announcements.find((a) => a.isActive)!;
+                return (
+                  <div className="bg-gradient-to-r from-[#2a1708] via-[#331c0b] to-[#2a1708] border-2 border-amber-400 rounded-3xl p-5 shadow-2xl relative overflow-hidden">
+                    <div className="absolute top-0 right-0 px-4 py-1 bg-green-500 text-black font-black text-[10px] tracking-wider uppercase rounded-bl-xl shadow flex items-center gap-1">
+                      <span className="w-2 h-2 rounded-full bg-black animate-ping"></span>
+                      <span>AVISO ACTIVO Y VISIBLE EN LA SALA</span>
+                    </div>
+
+                    <div className="flex items-start gap-3 mt-1">
+                      <div className="w-12 h-12 rounded-2xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-2xl shrink-0">
+                        {active.type === "torneo" && "🏆"}
+                        {active.type === "alerta" && "⚠️"}
+                        {active.type === "promo" && "🎁"}
+                        {active.type !== "torneo" && active.type !== "alerta" && active.type !== "promo" && "📢"}
+                      </div>
+                      <div className="flex-1 min-w-0 pr-28">
+                        <div className="flex items-center gap-2">
+                          <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                            {active.type.toUpperCase()}
+                          </span>
+                          <span className="text-[11px] text-amber-200/50">
+                            Publicado el {new Date(active.createdAt).toLocaleString()}
+                          </span>
+                        </div>
+                        <h3 className="text-base font-black text-amber-300 mt-1">{active.title}</h3>
+                        <p className="text-sm text-white/90 mt-1 whitespace-pre-line leading-relaxed">
+                          {active.message}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-amber-500/20 flex items-center justify-end gap-2.5">
+                      <button
+                        onClick={() => handleToggleAnnouncement(active.id)}
+                        className="px-4 py-2 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition"
+                      >
+                        ⏸️ Desactivar / Pausar Aviso
+                      </button>
+                      <button
+                        onClick={() => handleDeleteAnnouncement(active.id)}
+                        className="px-4 py-2 rounded-xl bg-red-950/70 hover:bg-red-900 text-red-300 border border-red-500/40 text-xs font-bold transition"
+                      >
+                        🗑️ Eliminar
+                      </button>
+                    </div>
+                  </div>
+                );
+              })()
+            ) : (
+              <div className="bg-[#180e07] border border-amber-500/20 rounded-2xl p-4 text-center text-amber-200/50 text-xs flex items-center justify-center gap-2">
+                <span>⚪</span>
+                <span>No hay ningún comunicado activo en este momento. Los jugadores no están viendo avisos en su sala.</span>
+              </div>
+            )}
+
+            {/* Formulario de Publicación y Transmisión */}
+            <div className="bg-gradient-to-br from-[#1b0e06] to-[#241309] border border-amber-500/40 rounded-3xl p-6 shadow-xl space-y-4">
+              <div className="flex items-center gap-2 pb-2 border-b border-amber-500/20">
+                <span className="text-xl">✍️</span>
+                <h2 className="text-sm font-black text-amber-300 uppercase tracking-wider">
+                  Crear y Transmitir Nuevo Aviso
+                </h2>
+              </div>
+
+              <form onSubmit={handleBroadcastAnnouncement} className="space-y-4">
+                {/* Tipo de Comunicado */}
+                <div>
+                  <label className="text-[11px] font-bold text-amber-300 uppercase block mb-1.5">
+                    Tipo de Comunicado
+                  </label>
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-bold">
+                    {[
+                      { id: "torneo", label: "🏆 Torneo Oficial", icon: "🏆" },
+                      { id: "info", label: "📢 Noticia / Info", icon: "📢" },
+                      { id: "alerta", label: "⚠️ Alerta / Mant.", icon: "⚠️" },
+                      { id: "promo", label: "🎁 Bono / Promo", icon: "🎁" },
+                    ].map((t) => (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setBroadcastType(t.id)}
+                        className={`p-2.5 rounded-xl border flex items-center justify-center gap-2 transition ${
+                          broadcastType === t.id
+                            ? "bg-amber-500 text-amber-950 border-amber-300 shadow-md font-black"
+                            : "bg-[#24140a] text-amber-200/70 border-amber-500/20 hover:text-white hover:border-amber-500/40"
+                        }`}
+                      >
+                        <span>{t.icon}</span>
+                        <span>{t.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Título */}
+                <div>
+                  <label className="text-[11px] font-bold text-amber-300 uppercase block mb-1">
+                    Título del Aviso
+                  </label>
+                  <input
+                    type="text"
+                    value={broadcastTitle}
+                    onChange={(e) => setBroadcastTitle(e.target.value)}
+                    placeholder="Ej: 🏆 GRAN TORNEO DE PERICÓN ESTE VIERNES"
+                    className="w-full bg-[#24140a] border border-amber-500/40 rounded-xl px-4 py-2.5 text-xs text-white placeholder-amber-200/30 focus:outline-none focus:border-amber-400 font-bold"
+                    required
+                  />
+                </div>
+
+                {/* Mensaje */}
+                <div>
+                  <label className="text-[11px] font-bold text-amber-300 uppercase block mb-1">
+                    Mensaje o Instrucciones para los Jugadores
+                  </label>
+                  <textarea
+                    value={broadcastMessage}
+                    onChange={(e) => setBroadcastMessage(e.target.value)}
+                    placeholder="Escribe el contenido detallado del aviso. Ej: El torneo iniciará a las 8:00 PM. El premio para el primer lugar será de 50.000 monedas..."
+                    rows={4}
+                    className="w-full bg-[#24140a] border border-amber-500/40 rounded-xl px-4 py-2.5 text-xs text-white placeholder-amber-200/30 focus:outline-none focus:border-amber-400"
+                    required
+                  />
+                </div>
+
+                {/* Vista Previa en Vivo */}
+                {broadcastMessage.trim() && (
+                  <div>
+                    <label className="text-[11px] font-bold text-amber-300/80 uppercase block mb-1.5">
+                      Vista Previa de cómo lo verán los Jugadores:
+                    </label>
+                    <div className="w-full bg-gradient-to-r from-amber-600 via-yellow-400 to-amber-600 text-black px-4 py-3 rounded-2xl flex items-center justify-between shadow-lg">
+                      <div className="flex items-center gap-3">
+                        <span className="text-xl animate-bounce">
+                          {broadcastType === "torneo" && "🏆"}
+                          {broadcastType === "alerta" && "⚠️"}
+                          {broadcastType === "promo" && "🎁"}
+                          {broadcastType !== "torneo" && broadcastType !== "alerta" && broadcastType !== "promo" && "📢"}
+                        </span>
+                        <div>
+                          <p className="font-black text-xs uppercase tracking-wide">
+                            {broadcastTitle.trim() || "COMUNICADO OFICIAL"}
+                          </p>
+                          <p className="text-xs font-semibold text-black/90">
+                            {broadcastMessage.trim()}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-xs font-bold opacity-60">✕</span>
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end pt-2">
+                  <button
+                    type="submit"
+                    disabled={broadcasting || !broadcastMessage.trim()}
+                    className="px-6 py-3 rounded-2xl bg-gradient-to-r from-amber-500 to-yellow-400 hover:from-amber-400 hover:to-yellow-300 text-amber-950 font-black text-xs tracking-wider uppercase shadow-xl shadow-amber-500/20 active:scale-95 disabled:opacity-50 transition flex items-center gap-2 cursor-pointer"
+                  >
+                    <span>📢</span>
+                    <span>{broadcasting ? "Transmitiendo a todos los jugadores..." : "Transmitir y Publicar Aviso"}</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            {/* Historial de Avisos y Comunicados Anteriores */}
+            <div className="space-y-3">
+              <h2 className="text-xs font-black text-amber-300 uppercase tracking-wider">
+                Historial de Comunicados ({announcements.length})
+              </h2>
+
+              <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-[#24140a] border-b border-amber-500/30 text-amber-300 uppercase tracking-wider font-bold">
+                      <tr>
+                        <th className="p-3.5">ID</th>
+                        <th className="p-3.5">Tipo</th>
+                        <th className="p-3.5">Título</th>
+                        <th className="p-3.5">Mensaje</th>
+                        <th className="p-3.5">Fecha</th>
+                        <th className="p-3.5">Estado</th>
+                        <th className="p-3.5 text-center">Acciones</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-amber-500/10">
+                      {announcements.length === 0 ? (
+                        <tr>
+                          <td colSpan={7} className="text-center py-8 text-amber-200/40">
+                            No hay registros de avisos previos.
+                          </td>
+                        </tr>
+                      ) : (
+                        announcements.map((a) => (
+                          <tr key={a.id} className="hover:bg-amber-500/5 transition-colors">
+                            <td className="p-3.5 font-mono text-amber-200/50">#{a.id}</td>
+                            <td className="p-3.5">
+                              <span className="px-2 py-0.5 rounded text-[10px] font-black uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
+                                {a.type}
+                              </span>
+                            </td>
+                            <td className="p-3.5 font-bold text-white max-w-xs truncate">
+                              {a.title}
+                            </td>
+                            <td className="p-3.5 text-amber-200/70 max-w-md truncate">
+                              {a.message}
+                            </td>
+                            <td className="p-3.5 text-amber-200/50 text-[11px]">
+                              {new Date(a.createdAt).toLocaleDateString()}
+                            </td>
+                            <td className="p-3.5">
+                              {a.isActive ? (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-green-500/20 text-green-400 border border-green-500/40">
+                                  <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
+                                  ACTIVO
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-950/40 text-amber-200/40 border border-amber-500/20">
+                                  PAUSADO
+                                </span>
+                              )}
+                            </td>
+                            <td className="p-3.5 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  onClick={() => handleToggleAnnouncement(a.id)}
+                                  className={`px-2.5 py-1 rounded-lg text-xs font-bold transition ${
+                                    a.isActive
+                                      ? "bg-amber-950/60 hover:bg-amber-900 text-amber-300 border border-amber-500/30"
+                                      : "bg-green-950/60 hover:bg-green-900 text-green-300 border border-green-500/30"
+                                  }`}
+                                >
+                                  {a.isActive ? "Pausar" : "Reactivar"}
+                                </button>
+                                <button
+                                  onClick={() => handleDeleteAnnouncement(a.id)}
+                                  className="px-2.5 py-1 bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-500/40 rounded-lg text-xs font-bold transition"
+                                >
+                                  Eliminar
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             </div>
           </div>
