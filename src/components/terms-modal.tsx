@@ -47,15 +47,33 @@ export default function TermsModal({ isOpen, onClose, onAccept }: TermsModalProp
           {/* Advertencia Importante */}
           <div className="p-3 bg-amber-500/10 border border-amber-500/40 rounded-2xl flex items-start gap-2.5">
             <AlertTriangle className="text-amber-400 shrink-0 mt-0.5" size={18} />
-            <p className="text-amber-200 text-xs font-semibold">
-              Al registrar una cuenta, acceder o participar en cualquiera de las modalidades de juego de <strong>Pericón Online</strong>, declaras ser mayor de 18 años y aceptas sin reservas todos los puntos estipulados a continuación.
+            <div className="space-y-1">
+              <span className="inline-block px-2 py-0.5 rounded-full bg-red-600/80 text-white font-black text-[10px] tracking-wider uppercase">
+                Exclusivo para Mayores de 18 Años (18+)
+              </span>
+              <p className="text-amber-200 text-xs font-semibold">
+                Al registrar una cuenta, acceder o participar en cualquiera de las modalidades de juego de <strong>Pericón Online</strong>, declaras de forma jurada tener al menos 18 años de edad y aceptas sin reservas todos los puntos estipulados a continuación.
+              </p>
+            </div>
+          </div>
+
+          {/* Sección 1: Requisito de Edad */}
+          <div className="space-y-1.5 p-3 rounded-2xl bg-red-950/20 border border-red-500/30">
+            <h3 className="text-red-400 font-extrabold text-sm flex items-center gap-1.5">
+              🔞 1. Restricción Estricta de Mayoría de Edad (+18 Años)
+            </h3>
+            <p className="text-slate-200 font-medium">
+              El acceso, registro, uso de la plataforma y participación en cualquier partida con apuestas y saldo virtual está <strong>terminantemente prohibido para menores de dieciocho (18) años</strong>.
+            </p>
+            <p>
+              El usuario garantiza y certifica bajo su exclusiva responsabilidad civil y legal que posee plena capacidad jurídica y la mayoría de edad requerida en su país de residencia. La administración se reserva el derecho de auditar cuentas, exigir prueba fehaciente de identidad (documento de identidad / pasaporte) y <strong>clausurar de manera inmediata e irreversible cualquier cuenta creada por o para un menor de edad</strong>, anulando cualquier saldo o beneficio sin derecho a reembolso.
             </p>
           </div>
 
-          {/* Sección 1: Uso de Inteligencia Artificial */}
+          {/* Sección 2: Uso de Inteligencia Artificial */}
           <div className="space-y-1.5">
             <h3 className="text-white font-extrabold text-sm flex items-center gap-1.5 text-amber-400">
-              <Cpu size={16} /> 1. Declaración de Uso de Inteligencia Artificial (IA) y Algoritmos
+              <Cpu size={16} /> 2. Declaración de Uso de Inteligencia Artificial (IA) y Algoritmos
             </h3>
             <p>
               El usuario reconoce y acepta de manera expresa que la plataforma, su código fuente, sus interfaces, el motor de arbitraje y los módulos de juego automatizados han sido desarrollados, entrenados y operan en parte mediante <strong>modelos de Inteligencia Artificial (IA)</strong> y algoritmos de optimización matemática.
@@ -65,10 +83,10 @@ export default function TermsModal({ isOpen, onClose, onAccept }: TermsModalProp
             </p>
           </div>
 
-          {/* Sección 2: Rol del Administrador y Comisión de Árbitro */}
+          {/* Sección 3: Rol del Administrador y Comisión de Árbitro */}
           <div className="space-y-1.5">
             <h3 className="text-white font-extrabold text-sm flex items-center gap-1.5 text-amber-400">
-              <ShieldCheck size={16} /> 2. Arbitraje Tecnológico y Comisión por Servicio (20%)
+              <ShieldCheck size={16} /> 3. Arbitraje Tecnológico y Comisión por Servicio (20%)
             </h3>
             <p>
               La administración de la plataforma actúa única y exclusivamente como <strong>árbitro tecnológico y proveedor de la infraestructura digital</strong> para permitir el juego entre usuarios o contra el sistema.
@@ -78,10 +96,10 @@ export default function TermsModal({ isOpen, onClose, onAccept }: TermsModalProp
             </p>
           </div>
 
-          {/* Sección 3: Monedero Virtual, Recargas y Retiros */}
+          {/* Sección 4: Monedero Virtual, Recargas y Retiros */}
           <div className="space-y-1.5">
             <h3 className="text-white font-extrabold text-sm flex items-center gap-1.5 text-amber-400">
-              <FileText size={16} /> 3. Monedas Virtuales, Saldo y Transacciones
+              <FileText size={16} /> 4. Monedas Virtuales, Saldo y Transacciones
             </h3>
             <p>
               Las monedas virtuales adquiridas en la plataforma son instrumentos de uso recreativo. Toda solicitud de recarga o retiro de fondos está sujeta a auditoría y verificación manual del comprobante bancario por parte del equipo administrativo.
@@ -91,10 +109,10 @@ export default function TermsModal({ isOpen, onClose, onAccept }: TermsModalProp
             </p>
           </div>
 
-          {/* Sección 4: Desconexiones y Fallas Técnicas */}
+          {/* Sección 5: Desconexiones y Fallas Técnicas */}
           <div className="space-y-1.5">
             <h3 className="text-white font-extrabold text-sm flex items-center gap-1.5 text-amber-400">
-              <AlertTriangle size={16} /> 4. Desconexiones, Latencia y Abandono
+              <AlertTriangle size={16} /> 5. Desconexiones, Latencia y Abandono
             </h3>
             <p>
               Las partidas se disputan en tiempo real. La plataforma <strong>no asume responsabilidad alguna por fallas de conexión a internet, fluctuaciones de red móvil, cortes de energía eléctrica o defectos del dispositivo del usuario</strong>.
@@ -104,10 +122,10 @@ export default function TermsModal({ isOpen, onClose, onAccept }: TermsModalProp
             </p>
           </div>
 
-          {/* Sección 5: Exoneración de Responsabilidad Legal */}
+          {/* Sección 6: Exoneración de Responsabilidad Legal */}
           <div className="space-y-1.5">
             <h3 className="text-white font-extrabold text-sm flex items-center gap-1.5 text-amber-400">
-              <Scale size={16} /> 5. Exoneración Total de Responsabilidad e Indemnidad
+              <Scale size={16} /> 6. Exoneración Total de Responsabilidad e Indemnidad
             </h3>
             <p>
               El usuario declara que participa voluntariamente, bajo su propio criterio y riesgo financiero. Al aceptar estos términos, <strong>renuncia de forma irrevocable a interponer cualquier demanda, querella, reclamo judicial, administrativo o penal</strong> en contra del creador, operador, dueño, administradores o programadores del software.

@@ -238,7 +238,7 @@ export default function SignUp() {
                           className="mt-0.5 w-4 h-4 rounded border-amber-500 text-amber-500 focus:ring-amber-400 bg-slate-900 accent-amber-500 cursor-pointer flex-shrink-0"
                         />
                         <label htmlFor="terms-checkbox" className="text-xs text-slate-300 leading-snug cursor-pointer select-none">
-                          He leído y acepto los{" "}
+                          <strong className="text-red-400 font-bold">Declaro ser mayor de 18 años</strong> y acepto los{" "}
                           <button
                             type="button"
                             onClick={() => setTermsModalOpen(true)}

@@ -41,15 +41,33 @@ export default function TerminosPage() {
 
           <div className="p-4 bg-amber-500/10 border border-amber-500/40 rounded-2xl flex items-start gap-3">
             <AlertTriangle className="text-amber-400 shrink-0 mt-0.5" size={20} />
-            <p className="text-amber-200 text-xs sm:text-sm font-medium">
-              Al registrar una cuenta o usar este software, el usuario acepta de manera libre, consciente, informada y vinculante todos los términos y descargos de responsabilidad civil, penal y comercial detallados en este documento.
-            </p>
+            <div className="space-y-1">
+              <span className="inline-block px-2.5 py-0.5 rounded-full bg-red-600 text-white font-black text-xs tracking-wider uppercase">
+                Exclusivo para Mayores de 18 Años (18+)
+              </span>
+              <p className="text-amber-200 text-xs sm:text-sm font-medium">
+                Al registrar una cuenta o usar este software, el usuario declara bajo juramento ser mayor de dieciocho (18) años y acepta de manera libre, consciente, informada y vinculante todos los términos y descargos de responsabilidad civil, penal y comercial detallados en este documento.
+              </p>
+            </div>
           </div>
 
-          {/* 1. IA */}
+          {/* 1. Mayores de 18 Años */}
+          <section className="space-y-2 p-4 rounded-2xl bg-red-950/20 border border-red-500/30">
+            <h2 className="text-base sm:text-lg font-extrabold text-red-400 flex items-center gap-2">
+              🔞 1. Restricción Absoluta de Mayoría de Edad (+18)
+            </h2>
+            <p className="text-slate-200 font-medium">
+              Pericón Online está diseñado, operado y destinado **exclusivamente para personas mayores de dieciocho (18) años de edad**.
+            </p>
+            <p>
+              Queda estrictamente prohibido el acceso, descarga, registro, creación de monedero o participación de menores de edad. Cualquier cuenta sospechosa de pertenecer a un menor será suspendida preventivamente. Si no se acredita la mayoría de edad mediante documento oficial, la cuenta será clausurada definitivamente sin compensación alguna.
+            </p>
+          </section>
+
+          {/* 2. IA */}
           <section className="space-y-2">
             <h2 className="text-base sm:text-lg font-extrabold text-amber-400 flex items-center gap-2">
-              <Cpu size={20} /> 1. Declaración de Uso de Inteligencia Artificial y Algoritmos
+              <Cpu size={20} /> 2. Declaración de Uso de Inteligencia Artificial y Algoritmos
             </h2>
             <p>
               El usuario reconoce y consiente expresamente que el software Pericón Online ha sido concebido, programado y funciona mediante la asistencia de <strong>modelos avanzados de Inteligencia Artificial (IA)</strong>, redes neuronales y heurísticas de optimización computacional.
@@ -59,10 +77,10 @@ export default function TerminosPage() {
             </p>
           </section>
 
-          {/* 2. Árbitro */}
+          {/* 3. Árbitro */}
           <section className="space-y-2">
             <h2 className="text-base sm:text-lg font-extrabold text-amber-400 flex items-center gap-2">
-              <ShieldCheck size={20} /> 2. Calidad de Árbitro Tecnológico y Comisión (20%)
+              <ShieldCheck size={20} /> 3. Calidad de Árbitro Tecnológico y Comisión (20%)
             </h2>
             <p>
               El titular y los administradores de Pericón Online actúan exclusivamente en condición de <strong>árbitros y facilitadores de la infraestructura de comunicaciones</strong> que permite a los usuarios disputar partidas reglamentarias del juego tradicional de cartas.
@@ -72,10 +90,10 @@ export default function TerminosPage() {
             </p>
           </section>
 
-          {/* 3. Monedero */}
+          {/* 4. Monedero */}
           <section className="space-y-2">
             <h2 className="text-base sm:text-lg font-extrabold text-amber-400 flex items-center gap-2">
-              <FileText size={20} /> 3. Monedas del Juego, Pagos y Prevención de Fraude
+              <FileText size={20} /> 4. Monedas del Juego, Pagos y Prevención de Fraude
             </h2>
             <p>
               Las monedas virtuales en cuenta son fichas de entretenimiento. Todas las operaciones de carga y retiro son revisadas por el equipo de administración.
@@ -85,20 +103,20 @@ export default function TerminosPage() {
             </p>
           </section>
 
-          {/* 4. Conectividad */}
+          {/* 5. Conectividad */}
           <section className="space-y-2">
             <h2 className="text-base sm:text-lg font-extrabold text-amber-400 flex items-center gap-2">
-              <AlertTriangle size={20} /> 4. Exclusión de Responsabilidad por Desconexiones
+              <AlertTriangle size={20} /> 5. Exclusión de Responsabilidad por Desconexiones
             </h2>
             <p>
               El usuario es el único responsable de contar con una conexión a internet estable. Si durante una partida el usuario pierde conexión, sufre cortes de energía o excede los treinta (30) segundos reglamentarios de turno, el servidor otorgará la victoria a la contraparte sin derecho a compensación o reclamo de monedas.
             </p>
           </section>
 
-          {/* 5. Exoneración */}
+          {/* 6. Exoneración */}
           <section className="space-y-2">
             <h2 className="text-base sm:text-lg font-extrabold text-amber-400 flex items-center gap-2">
-              <Scale size={20} /> 5. Renuncia a Demandas y Blindaje Jurídico
+              <Scale size={20} /> 6. Renuncia a Demandas y Blindaje Jurídico
             </h2>
             <p>
               El usuario exonera de forma perpetua, incondicional e irrevocable a los propietarios, administradores, árbitros y programadores de Pericón Online de cualquier responsabilidad civil, mercantil o de cualquier otra índole por pérdidas económicas, decisiones de juego o eventuales fallos de software.
