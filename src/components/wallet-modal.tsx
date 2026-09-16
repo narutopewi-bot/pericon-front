@@ -396,6 +396,15 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
       return;
     }
 
+    // REGLA FINANCIERA: Cero retiros de monedas regaladas
+    const hasApprovedDeposit = recharges.some((r) => r.status === "APROBADO");
+    if (!hasApprovedDeposit) {
+      setWithdrawError(
+        "Por política de seguridad y protección financiera, para solicitar un retiro debes haber realizado al menos una recarga de saldo aprobada en la plataforma. Las monedas de bienvenida, bonos o cupones son exclusivas para jugar y no son retirables directamente sin un depósito previo."
+      );
+      return;
+    }
+
     if (!withdrawPhone.trim()) {
       setWithdrawError("Ingresa tu número de teléfono de Pago Móvil.");
       return;
@@ -746,6 +755,34 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
                 Retira tus ganancias directamente a tu cuenta bancaria vía Pago Móvil. Las monedas se reservan y descuentan de inmediato para transferirte los bolívares.
               </p>
             </div>
+
+            {/* Aviso de Requisito de Depósito Previo: Cero retiros de moneda regalada */}
+            {!recharges.some((r) => r.status === "APROBADO") ? (
+              <div className="w-full bg-gradient-to-r from-amber-950/90 to-[#221207] border-2 border-amber-500/60 rounded-2xl p-3 flex items-start gap-2.5 shadow-lg">
+                <span className="text-xl shrink-0">🔒</span>
+                <div className="flex-1 text-left">
+                  <span className="text-xs font-black text-amber-300 block uppercase">
+                    Requisito de Retiro: Depósito Previo
+                  </span>
+                  <p className="text-[11px] text-amber-100/80 leading-tight mt-0.5">
+                    Para retirar tus ganancias debes haber realizado al menos una recarga de saldo aprobada por Pago Móvil. Las monedas regaladas son exclusivas para jugar y no pueden retirarse sin un depósito previo.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab("recharge")}
+                    className="mt-2 text-[11px] font-black text-amber-950 bg-amber-400 hover:bg-amber-300 px-3 py-1 rounded-lg transition shadow flex items-center gap-1 cursor-pointer"
+                  >
+                    <span>📥</span>
+                    <span>Hacer una Recarga de Saldo</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="w-full bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-2 px-3 flex items-center gap-2 text-xs text-emerald-300 font-bold">
+                <span>✓</span>
+                <span>Cuenta habilitada para retiros (Depósitos verificados en plataforma)</span>
+              </div>
+            )}
 
             <form onSubmit={handleSubmitWithdrawal} className="w-full bg-black/40 border border-emerald-500/30 rounded-2xl p-4 flex flex-col gap-3">
               {withdrawSuccess && (
