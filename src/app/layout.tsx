@@ -91,6 +91,9 @@ export const metadata: Metadata = {
       "max-snippet": -1,
     },
   },
+  verification: {
+    google: "cc3cc69fcbbc446d",
+  },
   manifest: "/manifest.json",
   icons: {
     icon: [

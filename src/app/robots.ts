@@ -16,6 +16,7 @@ export default function robots(): MetadataRoute.Robots {
           '/icon.svg',
           '/favicon.ico',
           '/og-image.png',
+          '/google*.html',
         ],
         disallow: [
           '/admin/',
