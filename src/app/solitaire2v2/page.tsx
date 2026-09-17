@@ -37,6 +37,15 @@ interface PlayerInfo {
   avatarUrl: string;
 }
 
+interface PedirChallengeData {
+  challengerName: string;
+  targetStake: number;
+  rejectReward: number;
+  canDoblar: boolean;
+  timeLeft: number;
+  botSeat: number;
+}
+
 // -------------------------------------------------------------
 // EVALUACIÓN OFICIAL DE CARTAS DE PERICÓN (IDÉNTICA A 1 VS 1)
 // -------------------------------------------------------------
@@ -174,6 +183,8 @@ export default function SolitaireTwoVsTwo() {
   // Apuesta de la mano
   const [currentStake, setCurrentStake] = useState<number>(1);
   const [lastStakeAskedBy, setLastStakeAskedBy] = useState<'team1' | 'team2' | null>(null);
+  const [pedirChallenge, setPedirChallenge] = useState<PedirChallengeData | null>(null);
+  const lastStakeAskedByRef = useRef<'team1' | 'team2' | null>(null);
 
   // Turnos y temporizadores
   const [handLeader, setHandLeader] = useState<number>(0);
@@ -618,6 +629,29 @@ export default function SolitaireTwoVsTwo() {
     )[0];
   };
 
+  // Inteligencia de Pericón (IA) para evaluar cantos (Pedir 3, 6, 9) del equipo rival
+  const evaluateAiTeamAcceptance = (targetStake: number): boolean => {
+    const lifeId = lifeCardRef.current?.id ?? -1;
+    const team2Cards = [...(allHandsRef.current[1] || []), ...(allHandsRef.current[3] || [])];
+    let strongTrumpsCount = 0;
+
+    for (const c of team2Cards) {
+      const p = evaluateCard(c.id, lifeId);
+      if (p >= 25) strongTrumpsCount += 2; // Perico, Perica, Gollero, 11 Bastos, 1 Oro, 10 Oro
+      else if (p >= 18) strongTrumpsCount += 1.5;
+      else if (p >= 15) strongTrumpsCount += 1;
+    }
+
+    if (targetStake === 3) {
+      return strongTrumpsCount >= 2.5 || Math.random() < 0.50;
+    } else if (targetStake === 6) {
+      return strongTrumpsCount >= 3.5 || Math.random() < 0.35;
+    } else if (targetStake === 9) {
+      return strongTrumpsCount >= 5 || Math.random() < 0.25;
+    }
+    return false;
+  };
+
   const triggerBotPlay = (botSeat: number) => {
     isProcessingRef.current = true;
     setIsProcessingMove(true);
@@ -629,6 +663,26 @@ export default function SolitaireTwoVsTwo() {
         isProcessingRef.current = false;
         setIsProcessingMove(false);
         return;
+      }
+
+      // Evaluar si el bot rival (puesto 1 o 3) decide pedir aumento antes de tirar su carta
+      const isAnyTumba = (pointsTeam1Ref.current >= 9 || (partT1Ref.current === 1 && pointsTeam1Ref.current === 8)) ||
+                         (pointsTeam2Ref.current >= 9 || (partT2Ref.current === 1 && pointsTeam2Ref.current === 8));
+      const curr = currentStakeRef.current;
+      const canAiAsk = (botSeat === 1 || botSeat === 3) &&
+                       curr < 9 &&
+                       !isAnyTumba &&
+                       lastStakeAskedByRef.current !== 'team2' &&
+                       !pedirChallenge &&
+                       (allHandsRef.current[0] || []).length > 0;
+
+      if (canAiAsk) {
+        const nextStake = curr === 1 ? 3 : (curr === 3 ? 6 : 9);
+        const shouldAsk = evaluateAiTeamAcceptance(nextStake) && (Math.random() < 0.40);
+        if (shouldAsk) {
+          triggerAiPedir(botSeat);
+          return;
+        }
       }
 
       const chosenCard = chooseBotCard(botSeat, botHand);
@@ -1030,8 +1084,10 @@ export default function SolitaireTwoVsTwo() {
   // BOTÓN DE PEDIR AUMENTO (1 -> 3 -> 6 -> 9)
   // -------------------------------------------------------------
   const handlePedir = () => {
-    const team1InTumba = (pointsTeam1 >= 9 || (partT1 === 1 && pointsTeam1 === 8));
-    const team2InTumba = (pointsTeam2 >= 9 || (partT2 === 1 && pointsTeam2 === 8));
+    if (isProcessingRef.current || isProcessingMove || (allHands[0] || []).length === 0) return;
+
+    const team1InTumba = (pointsTeam1Ref.current >= 9 || (partT1Ref.current === 1 && pointsTeam1Ref.current === 8));
+    const team2InTumba = (pointsTeam2Ref.current >= 9 || (partT2Ref.current === 1 && pointsTeam2Ref.current === 8));
 
     if (team1InTumba || team2InTumba) {
       Swal.fire({
@@ -1045,7 +1101,7 @@ export default function SolitaireTwoVsTwo() {
       return;
     }
 
-    if (lastStakeAskedBy === 'team1' && currentStake > 1) {
+    if (lastStakeAskedByRef.current === 'team1' && currentStakeRef.current > 1) {
       Swal.fire({
         title: 'NO PUEDES CANTAR DE NUEVO',
         text: 'Tu equipo ya pidió el último aumento. Debes esperar a que los rivales vuelvan a pedir.',
@@ -1057,17 +1113,273 @@ export default function SolitaireTwoVsTwo() {
       return;
     }
 
-    const nextStake = currentStake === 1 ? 3 : (currentStake === 3 ? 6 : 9);
-    const stakeType: AnnouncementType = nextStake === 3 ? 'dame_tres' : (nextStake === 6 ? 'quiero_seis' : 'van_nueve');
+    const curr = currentStakeRef.current;
+    if (curr >= 9) return;
+
+    const nextStake = curr === 1 ? 3 : (curr === 3 ? 6 : 9);
+    const rejectReward = curr;
+
     setLastStakeAskedBy('team1');
-    setCurrentStake(nextStake);
+    lastStakeAskedByRef.current = 'team1';
+
+    const stakeType: AnnouncementType = nextStake === 3 ? 'dame_tres' : (nextStake === 6 ? 'quiero_seis' : 'van_nueve');
+    const phrase = nextStake === 3 ? "¡Dame tres!" : (nextStake === 6 ? "¡Quiero seis!" : "¡Van nueve!");
+
+    isProcessingRef.current = true;
+    setIsProcessingMove(true);
+
     triggerAnnouncement({
       type: stakeType,
       title: `¡PIDO ${nextStake}!`,
-      subtitle: `La mano ahora vale ${nextStake} piedras`
-    });
-    speakPhrase(`¡Pido ${nextStake}!`);
+      subtitle: `Retando al equipo rival por ${nextStake} piedras...`
+    }, 2200);
+    speakPhrase(phrase);
+    playSynthSound('canto');
+    vibrateDevice('pedir');
+
+    // Compadre Jacinto y Rival 2 evalúan la respuesta
+    setTimeout(() => {
+      const aiAccepts = evaluateAiTeamAcceptance(nextStake);
+
+      if (aiAccepts) {
+        setCurrentStake(nextStake);
+        currentStakeRef.current = nextStake;
+
+        speakPhrase(`¡Quiero! Compadre Jacinto aceptó el cante a ${nextStake} piedras.`);
+        playSynthSound('accept');
+        vibrateDevice('accept');
+
+        triggerAnnouncement({
+          type: 'acepto',
+          title: '¡RIVALES ACEPTARON!',
+          subtitle: `Compadre Jacinto aceptó. La mano se juega por ${nextStake} piedras`,
+          badge: `APUESTA: ${nextStake} PIEDRAS`
+        }, 2800);
+
+        Swal.fire({
+          title: '¡Compadre Jacinto ACEPTÓ!',
+          text: `El equipo rival aceptó tu cante de ${nextStake} piedras. La mano se juega ahora por ${nextStake} piedras.`,
+          icon: 'success',
+          timer: 2200,
+          showConfirmButton: false,
+          background: '#1a0e06',
+          color: '#fff',
+        }).then(() => {
+          isProcessingRef.current = false;
+          setIsProcessingMove(false);
+        });
+      } else {
+        speakPhrase(`¡No quiero! Los rivales rechazaron el cante.`);
+        playSynthSound('reject');
+        vibrateDevice('reject');
+
+        triggerAnnouncement({
+          type: 'no_quiero',
+          title: '¡RIVALES NO QUISIERON!',
+          subtitle: `Los rivales no aceptaron. Tu equipo gana ${rejectReward} ${rejectReward === 1 ? 'piedra' : 'piedras'}.`,
+          badge: `+${rejectReward} PIEDRAS`
+        }, 2800);
+
+        Swal.fire({
+          title: '¡Los Rivales NO Quisieron!',
+          text: `Compadre Jacinto rechazó el cante de ${nextStake} piedras. Tu equipo gana ${rejectReward} ${rejectReward === 1 ? 'piedra' : 'piedras'} inmediatamente.`,
+          icon: 'info',
+          timer: 2600,
+          showConfirmButton: false,
+          background: '#1a0e06',
+          color: '#fff',
+        }).then(() => {
+          const newT1 = pointsTeam1Ref.current + rejectReward;
+          updatePointsAndTumba(newT1, pointsTeam2Ref.current);
+
+          if (newT1 >= 10) {
+            endGame(1);
+          } else {
+            setTimeout(() => {
+              isProcessingRef.current = false;
+              setIsProcessingMove(false);
+              dealNewHand((handLeader + 1) % 4);
+            }, 1000);
+          }
+        });
+      }
+    }, 1400);
   };
+
+  // Turno del bot para pedir aumento a los rivales
+  const triggerAiPedir = (botSeat: number = 1) => {
+    const isAnyTumba = (pointsTeam1Ref.current >= 9 || (partT1Ref.current === 1 && pointsTeam1Ref.current === 8)) ||
+                       (pointsTeam2Ref.current >= 9 || (partT2Ref.current === 1 && pointsTeam2Ref.current === 8));
+    const curr = currentStakeRef.current;
+    if (curr >= 9 || isAnyTumba || lastStakeAskedByRef.current === 'team2' || (allHandsRef.current[0] || []).length === 0) return;
+
+    const nextStake = curr === 1 ? 3 : (curr === 3 ? 6 : 9);
+    const rejectReward = curr;
+
+    setLastStakeAskedBy('team2');
+    lastStakeAskedByRef.current = 'team2';
+
+    const askerName = players[botSeat]?.name || "Compadre Jacinto";
+    const phrase = nextStake === 3 ? `¡${askerName} pide Tres!` : (nextStake === 6 ? `¡${askerName} pide Seis!` : `¡${askerName} pide Nueve!`);
+
+    speakPhrase(phrase);
+    playSynthSound('canto');
+    vibrateDevice('pedir');
+
+    try { Swal.close(); } catch (_) {}
+
+    setPedirChallenge({
+      challengerName: askerName,
+      targetStake: nextStake,
+      rejectReward,
+      canDoblar: nextStake < 9,
+      timeLeft: 12,
+      botSeat
+    });
+  };
+
+  // El usuario responde al reto de aumento de la IA
+  const handleAnswerAiPedir = (action: 'accept' | 'deny' | 'doblar') => {
+    if (!pedirChallenge) return;
+    const nextStake = pedirChallenge.targetStake;
+    const rejectReward = pedirChallenge.rejectReward;
+    const botSeat = pedirChallenge.botSeat;
+    setPedirChallenge(null);
+
+    if (action === 'accept') {
+      setCurrentStake(nextStake);
+      currentStakeRef.current = nextStake;
+      playSynthSound('accept');
+      vibrateDevice('accept');
+      speakPhrase(`¡Aceptaste! Jugamos esta mano por ${nextStake} piedras.`);
+      triggerAnnouncement({
+        type: 'acepto',
+        title: '¡ACEPTASTE EL RETO!',
+        subtitle: `La mano se juega por ${nextStake} piedras. Tu equipo tiene el derecho a revirar.`,
+        badge: `APUESTA: ${nextStake} PIEDRAS`
+      }, 2500);
+
+      // Reanudar la jugada del bot
+      setTimeout(() => {
+        const botHand = allHandsRef.current[botSeat] || [];
+        if (botHand.length > 0) {
+          const chosenCard = chooseBotCard(botSeat, botHand);
+          handlePlayCard(botSeat, chosenCard);
+        } else {
+          isProcessingRef.current = false;
+          setIsProcessingMove(false);
+        }
+      }, 800);
+
+    } else if (action === 'deny') {
+      const newT2 = pointsTeam2Ref.current + rejectReward;
+      updatePointsAndTumba(pointsTeam1Ref.current, newT2);
+      playSynthSound('reject');
+      vibrateDevice('reject');
+      speakPhrase("No quisiste. Puntos para los rivales.");
+      triggerAnnouncement({
+        type: 'no_quiero',
+        title: '¡NO QUISISTE!',
+        subtitle: `Los rivales ganan ${rejectReward} ${rejectReward === 1 ? 'piedra' : 'piedras'}.`,
+        badge: `+${rejectReward} PIEDRAS RIVALES`
+      }, 2500);
+
+      if (newT2 >= 10) {
+        endGame(2);
+      } else {
+        setTimeout(() => {
+          isProcessingRef.current = false;
+          setIsProcessingMove(false);
+          dealNewHand((handLeader + 1) % 4);
+        }, 1200);
+      }
+
+    } else if (action === 'doblar') {
+      const newStake = nextStake === 3 ? 6 : 9;
+      setCurrentStake(newStake);
+      currentStakeRef.current = newStake;
+      setLastStakeAskedBy('team1');
+      lastStakeAskedByRef.current = 'team1';
+
+      const phrase = newStake === 6 ? "¡Quiero seis!" : "¡Van nueve!";
+      speakPhrase(phrase);
+      playSynthSound('canto');
+      vibrateDevice('pedir');
+
+      triggerAnnouncement({
+        type: newStake === 6 ? 'quiero_seis' : 'van_nueve',
+        title: phrase.toUpperCase(),
+        subtitle: `Reviraste a los rivales por ${newStake} piedras`
+      }, 2200);
+
+      setTimeout(() => {
+        const aiAccepts = evaluateAiTeamAcceptance(newStake);
+        if (aiAccepts) {
+          speakPhrase(`¡Compadre Jacinto aceptó el revire a ${newStake} piedras!`);
+          playSynthSound('accept');
+          vibrateDevice('accept');
+          triggerAnnouncement({
+            type: 'acepto',
+            title: '¡RIVALES ACEPTARON EL REVIRE!',
+            subtitle: `Mano en juego por ${newStake} piedras`,
+            badge: `APUESTA: ${newStake} PIEDRAS`
+          }, 2500);
+
+          setTimeout(() => {
+            const botHand = allHandsRef.current[botSeat] || [];
+            if (botHand.length > 0) {
+              const chosenCard = chooseBotCard(botSeat, botHand);
+              handlePlayCard(botSeat, chosenCard);
+            } else {
+              isProcessingRef.current = false;
+              setIsProcessingMove(false);
+            }
+          }, 800);
+        } else {
+          speakPhrase("¡Los rivales no quieren! Tu equipo gana el revire.");
+          playSynthSound('reject');
+          vibrateDevice('reject');
+          triggerAnnouncement({
+            type: 'no_quiero',
+            title: '¡RIVALES NO QUIEREN!',
+            subtitle: `¡Tu equipo gana ${nextStake} piedras inmediatamente!`,
+            badge: `+${nextStake} PIEDRAS`
+          }, 2500);
+
+          const newT1 = pointsTeam1Ref.current + nextStake;
+          updatePointsAndTumba(newT1, pointsTeam2Ref.current);
+          if (newT1 >= 10) {
+            endGame(1);
+          } else {
+            setTimeout(() => {
+              isProcessingRef.current = false;
+              setIsProcessingMove(false);
+              dealNewHand((handLeader + 1) % 4);
+            }, 1200);
+          }
+        }
+      }, 1400);
+    }
+  };
+
+  // Cuenta regresiva para responder al Pedir de la IA (12 segundos)
+  useEffect(() => {
+    if (!pedirChallenge) return;
+
+    const interval = setInterval(() => {
+      setPedirChallenge(prev => {
+        if (!prev) return null;
+        if (prev.timeLeft <= 1) {
+          clearInterval(interval);
+          handleAnswerAiPedir('accept');
+          return null;
+        }
+        return { ...prev, timeLeft: prev.timeLeft - 1 };
+      });
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [pedirChallenge]);
 
   // -------------------------------------------------------------
   // INICIO AL CARGAR LA PÁGINA
@@ -1536,6 +1848,65 @@ export default function SolitaireTwoVsTwo() {
         </div>
 
       </div>
+
+      {/* MODAL INTERACTIVO DE RETO 3-6-9 (PEDIR DE LA IA) */}
+      {pedirChallenge && (
+        <div className="fixed inset-0 bg-black/85 backdrop-blur-md z-[100] flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-gradient-to-b from-amber-950 via-stone-900 to-black border-2 border-yellow-400 rounded-3xl p-5 max-w-sm sm:max-w-md w-full shadow-[0_0_50px_rgba(234,179,8,0.7)] text-center relative overflow-hidden">
+            <div className="text-4xl mb-2 animate-bounce">⚔️</div>
+
+            <h2 className="text-xl sm:text-2xl font-black text-yellow-300 uppercase tracking-wide drop-shadow">
+              ¡{pedirChallenge.challengerName.toUpperCase()} PIDE POR {pedirChallenge.targetStake}!
+            </h2>
+
+            <p className="text-stone-200 text-xs sm:text-sm mt-2 font-medium leading-relaxed">
+              ¿Aceptas jugar esta mano por <span className="font-extrabold text-yellow-400 text-sm sm:text-base">{pedirChallenge.targetStake} piedras</span>?
+            </p>
+
+            {/* Barra regresiva de tiempo */}
+            <div className="w-full bg-stone-800 rounded-full h-2.5 my-4 overflow-hidden border border-yellow-500/40">
+              <div 
+                className="bg-yellow-400 h-full transition-all duration-1000 ease-linear rounded-full"
+                style={{ width: `${(pedirChallenge.timeLeft / 12) * 100}%` }}
+              />
+            </div>
+            <div className="text-[11px] text-amber-300 font-extrabold uppercase tracking-wider mb-4">
+              ⏱️ Tiempo para responder: {pedirChallenge.timeLeft}s
+            </div>
+
+            {/* Botones de acción táctiles */}
+            <div className="flex flex-col gap-2.5 w-full">
+              <button
+                onClick={() => handleAnswerAiPedir('accept')}
+                className="w-full bg-gradient-to-r from-emerald-600 via-green-600 to-emerald-700 hover:from-emerald-500 hover:to-green-500 active:scale-95 text-white font-black py-3 px-4 rounded-2xl text-base sm:text-lg shadow-lg border border-emerald-400 flex items-center justify-center gap-2 cursor-pointer transition-transform"
+              >
+                <span className="text-xl">✅</span>
+                <span>¡Sí, Acepto! (Quiero)</span>
+              </button>
+
+              <div className="flex gap-2 w-full">
+                <button
+                  onClick={() => handleAnswerAiPedir('deny')}
+                  className="flex-1 bg-gradient-to-r from-rose-700 to-red-600 hover:from-rose-600 hover:to-red-500 active:scale-95 text-white font-black py-2.5 px-3 rounded-2xl text-sm sm:text-base shadow-lg border border-rose-400 flex items-center justify-center gap-1.5 cursor-pointer transition-transform"
+                >
+                  <span>❌</span>
+                  <span>No Quiero</span>
+                </button>
+
+                {pedirChallenge.canDoblar && (
+                  <button
+                    onClick={() => handleAnswerAiPedir('doblar')}
+                    className="flex-1 bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 hover:from-amber-500 hover:to-yellow-400 active:scale-95 text-black font-black py-2.5 px-3 rounded-2xl text-sm sm:text-base shadow-lg border border-yellow-300 flex items-center justify-center gap-1.5 cursor-pointer transition-transform"
+                  >
+                    <span>⚡</span>
+                    <span>Doblo a {pedirChallenge.targetStake === 3 ? 6 : 9}</span>
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ANUNCIOS ANIMADOS */}
       {announcement && (
