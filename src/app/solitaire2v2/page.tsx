@@ -88,6 +88,38 @@ const isTrumpCard = (cardId: number, lifeId: number): boolean => {
   return evaluateCard(cardId, lifeId) >= 11;
 };
 
+const getSuitName = (cardId: number): string => {
+  if (cardId < 0) return '';
+  const suitIndex = Math.floor(cardId / 10);
+  switch (suitIndex) {
+    case 0: return 'Oros';
+    case 1: return 'Copas';
+    case 2: return 'Espadas';
+    case 3: return 'Bastos';
+    default: return '';
+  }
+};
+
+const getSuitIcon = (cardId: number): string => {
+  if (cardId < 0) return '⭐';
+  const suitIndex = Math.floor(cardId / 10);
+  switch (suitIndex) {
+    case 0: return '🪙';
+    case 1: return '🏆';
+    case 2: return '⚔️';
+    case 3: return '🪵';
+    default: return '⭐';
+  }
+};
+
+const getCardFaceName = (cardId: number): string => {
+  if (cardId < 0) return 'Por repartir...';
+  const num = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12][cardId % 10];
+  const suit = getSuitName(cardId);
+  const title = num === 1 ? 'As' : (num === 10 ? 'Sota' : (num === 11 ? 'Caballo' : (num === 12 ? 'Rey' : num)));
+  return `${title} de ${suit}`;
+};
+
 // Determina si cardA (salida) le gana a cardB (respuesta), idéntico a GamePlayOneVsOne.DetermineWinner
 const determineWinnerOfTwo = (cardA: number, cardB: number, lifeId: number, aIsLead: boolean): boolean => {
   const leadCard = aIsLead ? cardA : cardB;
@@ -1571,25 +1603,64 @@ export default function SolitaireTwoVsTwo() {
             
             <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_var(--tw-gradient-stops))] from-emerald-500/10 via-transparent to-black/30 pointer-events-none" />
 
-            {/* Cabecera del Tapete: Vida y Marcador de Bazas */}
-            <div className="w-full flex items-center justify-between z-10 gap-1">
-              <div className="flex items-center gap-1.5 sm:gap-2 bg-black/75 backdrop-blur-sm border border-amber-500/40 px-1.5 sm:px-2.5 py-0.5 sm:py-1 rounded-xl sm:rounded-2xl shadow-lg">
-                <div className="text-left leading-none">
-                  <span className="text-[8px] sm:text-[9px] font-black uppercase tracking-wider text-amber-300 block">VIDA</span>
-                  <span className="hidden sm:block text-[7.5px] text-slate-300 font-semibold mt-0.5">Triunfo</span>
-                </div>
+            {/* Cabecera del Tapete: La Vida y Marcador de Bazas */}
+            <div className="w-full flex items-center justify-between z-10 gap-1.5 sm:gap-2 px-0.5 sm:px-1">
+              {/* LA VIDA REDISEÑADA Y CLARA */}
+              <div 
+                onClick={() => {
+                  if (lifeCard.id >= 0) {
+                    Swal.fire({
+                      title: `LA VIDA: ${getCardFaceName(lifeCard.id).toUpperCase()}`,
+                      html: `
+                        <div style="display:flex; flex-direction:column; align-items:center; gap:12px;">
+                          <div style="width:110px; height:160px; border-radius:12px; overflow:hidden; border:3px solid #eab308; box-shadow:0 0 25px rgba(234,179,8,0.5); background:#fff;">
+                            <img src="${lifeCard.image}" style="width:100%; height:100%; object-fit:contain;" alt="Vida" />
+                          </div>
+                          <p style="color:#fde047; font-size:16px; font-weight:900; margin:0;">Palo de Triunfo: ${getSuitName(lifeCard.id)} ${getSuitIcon(lifeCard.id)}</p>
+                          <p style="color:#d6d3d1; font-size:13px; margin:0; line-height:1.4;">Todas las cartas de este palo son triunfos que superan a cualquier carta común.</p>
+                        </div>
+                      `,
+                      confirmButtonText: 'Entendido',
+                      confirmButtonColor: '#eab308',
+                      background: '#1a0e06',
+                      color: '#fff',
+                    });
+                  }
+                }}
+                className="flex items-center gap-1.5 sm:gap-2.5 bg-black/85 backdrop-blur-md border-2 border-amber-400/80 px-1.5 sm:px-2.5 py-1 rounded-xl sm:rounded-2xl shadow-xl shadow-black/70 cursor-pointer hover:border-yellow-300 transition-all active:scale-95"
+                title="Toca para ampliar la carta de la Vida"
+              >
                 {lifeCard.id >= 0 && (
-                  <div className="w-5 h-8 sm:w-9 sm:h-13 rounded sm:rounded-md overflow-hidden border border-amber-400 shadow transform rotate-3 shrink-0">
-                    <img src={lifeCard.image} alt="Vida" className="w-full h-full object-cover" />
+                  <div className="w-[34px] h-[50px] xs:w-[42px] xs:h-[62px] sm:w-[54px] sm:h-[78px] rounded sm:rounded-md overflow-hidden border-2 border-yellow-400 shadow-md bg-white flex items-center justify-center shrink-0">
+                    <img 
+                      src={lifeCard.image && lifeCard.image.startsWith('/') ? lifeCard.image : '/card_back.png'} 
+                      alt="Vida" 
+                      className="w-full h-full object-contain" 
+                    />
                   </div>
                 )}
+                <div className="flex flex-col text-left leading-tight pr-0.5 sm:pr-1">
+                  <div className="flex items-center gap-1">
+                    <span className="text-[9px] sm:text-xs font-black uppercase tracking-widest text-amber-300 flex items-center gap-0.5">
+                      VIDA <span className="text-[9px] sm:text-[11px]">👑</span>
+                    </span>
+                  </div>
+                  <span className="text-[9px] xs:text-[10px] sm:text-xs font-extrabold text-white capitalize mt-0.5">
+                    {getCardFaceName(lifeCard.id)}
+                  </span>
+                  <span className="text-[7.5px] xs:text-[8px] sm:text-[9.5px] font-bold text-amber-400/90 uppercase tracking-wider mt-0.5 flex items-center gap-1">
+                    <span>{getSuitIcon(lifeCard.id)}</span>
+                    <span className="hidden xs:inline">Triunfo</span>
+                  </span>
+                </div>
               </div>
 
-              <div className="bg-black/75 backdrop-blur-sm border border-amber-500/40 px-2 sm:px-2.5 py-0.5 sm:py-1 rounded-xl text-[9px] sm:text-xs font-bold text-amber-300 shadow flex items-center gap-1 shrink-0">
-                <span className="text-[8px] sm:text-[11px] text-amber-200/80">Bazas:</span>
-                <span className="text-blue-300 font-black">🔵{tricksTeam1}</span>
-                <span className="text-stone-400">-</span>
-                <span className="text-red-300 font-black">{tricksTeam2}🔴</span>
+              {/* MARCADOR DE BAZAS */}
+              <div className="bg-black/80 backdrop-blur-md border-2 border-amber-500/50 px-2 sm:px-3 py-1 sm:py-1.5 rounded-xl sm:rounded-2xl text-[9px] sm:text-xs font-extrabold text-amber-300 shadow-xl flex items-center gap-1 sm:gap-1.5 shrink-0">
+                <span className="text-[8px] sm:text-[11px] text-amber-200/90 font-black uppercase tracking-wider hidden xs:inline">Bazas:</span>
+                <span className="text-blue-300 font-black bg-blue-950/80 px-1.5 sm:px-2 py-0.5 rounded border border-blue-500/40">🔵 {tricksTeam1}</span>
+                <span className="text-stone-400 font-bold text-[10px]">-</span>
+                <span className="text-red-300 font-black bg-red-950/80 px-1.5 sm:px-2 py-0.5 rounded border border-red-500/40">{tricksTeam2} 🔴</span>
               </div>
             </div>
 
