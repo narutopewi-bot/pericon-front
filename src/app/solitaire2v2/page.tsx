@@ -711,11 +711,15 @@ export default function SolitaireTwoVsTwo() {
 
     // ---------------------------------------------------------
     // DETECCIÓN DE LA COGÍA (10 DE ORO MATADO CON 1 DE ORO)
+    // En tumba la cogía NO vale (no aplica en fase de tumba)
     // ---------------------------------------------------------
+    const isAnyTumba = (pointsTeam1Ref.current >= 9 || (partT1Ref.current === 1 && pointsTeam1Ref.current === 8)) ||
+                       (pointsTeam2Ref.current >= 9 || (partT2Ref.current === 1 && pointsTeam2Ref.current === 8));
+
     const hasTenGold = trickCards.some(p => p.card.id === 7);
     const hasOneGold = trickCards.some(p => p.card.id === 0);
 
-    if (hasTenGold && hasOneGold) {
+    if (!isAnyTumba && hasTenGold && hasOneGold) {
       const tenGoldIdx = trickCards.findIndex(p => p.card.id === 7);
       const oneGoldIdx = trickCards.findIndex(p => p.card.id === 0);
 

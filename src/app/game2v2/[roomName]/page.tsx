@@ -1176,11 +1176,15 @@ export default function GameTwoVsTwo() {
 
     // ---------------------------------------------------------
     // DETECCIÓN DE LA COGÍA (10 DE ORO MATADO CON 1 DE ORO)
+    // En tumba la cogía NO vale (no aplica en fase de tumba)
     // ---------------------------------------------------------
+    const isAnyTumba = (pointsTeam1Ref.current >= 9 || (isTumbaDeParaAtrasT1Ref.current && pointsTeam1Ref.current === 8)) ||
+                       (pointsTeam2Ref.current >= 9 || (isTumbaDeParaAtrasT2Ref.current && pointsTeam2Ref.current === 8));
+
     const hasTenGold = fourCards.some(p => p.card.id === 7);
     const hasOneGold = fourCards.some(p => p.card.id === 0);
 
-    if (hasTenGold && hasOneGold) {
+    if (!isAnyTumba && hasTenGold && hasOneGold) {
       const tenGoldIdx = fourCards.findIndex(p => p.card.id === 7);
       const oneGoldIdx = fourCards.findIndex(p => p.card.id === 0);
 
