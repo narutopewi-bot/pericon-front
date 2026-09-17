@@ -4,7 +4,8 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
-import { RootState, useAppSelector } from '@/store/store';
+import { RootState, useAppSelector, useAppDispatch } from '@/store/store';
+import { setGamePlayer } from '@/store/slices/gameplayerSlice';
 import { Baraja } from '@/lib/library';
 import { GameAnnouncement, AnnouncementData, AnnouncementType } from '@/components/game-announcement';
 import { playCardSound, playSwooshSound, vibrateDevice, playSynthSound, speakPhrase } from '@/lib/gameEffects';
@@ -36,70 +37,81 @@ interface PlayerInfo {
   avatarUrl: string;
 }
 
-// Evaluación oficial de jerarquía de cartas de Pericón
-const evaluatePericonCard = (cardId: number, lifeCardId: number): number => {
+// -------------------------------------------------------------
+// EVALUACIÓN OFICIAL DE CARTAS DE PERICÓN (IDÉNTICA A 1 VS 1)
+// -------------------------------------------------------------
+const evaluateCard = (cardId: number, lifeId: number): number => {
   if (cardId < 0) return -1;
   switch (cardId) {
-    case 4: return 30;  // 5 de Oros (Perico)
-    case 33: return 29; // 4 de Bastos (Perica)
-    case 38: return 27; // 11 de Bastos
-    case 0: return 26;  // 1 de Oros
-    case 7: return 25;  // 10 de Oros
+    case 4: return 30;  // 5 de Oro (Perico)
+    case 33: return 29; // 4 de Basto (Perica)
+    case 38: return 27; // 11 de Basto
+    case 0: return 26;  // 1 de Oro
+    case 7: return 25;  // 10 de Oro
   }
-  const lifeSuit = lifeCardId >= 0 ? Math.floor(lifeCardId / 10) : -1;
+
+  const lifeSuit = lifeId >= 0 ? Math.floor(lifeId / 10) : -1;
   const cardSuit = Math.floor(cardId / 10);
-  const faceNum = (cardId % 10);
-  const faceVal = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12][faceNum];
+  const faceVal = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12][cardId % 10];
 
   // 3 del palo de la vida (El Gollero)
   if (lifeSuit >= 0 && cardSuit === lifeSuit && faceVal === 3) return 28;
 
-  // 2 de la vida
+  // 2 del palo de la vida
   if (lifeSuit >= 0 && cardSuit === lifeSuit && faceVal === 2) return 24;
 
+  // Resto de cartas del palo de la vida
   if (lifeSuit >= 0 && cardSuit === lifeSuit) {
-    if (faceVal === 1) return 14; // As de triunfo (cinco y medio)
-    return 11 + faceVal;
+    if (faceVal === 1) return 14; // As de la vida ("5 y medio")
+    return 11 + faceVal; // 4=15, 5=16, 6=17, 7=18, 10=21, 11=22, 12=23
   }
+
   return 0; // Carta común
 };
 
-const isTrumpCard = (cardId: number, lifeCardId: number): boolean => {
-  return evaluatePericonCard(cardId, lifeCardId) >= 11;
+const isTrumpCard = (cardId: number, lifeId: number): boolean => {
+  return evaluateCard(cardId, lifeId) >= 11;
 };
 
-const doesCandidateBeatBest = (
-  currentBestId: number,
-  candidateId: number,
-  leadCardId: number,
-  lifeCardId: number
-): boolean => {
-  const powerBest = evaluatePericonCard(currentBestId, lifeCardId);
-  const powerCandidate = evaluatePericonCard(candidateId, lifeCardId);
+// Determina si cardA (salida) le gana a cardB (respuesta), idéntico a GamePlayOneVsOne.DetermineWinner
+const determineWinnerOfTwo = (cardA: number, cardB: number, lifeId: number, aIsLead: boolean): boolean => {
+  const leadCard = aIsLead ? cardA : cardB;
+  const respCard = aIsLead ? cardB : cardA;
 
-  const bestIsTriumph = powerBest >= 11;
-  const candidateIsTriumph = powerCandidate >= 11;
+  const powerLead = evaluateCard(leadCard, lifeId);
+  const powerResp = evaluateCard(respCard, lifeId);
 
-  if (candidateIsTriumph && !bestIsTriumph) return true;
-  if (!candidateIsTriumph && bestIsTriumph) return false;
-  if (candidateIsTriumph && bestIsTriumph) return powerCandidate > powerBest;
+  const leadIsTrump = powerLead >= 11;
+  const respIsTrump = powerResp >= 11;
 
-  // Cartas comunes
-  const suitLead = Math.floor(leadCardId / 10);
-  const suitBest = Math.floor(currentBestId / 10);
-  const suitCandidate = Math.floor(candidateId / 10);
+  let leadWins: boolean;
+  if (leadIsTrump && respIsTrump) {
+    leadWins = powerLead > powerResp;
+  } else if (leadIsTrump && !respIsTrump) {
+    leadWins = true;
+  } else if (!leadIsTrump && respIsTrump) {
+    leadWins = false;
+  } else {
+    // Ambas son cartas comunes
+    const suitLead = Math.floor(leadCard / 10);
+    const suitResp = Math.floor(respCard / 10);
 
-  if (suitCandidate !== suitLead) return false;
-  if (suitBest !== suitLead && suitCandidate === suitLead) return true;
+    if (suitResp !== suitLead) {
+      leadWins = true; // Descarte no mata al palo de salida
+    } else {
+      const faceLead = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12][leadCard % 10];
+      const faceResp = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12][respCard % 10];
+      leadWins = faceLead >= faceResp;
+    }
+  }
 
-  const faceBest = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12][currentBestId % 10];
-  const faceCandidate = [1, 2, 3, 4, 5, 6, 7, 10, 11, 12][candidateId % 10];
-  return faceCandidate > faceBest;
+  return aIsLead ? leadWins : !leadWins;
 };
 
 export default function SolitaireTwoVsTwo() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const dispatch = useAppDispatch();
   const user = useAppSelector((state: RootState) => state.gameplayer);
 
   const betAmount = parseInt(searchParams?.get('bet') || '100', 10);
@@ -136,89 +148,124 @@ export default function SolitaireTwoVsTwo() {
     },
   ];
 
-  // Marcador de Piedras
+  // -------------------------------------------------------------
+  // ESTADOS PRINCIPALES DE JUEGO (IDÉNTICOS A 1 VS 1)
+  // -------------------------------------------------------------
   const [pointsTeam1, setPointsTeam1] = useState<number>(0);
   const [pointsTeam2, setPointsTeam2] = useState<number>(0);
 
-  // Estados de Tumba y Tumba de para atrás
-  const [isTumbaTeam1, setIsTumbaTeam1] = useState<boolean>(false);
-  const [isTumbaTeam2, setIsTumbaTeam2] = useState<boolean>(false);
-  const [isTumbaDeParaAtrasT1, setIsTumbaDeParaAtrasT1] = useState<boolean>(false);
-  const [isTumbaDeParaAtrasT2, setIsTumbaDeParaAtrasT2] = useState<boolean>(false);
+  // Flags de Tumba de para atrás (1 = activa en 8 piedras decreciente, 0 = inactiva)
+  const [partT1, setPartT1] = useState<number>(0);
+  const [partT2, setPartT2] = useState<number>(0);
 
-  // Estado de la Mano
+  // Mano actual
   const [allHands, setAllHands] = useState<{ [seat: number]: Card[] }>({ 0: [], 1: [], 2: [], 3: [] });
   const [lifeCard, setLifeCard] = useState<Card>({ id: -1, position: 0, suit: '', number: 0, image: '/card_back.png' });
   const [playedCards, setPlayedCards] = useState<PlayedCard[]>([]);
   const [tricksTeam1, setTricksTeam1] = useState<number>(0);
   const [tricksTeam2, setTricksTeam2] = useState<number>(0);
-  const [currentStake, setCurrentStake] = useState<number>(1);
-  const [lastStakeAskedBy, setLastStakeAskedBy] = useState<number | null>(null);
 
-  // Turnos
+  // Apuesta de la mano
+  const [currentStake, setCurrentStake] = useState<number>(1);
+  const [lastStakeAskedBy, setLastStakeAskedBy] = useState<'team1' | 'team2' | null>(null);
+
+  // Turnos y temporizadores
   const [handLeader, setHandLeader] = useState<number>(0);
   const [currentTurn, setCurrentTurn] = useState<number>(0);
   const [timeLeft, setTimeLeft] = useState<number>(30);
-
-  // Estados de control de flujo
-  const [isProcessingMove, setIsProcessingMove] = useState<boolean>(false);
-  const [isCleaningTable, setIsCleaningTable] = useState<boolean>(false);
   const [tumbaCountdown, setTumbaCountdown] = useState<number | null>(null);
-  const [isWaitingOppTumba, setIsWaitingOppTumba] = useState<boolean>(false);
+  const tumbaCountdownTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Banderas de control de interacción
+  const isProcessingRef = useRef<boolean>(false);
+  const [isProcessingMove, setIsProcessingMove] = useState<boolean>(false);
   const [trickResult, setTrickResult] = useState<{ winningPlayer: number; winningTeam: number; message: string } | null>(null);
   const [announcement, setAnnouncement] = useState<AnnouncementData | null>(null);
-  const [gameOver, setGameOver] = useState<boolean>(false);
+  const announcementTimer = useRef<NodeJS.Timeout | null>(null);
 
-  // Referencias para sincronización
+  // Referencias para evitar desincronización en closures asíncronos
   const pointsTeam1Ref = useRef(pointsTeam1);
   const pointsTeam2Ref = useRef(pointsTeam2);
-  const isTumbaT1Ref = useRef(isTumbaTeam1);
-  const isTumbaT2Ref = useRef(isTumbaTeam2);
-  const isTumbaAtrasT1Ref = useRef(isTumbaDeParaAtrasT1);
-  const isTumbaAtrasT2Ref = useRef(isTumbaDeParaAtrasT2);
+  const partT1Ref = useRef(partT1);
+  const partT2Ref = useRef(partT2);
   const allHandsRef = useRef(allHands);
   const playedCardsRef = useRef(playedCards);
   const currentTurnRef = useRef(currentTurn);
   const lifeCardRef = useRef(lifeCard);
-  const isCleaningTableRef = useRef(isCleaningTable);
-  const isProcessingMoveRef = useRef(isProcessingMove);
   const tricksTeam1Ref = useRef(tricksTeam1);
   const tricksTeam2Ref = useRef(tricksTeam2);
   const currentStakeRef = useRef(currentStake);
 
   useEffect(() => { pointsTeam1Ref.current = pointsTeam1; }, [pointsTeam1]);
   useEffect(() => { pointsTeam2Ref.current = pointsTeam2; }, [pointsTeam2]);
-  useEffect(() => { isTumbaT1Ref.current = isTumbaTeam1; }, [isTumbaTeam1]);
-  useEffect(() => { isTumbaT2Ref.current = isTumbaTeam2; }, [isTumbaTeam2]);
-  useEffect(() => { isTumbaAtrasT1Ref.current = isTumbaDeParaAtrasT1; }, [isTumbaDeParaAtrasT1]);
-  useEffect(() => { isTumbaAtrasT2Ref.current = isTumbaDeParaAtrasT2; }, [isTumbaDeParaAtrasT2]);
+  useEffect(() => { partT1Ref.current = partT1; }, [partT1]);
+  useEffect(() => { partT2Ref.current = partT2; }, [partT2]);
   useEffect(() => { allHandsRef.current = allHands; }, [allHands]);
   useEffect(() => { playedCardsRef.current = playedCards; }, [playedCards]);
   useEffect(() => { currentTurnRef.current = currentTurn; }, [currentTurn]);
   useEffect(() => { lifeCardRef.current = lifeCard; }, [lifeCard]);
-  useEffect(() => { isCleaningTableRef.current = isCleaningTable; }, [isCleaningTable]);
-  useEffect(() => { isProcessingMoveRef.current = isProcessingMove; }, [isProcessingMove]);
   useEffect(() => { tricksTeam1Ref.current = tricksTeam1; }, [tricksTeam1]);
   useEffect(() => { tricksTeam2Ref.current = tricksTeam2; }, [tricksTeam2]);
   useEffect(() => { currentStakeRef.current = currentStake; }, [currentStake]);
 
-  const triggerAnnouncement = (title: string, subtitle?: string, type: AnnouncementType = 'win_round') => {
-    setAnnouncement({ title, subtitle, type });
-    setTimeout(() => {
+  const triggerAnnouncement = (data: AnnouncementData, durationMs: number = 2500) => {
+    if (announcementTimer.current) clearTimeout(announcementTimer.current);
+    setAnnouncement(data);
+    announcementTimer.current = setTimeout(() => {
       setAnnouncement(null);
-    }, 3000);
+    }, durationMs);
   };
 
-  // Función para barajar y repartir nueva mano
+  // -------------------------------------------------------------
+  // REGLA OFICIAL DE PUNTOS Y TUMBA DE PARA ATRÁS (IDÉNTICA A 1 VS 1)
+  // -------------------------------------------------------------
+  const updatePointsAndTumba = (newT1: number, newT2: number) => {
+    const oldT1 = pointsTeam1Ref.current;
+    const oldT2 = pointsTeam2Ref.current;
+
+    // Regla de "Tumba de para atrás" (en 8 piedras):
+    // Solo se activa de manera decreciente cuando un equipo tiene >= 9 y cae a 8 puntos.
+    // Si baja a 7 o menos, se desactiva por completo.
+    // Si sube desde <= 7 a 8 puntos, NO se activa tumba de para atrás.
+    if (oldT1 >= 9 && newT1 === 8) {
+      partT1Ref.current = 1;
+      setPartT1(1);
+    } else if (newT1 !== 8) {
+      partT1Ref.current = 0;
+      setPartT1(0);
+    }
+
+    if (oldT2 >= 9 && newT2 === 8) {
+      partT2Ref.current = 1;
+      setPartT2(1);
+    } else if (newT2 !== 8) {
+      partT2Ref.current = 0;
+      setPartT2(0);
+    }
+
+    pointsTeam1Ref.current = newT1;
+    setPointsTeam1(newT1);
+    pointsTeam2Ref.current = newT2;
+    setPointsTeam2(newT2);
+  };
+
+  // -------------------------------------------------------------
+  // REPARTO DE MANO Y FASE DE ANÁLISIS DE TUMBA (IDÉNTICO A 1 VS 1)
+  // -------------------------------------------------------------
   const dealNewHand = useCallback((newLeaderIndex: number) => {
+    if (tumbaCountdownTimerRef.current) clearInterval(tumbaCountdownTimerRef.current);
+    setTumbaCountdown(null);
+
     playCardDealSound();
 
+    // Barajar 40 cartas
     const deck = Array.from({ length: 40 }, (_, i) => i);
     for (let i = deck.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [deck[i], deck[j]] = [deck[j], deck[i]];
     }
 
+    // Repartir 3 cartas a cada uno de los 4 puestos
     const hands: { [seat: number]: Card[] } = {
       0: [Baraja(deck[0], 0), Baraja(deck[1], 1), Baraja(deck[2], 2)],
       1: [Baraja(deck[3], 0), Baraja(deck[4], 1), Baraja(deck[5], 2)],
@@ -243,63 +290,215 @@ export default function SolitaireTwoVsTwo() {
     setCurrentStake(1);
     currentStakeRef.current = 1;
     setLastStakeAskedBy(null);
-    setIsProcessingMove(false);
-    isProcessingMoveRef.current = false;
-    setIsCleaningTable(false);
-    isCleaningTableRef.current = false;
-
     setHandLeader(newLeaderIndex);
 
-    const t1Points = pointsTeam1Ref.current;
-    const t2Points = pointsTeam2Ref.current;
-    const t1Tumba = t1Points >= 9;
-    const t2Tumba = t2Points >= 9;
-    const t1Atras = isTumbaAtrasT1Ref.current && t1Points === 8;
-    const t2Atras = isTumbaAtrasT2Ref.current && t2Points === 8;
+    // Estados de Tumba y Obligado
+    const team1InTumba = (pointsTeam1Ref.current >= 9 || (partT1Ref.current === 1 && pointsTeam1Ref.current === 8));
+    const team2InTumba = (pointsTeam2Ref.current >= 9 || (partT2Ref.current === 1 && pointsTeam2Ref.current === 8));
+    const isObligado = team1InTumba && team2InTumba;
 
-    setIsTumbaTeam1(t1Tumba);
-    setIsTumbaTeam2(t2Tumba);
+    // Caso 1: ¡ESTADO OBLIGADO! (Ambos en tumba o tumba de para atrás)
+    if (isObligado) {
+      isProcessingRef.current = false;
+      setIsProcessingMove(false);
+      triggerAnnouncement({
+        type: 'tumba',
+        title: '¡ESTADO OBLIGADO!',
+        subtitle: '¡Mano definitiva! El que gane 2 de 3 bazas gana el juego',
+        badge: 'ÚLTIMA MANO'
+      }, 3500);
+      speakPhrase("¡Obligado! Quien gane esta mano gana la partida.");
+      vibrateDevice('tumba');
+      playSynthSound('tumba');
 
-    // Flujo de decisión de Tumba
-    if (t1Tumba && !t1Atras) {
-      setCurrentTurn(-1);
-      setTumbaCountdown(10);
-      triggerAnnouncement('¡ESTÁS EN TUMBA!', 'Analiza tus cartas (10s) para decidir si juegas o pasas', 'tumba');
-      speakPhrase('Estás en Tumba. Tienes diez segundos para decidir.');
+      setCurrentTurn(newLeaderIndex);
+      currentTurnRef.current = newLeaderIndex;
+      setTimeLeft(30);
+
+      if (newLeaderIndex !== 0) {
+        triggerBotPlay(newLeaderIndex);
+      }
       return;
     }
 
-    if (t2Tumba && !t2Atras) {
+    // Caso 2: TU EQUIPO ESTÁ EN TUMBA
+    // Fase de análisis de 10 segundos limpia (sin popups que tapen la mesa)
+    if (team1InTumba) {
+      isProcessingRef.current = true;
+      setIsProcessingMove(true);
       setCurrentTurn(-1);
-      setIsWaitingOppTumba(true);
-      triggerAnnouncement('¡RIVALES EN TUMBA!', 'Los rivales están analizando si juegan o pasan...', 'tumba');
 
-      setTimeout(() => {
-        setIsWaitingOppTumba(false);
-        const r1Cards = hands[1];
-        const r2Cards = hands[3];
-        const countTrumps = [...r1Cards, ...r2Cards].filter(c => isTrumpCard(c.id, trumpCard.id)).length;
-        const hasTopTrump = [...r1Cards, ...r2Cards].some(c => evaluatePericonCard(c.id, trumpCard.id) >= 26);
+      triggerAnnouncement({
+        type: 'tumba',
+        title: '¡ESTÁS EN TUMBA!',
+        subtitle: 'Analiza tus 3 cartas y La Vida. Tienes 10 segundos.',
+        badge: 'TUMBA: 10 SEGUNDOS'
+      }, 3500);
+      speakPhrase("¡Estás en tumba! Analiza tus cartas y la vida durante diez segundos.");
+      vibrateDevice('tumba');
+      playSynthSound('tumba');
 
-        if (countTrumps >= 2 || hasTopTrump) {
-          triggerAnnouncement('¡RIVALES JUEGAN LA TUMBA!', 'Se disputan el partido en esta mano', 'tumba');
-          speakPhrase('Los rivales deciden jugar la Tumba.');
-          setCurrentTurn(newLeaderIndex);
-          currentTurnRef.current = newLeaderIndex;
-          if (newLeaderIndex !== 0) {
-            triggerBotPlay(newLeaderIndex);
-          }
+      let count = 10;
+      setTumbaCountdown(count);
+
+      tumbaCountdownTimerRef.current = setInterval(() => {
+        count -= 1;
+        if (count > 0) {
+          setTumbaCountdown(count);
         } else {
-          handlePassTumba(2);
+          if (tumbaCountdownTimerRef.current) clearInterval(tumbaCountdownTimerRef.current);
+          setTumbaCountdown(null);
+
+          // Una vez concluidos los 10 segundos, mostrar el modal de decisión (idéntico a 1 vs 1)
+          Swal.fire({
+            title: "¿Deseas jugar esta ronda en TUMBA?",
+            text: "Si aceptas y pierdes, se te restarán 3 piedras. Si rechazas, se te resta 1 piedra y se le suma al contrario.",
+            icon: "warning",
+            showCancelButton: true,
+            confirmButtonText: "Sí, acepto jugar",
+            cancelButtonText: "No, paso esta mano",
+            confirmButtonColor: "#22c55e",
+            cancelButtonColor: "#ef4444",
+            allowOutsideClick: false,
+            allowEscapeKey: false
+          }).then((result) => {
+            if (result.isConfirmed) {
+              // Acepta jugar en Tumba
+              isProcessingRef.current = false;
+              setIsProcessingMove(false);
+              triggerAnnouncement({
+                type: 'tumba',
+                title: '¡A JUGAR EN TUMBA!',
+                subtitle: newLeaderIndex === 0 ? 'Te toca salir a ti' : `Sale jugando ${players[newLeaderIndex]?.name}`,
+                badge: 'MANO DE TUMBA'
+              }, 2500);
+              speakPhrase("Aceptaste jugar en Tumba.");
+
+              setCurrentTurn(newLeaderIndex);
+              currentTurnRef.current = newLeaderIndex;
+              setTimeLeft(30);
+
+              if (newLeaderIndex !== 0) {
+                triggerBotPlay(newLeaderIndex);
+              }
+            } else {
+              // Decide pasar la mano
+              isProcessingRef.current = false;
+              setIsProcessingMove(false);
+              const newT1 = Math.max(0, pointsTeam1Ref.current - 1);
+              const newT2 = pointsTeam2Ref.current + 1;
+              updatePointsAndTumba(newT1, newT2);
+
+              speakPhrase("Pasaste en Tumba. Menos una piedra.");
+              vibrateDevice('reject');
+              playSynthSound('reject');
+
+              Swal.fire({
+                title: "Pasaste en Tumba (-1 piedra para ti, +1 para el rival)",
+                showConfirmButton: false,
+                timer: 2000,
+                color: "#ffffff",
+                background: "#1a0e06"
+              }).then(() => {
+                if (newT2 >= 10) {
+                  endGame(2);
+                } else {
+                  dealNewHand((newLeaderIndex + 1) % 4);
+                }
+              });
+            }
+          });
         }
-      }, 3000);
+      }, 1000);
       return;
     }
 
-    if (t1Atras || t2Atras) {
-      triggerAnnouncement('⚠️ TUMBA DE PARA ATRÁS', '¡Mano obligada a jugar sin pasar ni cantar!', 'tumba');
+    // Caso 3: LOS RIVALES ESTÁN EN TUMBA
+    if (team2InTumba) {
+      isProcessingRef.current = true;
+      setIsProcessingMove(true);
+      setCurrentTurn(-1);
+
+      triggerAnnouncement({
+        type: 'tumba',
+        title: '¡RIVALES EN TUMBA!',
+        subtitle: 'Los rivales analizan si juegan o pasan (10 segundos)...',
+        badge: 'RIVALES TUMBAN'
+      }, 3500);
+      speakPhrase("Los rivales están en tumba y están analizando sus cartas.");
+      vibrateDevice('tumba');
+      playSynthSound('tumba');
+
+      let oppCount = 10;
+      setTumbaCountdown(oppCount);
+
+      tumbaCountdownTimerRef.current = setInterval(() => {
+        oppCount -= 1;
+        if (oppCount > 0) {
+          setTumbaCountdown(oppCount);
+        } else {
+          if (tumbaCountdownTimerRef.current) clearInterval(tumbaCountdownTimerRef.current);
+          setTumbaCountdown(null);
+
+          // Evaluar cartas de rivales (Jacinto y El Llanero)
+          const r1Cards = hands[1];
+          const r2Cards = hands[3];
+          const totalTrumps = [...r1Cards, ...r2Cards].filter(c => isTrumpCard(c.id, trumpCard.id)).length;
+          const hasTopTrump = [...r1Cards, ...r2Cards].some(c => evaluateCard(c.id, trumpCard.id) >= 26);
+
+          if (totalTrumps >= 2 || hasTopTrump) {
+            // Rivales aceptan jugar
+            isProcessingRef.current = false;
+            setIsProcessingMove(false);
+            triggerAnnouncement({
+              type: 'tumba',
+              title: '¡LOS RIVALES JUEGAN LA TUMBA!',
+              subtitle: 'Se disputa el partido en esta mano',
+              badge: 'MANO DE TUMBA'
+            }, 2500);
+            speakPhrase("Los rivales han aceptado jugar la Tumba.");
+
+            setCurrentTurn(newLeaderIndex);
+            currentTurnRef.current = newLeaderIndex;
+            setTimeLeft(30);
+
+            if (newLeaderIndex !== 0) {
+              triggerBotPlay(newLeaderIndex);
+            }
+          } else {
+            // Rivales deciden pasar (-1 a ellos, +1 a ti)
+            isProcessingRef.current = false;
+            setIsProcessingMove(false);
+            const newT2 = Math.max(0, pointsTeam2Ref.current - 1);
+            const newT1 = pointsTeam1Ref.current + 1;
+            updatePointsAndTumba(newT1, newT2);
+
+            speakPhrase("Los rivales pasaron en Tumba. Más una piedra.");
+            vibrateDevice('winRound');
+            playSynthSound('win');
+
+            Swal.fire({
+              title: "¡Los rivales pasaron en Tumba! (+1 piedra para ti, -1 para ellos)",
+              showConfirmButton: false,
+              timer: 2000,
+              color: "#ffffff",
+              background: "#1a0e06"
+            }).then(() => {
+              if (newT1 >= 10) {
+                endGame(1);
+              } else {
+                dealNewHand((newLeaderIndex + 1) % 4);
+              }
+            });
+          }
+        }
+      }, 1000);
+      return;
     }
 
+    // Caso 4: Mano normal
+    isProcessingRef.current = false;
+    setIsProcessingMove(false);
     setCurrentTurn(newLeaderIndex);
     currentTurnRef.current = newLeaderIndex;
     setTimeLeft(30);
@@ -309,125 +508,11 @@ export default function SolitaireTwoVsTwo() {
     }
   }, []);
 
-  // Manejo de Pasar la Tumba (-1 al que pasa, +1 al rival)
-  const handlePassTumba = (passingTeam: number) => {
-    setTumbaCountdown(null);
-    setIsWaitingOppTumba(false);
-
-    if (passingTeam === 1) {
-      const newP1 = Math.max(0, pointsTeam1Ref.current - 1);
-      const newP2 = Math.min(10, pointsTeam2Ref.current + 1);
-      setPointsTeam1(newP1);
-      setPointsTeam2(newP2);
-      pointsTeam1Ref.current = newP1;
-      pointsTeam2Ref.current = newP2;
-
-      if (newP1 === 8) {
-        setIsTumbaDeParaAtrasT1(true);
-        isTumbaAtrasT1Ref.current = true;
-      }
-      setIsTumbaTeam1(false);
-      isTumbaT1Ref.current = false;
-
-      triggerAnnouncement('PASASTE LA TUMBA', '-1 piedra para ti • +1 piedra para rivales', 'tumba');
-      playCardDropSound();
-
-      if (newP2 >= 10) {
-        handleEndMatch(2);
-        return;
-      }
-    } else {
-      const newP2 = Math.max(0, pointsTeam2Ref.current - 1);
-      const newP1 = Math.min(10, pointsTeam1Ref.current + 1);
-      setPointsTeam2(newP2);
-      setPointsTeam1(newP1);
-      pointsTeam2Ref.current = newP2;
-      pointsTeam1Ref.current = newP1;
-
-      if (newP2 === 8) {
-        setIsTumbaDeParaAtrasT2(true);
-        isTumbaAtrasT2Ref.current = true;
-      }
-      setIsTumbaTeam2(false);
-      isTumbaT2Ref.current = false;
-
-      triggerAnnouncement('¡RIVALES PASARON!', '+1 piedra para ti • -1 para rivales', 'win_round');
-      playCoinWinSound();
-
-      if (newP1 >= 10) {
-        handleEndMatch(1);
-        return;
-      }
-    }
-
-    setTimeout(() => {
-      dealNewHand((handLeader + 1) % 4);
-    }, 2500);
-  };
-
-  // Temporizador de 10s para la decisión de Tumba del usuario
+  // -------------------------------------------------------------
+  // TEMPORIZADOR DE 30 SEGUNDOS (IDÉNTICO A 1 VS 1)
+  // -------------------------------------------------------------
   useEffect(() => {
-    if (tumbaCountdown === null) return;
-    if (tumbaCountdown > 0) {
-      const timer = setTimeout(() => {
-        setTumbaCountdown(tumbaCountdown - 1);
-      }, 1000);
-      return () => clearTimeout(timer);
-    } else if (tumbaCountdown === 0) {
-      handlePassTumba(1);
-    }
-  }, [tumbaCountdown]);
-
-  // Modal interactivo cuando el usuario está en Tumba
-  useEffect(() => {
-    if (tumbaCountdown === 10) {
-      Swal.fire({
-        title: '¡ESTÁS EN TUMBA!',
-        html: `
-          <div style="text-align: center; font-size: 14px; padding: 4px 0;">
-            <p style="color: #cbd5e1; margin-bottom: 12px; line-height: 1.5;">
-              Tienes <strong>9 piedras</strong>. Analiza tus 3 cartas y la vida.<br/>
-              ¿Quieres arriesgarte y <strong>Jugar</strong> para ganar el partido, o prefieres <strong>Pasar</strong>?
-            </p>
-            <div style="background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.4); border-radius: 12px; padding: 10px; color: #fca5a5; font-size: 12px; margin-bottom: 8px;">
-              ⚠️ <strong>Si pasas:</strong> Pierdes 1 piedra (-1) y le das 1 al rival (+1). Caerás a 8 en <em>Tumba de para atrás</em>.<br/>
-              💀 <strong>Si juegas y pierdes:</strong> Caerás en Tumba (-3 piedras para tu equipo, +3 para el rival).<br/>
-              🏆 <strong>Si juegas y ganas:</strong> ¡Victoria total del partido (10 piedras)!
-            </div>
-          </div>
-        `,
-        icon: 'question',
-        showCancelButton: true,
-        confirmButtonText: '¡JUGAR LA TUMBA!',
-        cancelButtonText: 'PASAR (-1 piedra)',
-        confirmButtonColor: '#22c55e',
-        cancelButtonColor: '#ef4444',
-        background: '#1a0e06',
-        color: '#fff',
-        customClass: {
-          popup: 'border-2 border-amber-500/50 rounded-3xl shadow-2xl',
-        },
-        allowOutsideClick: false,
-      }).then((res) => {
-        if (res.isConfirmed) {
-          setTumbaCountdown(null);
-          triggerAnnouncement('¡ACEPTASTE LA TUMBA!', '¡A por las 10 piedras del triunfo!', 'tumba');
-          speakPhrase('¡Has aceptado jugar la Tumba!');
-          setCurrentTurn(handLeader);
-          currentTurnRef.current = handLeader;
-          if (handLeader !== 0) {
-            triggerBotPlay(handLeader);
-          }
-        } else if (res.dismiss === Swal.DismissReason.cancel) {
-          handlePassTumba(1);
-        }
-      });
-    }
-  }, [tumbaCountdown]);
-
-  // Turno y temporizador de 30s para el usuario
-  useEffect(() => {
-    if (currentTurn !== 0 || isProcessingMove || isCleaningTable || tumbaCountdown !== null || isWaitingOppTumba || gameOver) {
+    if (currentTurn !== 0 || isProcessingRef.current || tumbaCountdown !== null) {
       return;
     }
 
@@ -436,6 +521,7 @@ export default function SolitaireTwoVsTwo() {
       setTimeLeft((prev) => {
         if (prev <= 1) {
           clearInterval(interval);
+          // Auto-jugada legal de carta cuando se agotan los 30s
           handleTimeoutAutoPlay();
           return 0;
         }
@@ -444,7 +530,7 @@ export default function SolitaireTwoVsTwo() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [currentTurn, isProcessingMove, isCleaningTable, tumbaCountdown, isWaitingOppTumba, gameOver]);
+  }, [currentTurn, tumbaCountdown]);
 
   const handleTimeoutAutoPlay = () => {
     const myCards = allHandsRef.current[0] || [];
@@ -455,133 +541,153 @@ export default function SolitaireTwoVsTwo() {
     const isLeadTrump = currentPlayed.length > 0 && isTrumpCard(currentPlayed[0].card.id, currentLifeId);
     const trumpsInHand = myCards.filter(c => isTrumpCard(c.id, currentLifeId));
 
+    // Si aplica el pelao, obligatoriamente tirar triunfo
     const legalCard = (isLeadTrump && trumpsInHand.length > 0) ? trumpsInHand[0] : myCards[0];
     handlePlayCard(0, legalCard);
   };
 
-  // Bot AI
+  // -------------------------------------------------------------
+  // INTELIGENCIA ARTIFICIAL DE LOS 3 BOTS
+  // -------------------------------------------------------------
   const chooseBotCard = (seatIdx: number, hand: Card[]): Card => {
     const currentLifeId = lifeCardRef.current.id;
     const currentPlayed = playedCardsRef.current;
 
-    // 1. REGLA DEL PELAO
+    // Regla del Pelao: Si salieron con triunfo y tiene triunfos, obligatorio tirar triunfo
     const isLeadTrump = currentPlayed.length > 0 && isTrumpCard(currentPlayed[0].card.id, currentLifeId);
     const trumpsInHand = hand.filter(c => isTrumpCard(c.id, currentLifeId));
     const candidateCards = (isLeadTrump && trumpsInHand.length > 0) ? trumpsInHand : hand;
 
     if (candidateCards.length === 1) return candidateCards[0];
 
-    // Si abre la baza
+    // Si el bot abre la baza
     if (currentPlayed.length === 0) {
+      // Guardar triunfos altos y salir con carta común más baja
       const nonTrumps = candidateCards.filter(c => !isTrumpCard(c.id, currentLifeId));
-      return nonTrumps.length > 0 ? nonTrumps[0] : candidateCards[0];
+      if (nonTrumps.length > 0) {
+        return nonTrumps.sort((a, b) => (a.number - b.number))[0];
+      }
+      return candidateCards.sort((a, b) => evaluateCard(a.id, currentLifeId) - evaluateCard(b.id, currentLifeId))[0];
     }
 
-    const leadCardId = currentPlayed[0].card.id;
+    // Si responde a una baza ya iniciada: Determinar la carta ganadora actual
     let bestPlayed = currentPlayed[0];
     for (let i = 1; i < currentPlayed.length; i++) {
-      if (doesCandidateBeatBest(bestPlayed.card.id, currentPlayed[i].card.id, leadCardId, currentLifeId)) {
+      const beats = determineWinnerOfTwo(bestPlayed.card.id, currentPlayed[i].card.id, currentLifeId, true);
+      if (!beats) {
         bestPlayed = currentPlayed[i];
       }
     }
 
     const currentWinnerSeat = bestPlayed.playerIndex;
-    const currentWinnerTeam = currentWinnerSeat === 0 || currentWinnerSeat === 2 ? 1 : 2;
-    const botTeam = seatIdx === 0 || seatIdx === 2 ? 1 : 2;
+    const currentWinnerTeam = (currentWinnerSeat === 0 || currentWinnerSeat === 2) ? 1 : 2;
+    const botTeam = (seatIdx === 0 || seatIdx === 2) ? 1 : 2;
 
-    // Si su equipo ya gana la baza
+    // Si su propio compañero de equipo ya está ganando la baza
     if (currentWinnerTeam === botTeam) {
-      const winningPower = evaluatePericonCard(bestPlayed.card.id, currentLifeId);
-      if (winningPower >= 24) {
-        const sortedWeak = [...candidateCards].sort((a, b) =>
-          evaluatePericonCard(a.id, currentLifeId) - evaluatePericonCard(b.id, currentLifeId)
-        );
-        return sortedWeak[0];
+      const winPower = evaluateCard(bestPlayed.card.id, currentLifeId);
+      // Si la carta del compañero es muy alta (poder >= 24), no gastar triunfo, echar carta baja
+      if (winPower >= 24) {
+        return candidateCards.sort((a, b) =>
+          evaluateCard(a.id, currentLifeId) - evaluateCard(b.id, currentLifeId)
+        )[0];
       }
     }
 
-    // Si el rival gana la baza
-    const winningCandidates = candidateCards.filter(c =>
-      doesCandidateBeatBest(bestPlayed.card.id, c.id, leadCardId, currentLifeId)
+    // Si el rival va ganando la baza: buscar la carta más económica que le gane
+    const winningCards = candidateCards.filter(c =>
+      !determineWinnerOfTwo(bestPlayed.card.id, c.id, currentLifeId, true)
     );
 
-    if (winningCandidates.length > 0) {
-      const sortedWinners = [...winningCandidates].sort((a, b) =>
-        evaluatePericonCard(a.id, currentLifeId) - evaluatePericonCard(b.id, currentLifeId)
-      );
-      return sortedWinners[0];
+    if (winningCards.length > 0) {
+      // Ordenar ganadoras por poder ascendente y tirar la mínima necesaria
+      return winningCards.sort((a, b) =>
+        evaluateCard(a.id, currentLifeId) - evaluateCard(b.id, currentLifeId)
+      )[0];
     }
 
-    const sortedLow = [...candidateCards].sort((a, b) =>
-      evaluatePericonCard(a.id, currentLifeId) - evaluatePericonCard(b.id, currentLifeId)
-    );
-    return sortedLow[0];
+    // Si no le puede ganar: tirar la carta más baja
+    return candidateCards.sort((a, b) =>
+      evaluateCard(a.id, currentLifeId) - evaluateCard(b.id, currentLifeId)
+    )[0];
   };
 
   const triggerBotPlay = (botSeat: number) => {
+    isProcessingRef.current = true;
     setIsProcessingMove(true);
-    isProcessingMoveRef.current = true;
 
+    // Pausa de 1 segundo para que la jugada se sienta natural
     setTimeout(() => {
       const botHand = allHandsRef.current[botSeat] || [];
       if (botHand.length === 0) {
+        isProcessingRef.current = false;
         setIsProcessingMove(false);
-        isProcessingMoveRef.current = false;
         return;
       }
 
       const chosenCard = chooseBotCard(botSeat, botHand);
       handlePlayCard(botSeat, chosenCard);
-    }, 1100);
+    }, 1000);
   };
 
+  // -------------------------------------------------------------
+  // ACCIÓN DE JUGAR UNA CARTA (USUARIO O BOT)
+  // -------------------------------------------------------------
   const handlePlayCard = (seatIdx: number, card: Card) => {
     playCardSound();
     vibrateDevice([30]);
 
+    // Remover de la mano del jugador
     const currentHands = { ...allHandsRef.current };
     currentHands[seatIdx] = (currentHands[seatIdx] || []).filter(c => c.id !== card.id);
     setAllHands(currentHands);
     allHandsRef.current = currentHands;
 
+    // Colocar en el tapete
     const newPlayed = [...playedCardsRef.current, { playerIndex: seatIdx, card }];
     setPlayedCards(newPlayed);
     playedCardsRef.current = newPlayed;
 
-    setIsProcessingMove(false);
-    isProcessingMoveRef.current = false;
-
+    // Verificar si faltan jugadores en la baza
     if (newPlayed.length < 4) {
       const nextTurn = (seatIdx + 1) % 4;
       setCurrentTurn(nextTurn);
       currentTurnRef.current = nextTurn;
       setTimeLeft(30);
 
-      if (nextTurn !== 0) {
+      if (nextTurn === 0) {
+        isProcessingRef.current = false;
+        setIsProcessingMove(false);
+      } else {
         triggerBotPlay(nextTurn);
       }
     } else {
+      // ¡Las 4 cartas fueron jugadas! Resolver la baza
       resolveTrick(newPlayed);
     }
   };
 
+  // -------------------------------------------------------------
+  // RESOLUCIÓN DE BAZA (4 CARTAS EN MESA) CON PAUSA DE 2.4s
+  // -------------------------------------------------------------
   const resolveTrick = (trickCards: PlayedCard[]) => {
-    setIsCleaningTable(true);
-    isCleaningTableRef.current = true;
+    isProcessingRef.current = true;
+    setIsProcessingMove(true);
     setCurrentTurn(-1);
 
     const currentLifeId = lifeCardRef.current.id;
-    const leadCardId = trickCards[0].card.id;
 
+    // Evaluar ganador de las 4 cartas
     let bestPlayed = trickCards[0];
     for (let i = 1; i < trickCards.length; i++) {
-      if (doesCandidateBeatBest(bestPlayed.card.id, trickCards[i].card.id, leadCardId, currentLifeId)) {
+      const beats = determineWinnerOfTwo(bestPlayed.card.id, trickCards[i].card.id, currentLifeId, true);
+      if (!beats) {
         bestPlayed = trickCards[i];
       }
     }
 
     const winningSeat = bestPlayed.playerIndex;
-    const winningTeam = winningSeat === 0 || winningSeat === 2 ? 1 : 2;
+    const winningTeam = (winningSeat === 0 || winningSeat === 2) ? 1 : 2;
     const winnerName = players[winningSeat]?.name || `Puesto ${winningSeat}`;
 
     const newT1Tricks = winningTeam === 1 ? tricksTeam1Ref.current + 1 : tricksTeam1Ref.current;
@@ -597,15 +703,55 @@ export default function SolitaireTwoVsTwo() {
       message: `⭐ Baza para ${winnerName} (${winningTeam === 1 ? 'Azul' : 'Rojo'})`,
     });
 
-    playSwooshSound();
+    // ---------------------------------------------------------
+    // DETECCIÓN DE LA COGÍA (10 DE ORO MATADO CON 1 DE ORO)
+    // ---------------------------------------------------------
+    const team1InTumba = (pointsTeam1Ref.current >= 9 || (partT1Ref.current === 1 && pointsTeam1Ref.current === 8));
+    const team2InTumba = (pointsTeam2Ref.current >= 9 || (partT2Ref.current === 1 && pointsTeam2Ref.current === 8));
+    const isAnyTumba = team1InTumba || team2InTumba;
 
+    const hasTenGold = trickCards.some(p => p.card.id === 7);
+    const hasOneGold = trickCards.some(p => p.card.id === 0);
+
+    if (!isAnyTumba && hasTenGold && hasOneGold) {
+      const oneGoldPlayer = trickCards.find(p => p.card.id === 0)?.playerIndex ?? -1;
+      const cogiaTeam = (oneGoldPlayer === 0 || oneGoldPlayer === 2) ? 1 : 2;
+
+      if (cogiaTeam === 1) {
+        updatePointsAndTumba(pointsTeam1Ref.current + 3, pointsTeam2Ref.current);
+        speakPhrase("¡La Cogía! Mataste el diez con el As de Oro");
+        vibrateDevice('winMatch');
+        playSynthSound('win');
+        triggerAnnouncement({
+          type: 'la_cogia',
+          title: '¡LA COGÍA!',
+          subtitle: '¡Mataron el 10 con el As de Oro!',
+          badge: '+3 piedras automáticas'
+        }, 2500);
+      } else {
+        updatePointsAndTumba(pointsTeam1Ref.current, pointsTeam2Ref.current + 3);
+        speakPhrase("¡La Cogía para los rivales!");
+        vibrateDevice('reject');
+        playSynthSound('reject');
+        triggerAnnouncement({
+          type: 'la_cogia',
+          title: '¡LA COGÍA RIVAL!',
+          subtitle: 'Mataron el 10 con el As de Oro',
+          badge: '+3 piedras rivales'
+        }, 2500);
+      }
+    }
+
+    // 1. PAUSA GENEROSA DE 2.4 SEGUNDOS: Cartas visibles perfectamente en la mesa
     setTimeout(() => {
+      playSwooshSound();
+
+      // 2. Limpiar la mesa
       setPlayedCards([]);
       playedCardsRef.current = [];
       setTrickResult(null);
-      setIsCleaningTable(false);
-      isCleaningTableRef.current = false;
 
+      // Verificar si un equipo ya ganó 2 bazas
       if (newT1Tricks >= 2) {
         resolveHandWinner(1);
       } else if (newT2Tricks >= 2) {
@@ -614,144 +760,217 @@ export default function SolitaireTwoVsTwo() {
         if (newT1Tricks > newT2Tricks) resolveHandWinner(1);
         else resolveHandWinner(2);
       } else {
+        // La mano continúa: el ganador de la baza anterior sale jugando
         setCurrentTurn(winningSeat);
         currentTurnRef.current = winningSeat;
         setTimeLeft(30);
 
-        if (winningSeat !== 0) {
+        if (winningSeat === 0) {
+          isProcessingRef.current = false;
+          setIsProcessingMove(false);
+        } else {
           triggerBotPlay(winningSeat);
         }
       }
-    }, 2200);
+    }, 2400);
   };
 
+  // -------------------------------------------------------------
+  // RESOLUCIÓN DE GANADOR DE LA MANO (IDÉNTICO A LÍNEAS 680-760 EN 1v1)
+  // -------------------------------------------------------------
   const resolveHandWinner = (winningTeam: number) => {
-    const isT1Tumba = isTumbaT1Ref.current || (isTumbaAtrasT1Ref.current && pointsTeam1Ref.current === 8);
-    const isT2Tumba = isTumbaT2Ref.current || (isTumbaAtrasT2Ref.current && pointsTeam2Ref.current === 8);
-    const stake = currentStakeRef.current;
-
-    let newP1 = pointsTeam1Ref.current;
-    let newP2 = pointsTeam2Ref.current;
-
-    if (winningTeam === 1) {
-      if (isT1Tumba) {
-        newP1 = 10;
-        setPointsTeam1(10);
-        pointsTeam1Ref.current = 10;
-        handleEndMatch(1);
-        return;
-      } else if (isT2Tumba) {
-        newP2 = Math.max(0, newP2 - 3);
-        newP1 = Math.min(10, newP1 + 3);
-        setPointsTeam2(newP2);
-        setPointsTeam1(newP1);
-        pointsTeam2Ref.current = newP2;
-        pointsTeam1Ref.current = newP1;
-
-        if (newP2 === 8) {
-          setIsTumbaDeParaAtrasT2(true);
-          isTumbaAtrasT2Ref.current = true;
-        }
-        setIsTumbaTeam2(false);
-        isTumbaT2Ref.current = false;
-
-        triggerAnnouncement('¡CAÍDA EN TUMBA RIVAL!', '-3 piedras para rivales • +3 para ti', 'win_round');
-        playCoinWinSound();
-
-        if (newP1 >= 10) {
-          handleEndMatch(1);
-          return;
-        }
-      } else {
-        newP1 = Math.min(9, newP1 + stake);
-        setPointsTeam1(newP1);
-        pointsTeam1Ref.current = newP1;
-
-        if (newP1 === 9) {
-          setIsTumbaTeam1(true);
-          isTumbaT1Ref.current = true;
-        }
-        triggerAnnouncement('¡MANO PARA TU EQUIPO!', `+${stake} ${stake === 1 ? 'piedra' : 'piedras'} (Azul)`, 'win_round');
-        playCoinWinSound();
-      }
-    } else {
-      if (isT2Tumba) {
-        newP2 = 10;
-        setPointsTeam2(10);
-        pointsTeam2Ref.current = 10;
-        handleEndMatch(2);
-        return;
-      } else if (isT1Tumba) {
-        newP1 = Math.max(0, newP1 - 3);
-        newP2 = Math.min(10, newP2 + 3);
-        setPointsTeam1(newP1);
-        setPointsTeam2(newP2);
-        pointsTeam1Ref.current = newP1;
-        pointsTeam2Ref.current = newP2;
-
-        if (newP1 === 8) {
-          setIsTumbaDeParaAtrasT1(true);
-          isTumbaAtrasT1Ref.current = true;
-        }
-        setIsTumbaTeam1(false);
-        isTumbaT1Ref.current = false;
-
-        triggerAnnouncement('¡CAÍSTE EN TUMBA!', '-3 piedras para tu equipo • +3 para rivales', 'opp_win_round');
-        playSynthSound('tumba');
-
-        if (newP2 >= 10) {
-          handleEndMatch(2);
-          return;
-        }
-      } else {
-        newP2 = Math.min(9, newP2 + stake);
-        setPointsTeam2(newP2);
-        pointsTeam2Ref.current = newP2;
-
-        if (newP2 === 9) {
-          setIsTumbaTeam2(true);
-          isTumbaT2Ref.current = true;
-        }
-        triggerAnnouncement('¡MANO PARA LOS RIVALES!', `+${stake} ${stake === 1 ? 'piedra' : 'piedras'} (Rojo)`, 'opp_win_round');
-      }
-    }
-
-    setTimeout(() => {
-      dealNewHand((handLeader + 1) % 4);
-    }, 3000);
-  };
-
-  const handleEndMatch = (matchWinnerTeam: number) => {
-    setGameOver(true);
+    isProcessingRef.current = true;
+    setIsProcessingMove(true);
     setCurrentTurn(-1);
 
-    const isUserWin = matchWinnerTeam === 1;
-    if (isUserWin) {
-      playCoinWinSound();
-      speakPhrase('¡Felicidades! Has ganado la partida 2 contra 2.');
-    } else {
-      playSynthSound('tumba');
-      speakPhrase('Partida finalizada. Los rivales han ganado.');
+    const team1WonHand = winningTeam === 1;
+
+    const team1InTumba = (pointsTeam1Ref.current >= 9 || (partT1Ref.current === 1 && pointsTeam1Ref.current === 8));
+    const team2InTumba = (pointsTeam2Ref.current >= 9 || (partT2Ref.current === 1 && pointsTeam2Ref.current === 8));
+    const isObligado = team1InTumba && team2InTumba;
+
+    if (isObligado) {
+      if (team1WonHand) {
+        speakPhrase("¡Ganaste la partida en obligado!");
+        vibrateDevice('winMatch');
+        playSynthSound('win');
+        Swal.fire({
+          title: "¡GANASTE LA PARTIDA EN OBLIGADO!",
+          icon: "success",
+          background: "#1a0e06",
+          color: "#fff",
+          confirmButtonColor: "#22c55e"
+        }).then(() => endGame(1));
+      } else {
+        speakPhrase("Los rivales ganan en obligado");
+        vibrateDevice('reject');
+        playSynthSound('reject');
+        Swal.fire({
+          title: "¡LOS RIVALES GANAN EN OBLIGADO!",
+          icon: "error",
+          background: "#1a0e06",
+          color: "#fff",
+          confirmButtonColor: "#ef4444"
+        }).then(() => endGame(2));
+      }
+      return;
     }
 
+    if (team1InTumba) {
+      if (team1WonHand) {
+        speakPhrase("¡Ganaste la partida! Tumba completada.");
+        vibrateDevice('winMatch');
+        playSynthSound('win');
+        Swal.fire({
+          title: "¡GANASTE LA PARTIDA! (Tumba completada)",
+          icon: "success",
+          background: "#1a0e06",
+          color: "#fff",
+          confirmButtonColor: "#22c55e"
+        }).then(() => endGame(1));
+        return;
+      } else {
+        // Tu equipo estaba en Tumba y perdió: -3 piedras para ti, +3 para el rival
+        const newT1 = Math.max(0, pointsTeam1Ref.current - 3);
+        const newT2 = pointsTeam2Ref.current + 3;
+        updatePointsAndTumba(newT1, newT2);
+
+        speakPhrase("Perdiste en tumba. Menos tres piedras.");
+        vibrateDevice('reject');
+        playSynthSound('reject');
+
+        Swal.fire({
+          title: "Perdiste en Tumba (-3 piedras para tu equipo, +3 para el rival)",
+          icon: "error",
+          background: "#1a0e06",
+          color: "#fff",
+          confirmButtonColor: "#ef4444"
+        }).then(() => {
+          if (newT2 >= 10) {
+            endGame(2);
+          } else {
+            dealNewHand((handLeader + 1) % 4);
+          }
+        });
+        return;
+      }
+    } else if (team2InTumba) {
+      if (!team1WonHand) {
+        speakPhrase("Los rivales ganan la partida");
+        vibrateDevice('reject');
+        playSynthSound('reject');
+        Swal.fire({
+          title: "¡LOS RIVALES GANAN LA PARTIDA! (Tumba completada)",
+          icon: "error",
+          background: "#1a0e06",
+          color: "#fff",
+          confirmButtonColor: "#ef4444"
+        }).then(() => endGame(2));
+        return;
+      } else {
+        // Los rivales estaban en Tumba y perdieron: +3 para ti, -3 para ellos
+        const newT1 = pointsTeam1Ref.current + 3;
+        const newT2 = Math.max(0, pointsTeam2Ref.current - 3);
+        updatePointsAndTumba(newT1, newT2);
+
+        speakPhrase("¡El rival cayó en tumba! Más tres piedras para ti.");
+        vibrateDevice('winRound');
+        playSynthSound('win');
+
+        Swal.fire({
+          title: "¡El rival cayó en Tumba! (+3 piedras para tu equipo, -3 para ellos)",
+          icon: "success",
+          background: "#1a0e06",
+          color: "#fff",
+          confirmButtonColor: "#22c55e"
+        }).then(() => {
+          if (newT1 >= 10) {
+            endGame(1);
+          } else {
+            dealNewHand((handLeader + 1) % 4);
+          }
+        });
+        return;
+      }
+    } else {
+      // Mano normal
+      const stake = currentStakeRef.current;
+      if (team1WonHand) {
+        const newT1 = Math.min(9, pointsTeam1Ref.current + stake);
+        updatePointsAndTumba(newT1, pointsTeam2Ref.current);
+
+        speakPhrase(stake > 1 ? `¡Ganaron la mano! Más ${stake} piedras.` : "¡Punto para tu equipo!");
+        vibrateDevice('winRound');
+        playSynthSound('win');
+
+        triggerAnnouncement({
+          type: 'win_round',
+          title: '¡GANARON LA RONDA!',
+          subtitle: stake > 1 ? `Te llevas ${stake} piedras` : 'Sumas 1 piedra a tu cuenta',
+          badge: `Marcador: ${newT1} - ${pointsTeam2Ref.current}`
+        }, 2500);
+
+        Swal.fire({
+          title: stake > 1 ? `¡Ganaron la mano! (+${stake} piedras)` : "¡Punto para tu equipo!",
+          showConfirmButton: false,
+          timer: 2000,
+          background: "#1a0e06",
+          color: "#fff"
+        }).then(() => {
+          dealNewHand((handLeader + 1) % 4);
+        });
+      } else {
+        const newT2 = Math.min(9, pointsTeam2Ref.current + stake);
+        updatePointsAndTumba(pointsTeam1Ref.current, newT2);
+
+        speakPhrase(stake > 1 ? `Los rivales ganan la mano. Más ${stake} piedras.` : "Punto para los rivales");
+        vibrateDevice('reject');
+        playSynthSound('reject');
+
+        triggerAnnouncement({
+          type: 'opp_win_round',
+          title: 'RIVALES GANAN LA RONDA',
+          subtitle: stake > 1 ? `El rival suma ${stake} piedras` : 'El rival suma 1 piedra',
+          badge: `Marcador: ${pointsTeam1Ref.current} - ${newT2}`
+        }, 2500);
+
+        Swal.fire({
+          title: stake > 1 ? `Los rivales ganan la mano (+${stake} piedras)` : "Punto para los rivales",
+          showConfirmButton: false,
+          timer: 2000,
+          background: "#1a0e06",
+          color: "#fff"
+        }).then(() => {
+          dealNewHand((handLeader + 1) % 4);
+        });
+      }
+    }
+  };
+
+  // -------------------------------------------------------------
+  // FIN DE PARTIDA
+  // -------------------------------------------------------------
+  const endGame = (winnerTeam: number) => {
+    const isWinner = winnerTeam === 1;
+
     Swal.fire({
-      title: isUserWin ? '🏆 ¡VICTORIA 2 VS 2!' : '💀 DERROTA',
+      title: isWinner ? '🏆 ¡VICTORIA 2 VS 2!' : '💀 DERROTA',
       html: `
         <div style="text-align: center; font-size: 14px; padding: 6px 0;">
-          <h2 style="color: ${isUserWin ? '#4ade80' : '#f87171'}; font-size: 20px; font-weight: 900; margin-bottom: 8px;">
-            ${isUserWin ? '¡TU EQUIPO HA GANADO EL PARTIDO!' : 'EL EQUIPO RIVAL HA GANADO'}
+          <h2 style="color: ${isWinner ? '#4ade80' : '#f87171'}; font-size: 20px; font-weight: 900; margin-bottom: 8px;">
+            ${isWinner ? '¡TU EQUIPO HA GANADO EL PARTIDO!' : 'EL EQUIPO RIVAL HA GANADO'}
           </h2>
-          <div style="background: rgba(0,0,0,0.5); border: 2px solid ${isUserWin ? '#22c55e' : '#ef4444'}; border-radius: 16px; padding: 12px; margin-bottom: 12px;">
+          <div style="background: rgba(0,0,0,0.5); border: 2px solid ${isWinner ? '#22c55e' : '#ef4444'}; border-radius: 16px; padding: 12px; margin-bottom: 12px;">
             <p style="font-size: 16px; font-weight: 800; color: #facc15;">
               Marcador Final: <strong>${pointsTeam1Ref.current}</strong> (Azul) - <strong>${pointsTeam2Ref.current}</strong> (Rojo)
             </p>
           </div>
           <p style="color: #cbd5e1; font-size: 12px;">
-            Has probado el módulo 2 vs 2 con bots IA. Todas las reglas oficiales, la tumba y las bazas se han ejecutado correctamente.
+            Partida finalizada. Reglas oficiales del Pericón aplicadas correctamente.
           </p>
         </div>
       `,
-      icon: isUserWin ? 'success' : 'error',
+      icon: isWinner ? 'success' : 'error',
       showCancelButton: true,
       confirmButtonText: '🔄 Jugar Otra Vez',
       cancelButtonText: 'Volver al Escritorio',
@@ -768,11 +987,10 @@ export default function SolitaireTwoVsTwo() {
         setPointsTeam2(0);
         pointsTeam1Ref.current = 0;
         pointsTeam2Ref.current = 0;
-        setIsTumbaTeam1(false);
-        setIsTumbaTeam2(false);
-        setIsTumbaDeParaAtrasT1(false);
-        setIsTumbaDeParaAtrasT2(false);
-        setGameOver(false);
+        setPartT1(0);
+        setPartT2(0);
+        partT1Ref.current = 0;
+        partT2Ref.current = 0;
         dealNewHand(0);
       } else {
         router.push('/desk');
@@ -780,11 +998,14 @@ export default function SolitaireTwoVsTwo() {
     });
   };
 
+  // -------------------------------------------------------------
+  // BOTÓN DE PEDIR AUMENTO (1 -> 3 -> 6 -> 9)
+  // -------------------------------------------------------------
   const handlePedir = () => {
-    const isT1Tumba = pointsTeam1 >= 9 || (isTumbaDeParaAtrasT1 && pointsTeam1 === 8);
-    const isT2Tumba = pointsTeam2 >= 9 || (isTumbaDeParaAtrasT2 && pointsTeam2 === 8);
+    const team1InTumba = (pointsTeam1 >= 9 || (partT1 === 1 && pointsTeam1 === 8));
+    const team2InTumba = (pointsTeam2 >= 9 || (partT2 === 1 && pointsTeam2 === 8));
 
-    if (isT1Tumba || isT2Tumba) {
+    if (team1InTumba || team2InTumba) {
       Swal.fire({
         title: '¡EN TUMBA NO SE PIDE!',
         text: 'En Tumba o Tumba de para atrás las apuestas están cerradas. Quien gane la mano se lleva el partido.',
@@ -796,7 +1017,7 @@ export default function SolitaireTwoVsTwo() {
       return;
     }
 
-    if (lastStakeAskedBy === 1 && currentStake > 1) {
+    if (lastStakeAskedBy === 'team1' && currentStake > 1) {
       Swal.fire({
         title: 'NO PUEDES CANTAR DE NUEVO',
         text: 'Tu equipo ya pidió el último aumento. Debes esperar a que los rivales vuelvan a pedir.',
@@ -810,12 +1031,19 @@ export default function SolitaireTwoVsTwo() {
 
     const nextStake = currentStake === 1 ? 3 : (currentStake === 3 ? 6 : 9);
     const stakeType: AnnouncementType = nextStake === 3 ? 'dame_tres' : (nextStake === 6 ? 'quiero_seis' : 'van_nueve');
-    setLastStakeAskedBy(1);
+    setLastStakeAskedBy('team1');
     setCurrentStake(nextStake);
-    triggerAnnouncement('¡PEDISTE AUMENTO!', `La mano ahora vale ${nextStake} piedras`, stakeType);
+    triggerAnnouncement({
+      type: stakeType,
+      title: `¡PIDO ${nextStake}!`,
+      subtitle: `La mano ahora vale ${nextStake} piedras`
+    });
     speakPhrase(`¡Pido ${nextStake}!`);
   };
 
+  // -------------------------------------------------------------
+  // INICIO AL CARGAR LA PÁGINA
+  // -------------------------------------------------------------
   useEffect(() => {
     dealNewHand(0);
   }, [dealNewHand]);
@@ -895,11 +1123,11 @@ export default function SolitaireTwoVsTwo() {
             </div>
 
             {/* Indicador de Tumba / Obligado */}
-            {((pointsTeam1 >= 9 || (isTumbaDeParaAtrasT1 && pointsTeam1 === 8)) && (pointsTeam2 >= 9 || (isTumbaDeParaAtrasT2 && pointsTeam2 === 8))) ? (
+            {((pointsTeam1 >= 9 || (partT1 === 1 && pointsTeam1 === 8)) && (pointsTeam2 >= 9 || (partT2 === 1 && pointsTeam2 === 8))) ? (
               <span className="bg-red-600 text-white text-[7.5px] sm:text-[9px] font-black px-1.5 py-0.5 rounded-full animate-pulse ml-0.5">
                 OBLIGADO
               </span>
-            ) : ((pointsTeam1 >= 9 || (isTumbaDeParaAtrasT1 && pointsTeam1 === 8)) || (pointsTeam2 >= 9 || (isTumbaDeParaAtrasT2 && pointsTeam2 === 8))) ? (
+            ) : ((pointsTeam1 >= 9 || (partT1 === 1 && pointsTeam1 === 8)) || (pointsTeam2 >= 9 || (partT2 === 1 && pointsTeam2 === 8))) ? (
               <span className="bg-amber-500 text-black text-[7.5px] sm:text-[9px] font-black px-1.5 py-0.5 rounded-full animate-bounce ml-0.5">
                 TUMBA
               </span>
@@ -1132,27 +1360,14 @@ export default function SolitaireTwoVsTwo() {
         {/* ABAJO: PUESTO 0 - TÚ Y TUS CARTAS */}
         <div className="w-full flex flex-col items-center justify-center relative z-20 shrink-0 pb-2 sm:pb-4">
           
-          {/* Indicador de Tumba para el usuario */}
+          {/* Indicador de Análisis de Tumba (10 segundos limpios para mirar tus cartas) */}
           {tumbaCountdown !== null && (
             <div className='flex justify-center mb-1 animate-pulse z-30'>
               <div className='flex items-center gap-2 bg-gradient-to-r from-stone-950 via-black to-stone-950 border-2 border-yellow-400 text-yellow-300 px-3 py-0.5 sm:py-1 rounded-xl shadow-2xl'>
                 <span className='text-xs'>⏳</span>
-                <span className='font-black text-[9px] sm:text-xs tracking-wide uppercase'>ANALIZA TUS CARTAS Y LA VIDA</span>
+                <span className='font-black text-[9px] sm:text-xs tracking-wide uppercase'>ANALIZA TUS 3 CARTAS Y LA VIDA</span>
                 <div className='bg-yellow-400 text-black font-black text-[9px] sm:text-xs px-2 py-0.2 rounded-full shadow'>
                   {tumbaCountdown}s
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Aviso de Rivales en Tumba */}
-          {isWaitingOppTumba && (
-            <div className='flex justify-center mb-1 animate-pulse z-30'>
-              <div className='flex items-center gap-2 bg-gradient-to-r from-stone-950 via-black to-stone-950 border-2 border-amber-500 text-amber-300 px-3 py-0.5 sm:py-1 rounded-xl shadow-2xl'>
-                <span className='text-xs'>⏳</span>
-                <span className='font-black text-[9px] sm:text-xs tracking-wide uppercase'>RIVALES EN TUMBA</span>
-                <div className='bg-amber-500 text-black font-black text-[9px] sm:text-xs px-2 py-0.2 rounded-full shadow'>
-                  Analizando (10s)...
                 </div>
               </div>
             </div>
@@ -1211,10 +1426,11 @@ export default function SolitaireTwoVsTwo() {
             {/* Botón de PEDIR */}
             <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
               {(() => {
-                const isTumbaActive = (pointsTeam1 >= 9 || (isTumbaDeParaAtrasT1 && pointsTeam1 === 8)) ||
-                                      (pointsTeam2 >= 9 || (isTumbaDeParaAtrasT2 && pointsTeam2 === 8));
-                const cannotRaise = lastStakeAskedBy === 1 && currentStake > 1;
-                const isPedirDisabled = currentStake >= 9 || isProcessingMove || isCleaningTable || isTumbaActive || tumbaCountdown !== null || isWaitingOppTumba || cannotRaise;
+                const team1InTumba = (pointsTeam1 >= 9 || (partT1 === 1 && pointsTeam1 === 8));
+                const team2InTumba = (pointsTeam2 >= 9 || (partT2 === 1 && pointsTeam2 === 8));
+                const isTumbaActive = team1InTumba || team2InTumba;
+                const cannotRaise = lastStakeAskedBy === 'team1' && currentStake > 1;
+                const isPedirDisabled = currentStake >= 9 || isProcessingMove || isTumbaActive || tumbaCountdown !== null || cannotRaise;
                 
                 return (
                   <button
@@ -1250,7 +1466,7 @@ export default function SolitaireTwoVsTwo() {
               const isTrump = isTrumpCard(card.id, currentLifeId);
               const isBlockedByPelao = isPelaoActive && !isTrump;
 
-              const isTurn = currentTurn === 0 && !isProcessingMove && !isCleaningTable && tumbaCountdown === null && !isWaitingOppTumba;
+              const isTurn = currentTurn === 0 && !isProcessingMove && tumbaCountdown === null;
               let rotClass = index === 0 ? 'rotate-[-3deg]' : (index === 1 ? 'rotate-0' : 'rotate-[3deg]');
 
               return (
