@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import * as fonts from "@/components/fonts";
 import { Button } from "@/components/ui/button";
@@ -71,24 +72,27 @@ export default function Home() {
           src="/goat.svg"
           width={230}
           height={230}
-          alt=""
+          alt="Mascota oficial de El Pericón - Chivo de Carora"
           className="w-[200px] h-[200px] xl:w-[320px] xl:h-[220px]"
+          priority
         />
+        <h1 className="sr-only">El Pericón - Juego de Cartas Venezolano Tradicional en Vivo</h1>
         <Image
           src="/brand.svg"
-          alt=""
+          alt="El Pericón - Juego de Naipes"
           width={130}
           height={130}
           className="w-[200px] xl:w-[260px] h-auto"
+          priority
         />
 
         <div className="pt-2 flex flex-col items-center gap-1.5">
           <span className="text-[10px] sm:text-xs font-black tracking-widest text-amber-300 uppercase bg-black/60 border border-amber-500/40 px-3 py-0.5 rounded-full shadow backdrop-blur-sm">
             🌵 Carora • Estado Lara
           </span>
-          <p className={`${fonts.angkor.className} text-white font-bowly text-[16px] xl:text-[19px] leading-[22px] w-[330px] text-center drop-shadow-md`}>
+          <h2 className={`${fonts.angkor.className} text-white font-bowly text-[16px] xl:text-[19px] leading-[22px] w-[330px] text-center drop-shadow-md`}>
             ¡El legendario juego de naipes de la tierra del chivo y el cocuy!
-          </p>
+          </h2>
         </div>
 
         {/* User Session Info / Action Buttons con Alta Presencia */}
@@ -165,6 +169,16 @@ export default function Home() {
             <div className="mx-4 md:mx-6 hover:cursor-pointer z-10">
               <Image width={40} height={40} src="/telegram.svg" alt="Telegram" />
             </div>
+          </div>
+
+          <div className="mt-6 flex items-center justify-center gap-3 text-[11px] text-amber-300/70 font-semibold">
+            <Link href="/tutorial-preview" className="hover:text-amber-200 underline transition-colors">
+              ¿Cómo jugar El Pericón?
+            </Link>
+            <span>•</span>
+            <Link href="/terminos" className="hover:text-amber-200 underline transition-colors">
+              Términos y Condiciones
+            </Link>
           </div>
         </div>
       </div>
