@@ -14,9 +14,10 @@ import { playCardSound, playSwooshSound, vibrateDevice, playSynthSound, speakPhr
 import { playCardDealSound, playCardDropSound, playCoinWinSound, playCantoSound, playChatPopSound } from '@/lib/soundEffects';
 import GameTurnTimer from '@/components/game-turn-timer';
 import { reportAppError } from '@/lib/errorLogger';
+import { WebRTCVoiceManager, VoicePeerState } from '@/lib/webrtcVoiceManager';
 
 import * as fonts from '@/components/fonts';
-import { Copy, Check, Share2, Users, Clock, Sparkles } from 'lucide-react';
+import { Copy, Check, Share2, Users, Clock, Sparkles, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
 import Swal from 'sweetalert2';
 import 'sweetalert2/src/sweetalert2.scss';
 import styles from './page.module.css';
@@ -178,6 +179,14 @@ export default function GameTwoVsTwo() {
   useEffect(() => { userRef.current = user; }, [user]);
   const betAmountRef = useRef(betAmount);
   useEffect(() => { betAmountRef.current = betAmount; }, [betAmount]);
+
+  // Estados de Chat de Voz WebRTC P2P (Cero consumo en Railway)
+  const voiceManagerRef = useRef<WebRTCVoiceManager | null>(null);
+  const [isVoiceSupported, setIsVoiceSupported] = useState<boolean>(true);
+  const [isMicMuted, setIsMicMuted] = useState<boolean>(false);
+  const [isDeafened, setIsDeafened] = useState<boolean>(false);
+  const [speakingPeers, setSpeakingPeers] = useState<Record<number, boolean>>({});
+  const [voicePeerStates, setVoicePeerStates] = useState<Record<number, VoicePeerState>>({});
 
   // Inicialización de usuario invitado persistente para evitar colisiones de asientos en enlaces compartidos
   useEffect(() => {
@@ -673,6 +682,89 @@ export default function GameTwoVsTwo() {
       if (tumbaCountdownTimerRef.current) clearInterval(tumbaCountdownTimerRef.current);
     };
   }, [connection, roomName]);
+
+  // ==========================================
+  // CHAT DE VOZ WEBRTC PEER-TO-PEER (P2P)
+  // Comunicación directa de navegador a navegador
+  // Cero consumo de ancho de banda en Railway
+  // ==========================================
+  useEffect(() => {
+    if (!connection || !roomName || mySeatIndex < 0) return;
+    if (typeof window === 'undefined') return;
+
+    if (typeof RTCPeerConnection === 'undefined') {
+      setIsVoiceSupported(false);
+      return;
+    }
+
+    let isSubscribed = true;
+    let vm = voiceManagerRef.current;
+
+    if (!vm) {
+      vm = new WebRTCVoiceManager();
+      voiceManagerRef.current = vm;
+
+      vm.onSpeakingChange = (seatIdx, isSpeaking) => {
+        if (!isSubscribed) return;
+        setSpeakingPeers(prev => ({ ...prev, [seatIdx]: isSpeaking }));
+      };
+
+      vm.onLocalMuteChange = (muted) => {
+        if (!isSubscribed) return;
+        setIsMicMuted(muted);
+      };
+
+      vm.onStateChange = (states) => {
+        if (!isSubscribed) return;
+        setVoicePeerStates({ ...states });
+      };
+
+      const myName = userRef.current?.name && userRef.current.name !== 'nulo' ? userRef.current.name : `Jugador ${mySeatIndex + 1}`;
+      vm.init(roomName, mySeatIndex, myName, connection).then((hasMic) => {
+        if (!isSubscribed) return;
+        if (!hasMic) {
+          setIsMicMuted(true);
+        }
+      });
+    }
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [connection, roomName, mySeatIndex]);
+
+  // Limpieza completa al salir de la sala
+  useEffect(() => {
+    return () => {
+      if (voiceManagerRef.current) {
+        voiceManagerRef.current.destroy();
+        voiceManagerRef.current = null;
+      }
+    };
+  }, []);
+
+  // Conectar con compañeros y rivales cuando entran a la sala o cambian asientos
+  useEffect(() => {
+    if (!voiceManagerRef.current || !roomState?.seats || mySeatIndex < 0) return;
+
+    roomState.seats.forEach((s) => {
+      if (s.seatIndex !== mySeatIndex && s.seatIndex >= 0 && s.seatIndex < 4 && s.connectionId) {
+        voiceManagerRef.current?.connectToPeer(s.seatIndex, s.name);
+      }
+    });
+  }, [roomState?.seats, mySeatIndex]);
+
+  const toggleVoiceMute = () => {
+    if (!voiceManagerRef.current) return;
+    const muted = voiceManagerRef.current.toggleMute();
+    setIsMicMuted(muted);
+  };
+
+  const toggleDeafenAudio = () => {
+    if (!voiceManagerRef.current) return;
+    const deaf = voiceManagerRef.current.toggleDeafen();
+    setIsDeafened(deaf);
+  };
 
   // Reglas oficiales de La Tumba y Obligado 2 vs 2 (10 segundos de análisis y confirmación)
   const checkTumbaOnNewHand = (starterPlayer: number) => {
@@ -1985,8 +2077,38 @@ export default function GameTwoVsTwo() {
           </div>
         </div>
 
-        {/* Derecha: Pote, Compartir y Salir */}
+        {/* Derecha: Controles de Voz, Pote, Compartir y Salir */}
         <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          {/* Controles de Voz WebRTC P2P */}
+          {isVoiceSupported && (
+            <div className="flex items-center gap-1 bg-black/60 border border-amber-500/40 p-0.5 sm:p-1 rounded-lg sm:rounded-xl shadow-inner">
+              <button
+                type="button"
+                onClick={toggleVoiceMute}
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-md sm:rounded-lg flex items-center justify-center transition active:scale-95 ${
+                  isMicMuted
+                    ? 'bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-500/40'
+                    : 'bg-emerald-950/80 hover:bg-emerald-800 text-emerald-200 border border-emerald-500/50 shadow-sm shadow-emerald-500/30'
+                }`}
+                title={isMicMuted ? 'Micrófono MUTEADO (Clic para activar)' : 'Micrófono ACTIVO (Clic para silenciar)'}
+              >
+                {isMicMuted ? <MicOff size={14} /> : <Mic size={14} className={speakingPeers[mySeatIndex] ? 'text-emerald-400 animate-pulse' : ''} />}
+              </button>
+              <button
+                type="button"
+                onClick={toggleDeafenAudio}
+                className={`w-7 h-7 sm:w-8 sm:h-8 rounded-md sm:rounded-lg flex items-center justify-center transition active:scale-95 ${
+                  isDeafened
+                    ? 'bg-red-950/80 hover:bg-red-900 text-red-300 border border-red-500/40'
+                    : 'bg-stone-800/80 hover:bg-stone-700 text-stone-200 border border-stone-600/50'
+                }`}
+                title={isDeafened ? 'Audio de Sala ENSORDECIDO (Clic para escuchar)' : 'Escuchando la sala (Clic para ensordecer)'}
+              >
+                {isDeafened ? <VolumeX size={14} /> : <Volume2 size={14} />}
+              </button>
+            </div>
+          )}
+
           {!isMatchmaking && (
             <button
               type="button"
@@ -2164,20 +2286,32 @@ export default function GameTwoVsTwo() {
                         }`}
                       >
                         <div className="flex items-center gap-2.5">
-                          {seat && seat.avatarUrl && seat.avatarUrl.length > 5 ? (
-                            <img src={seat.avatarUrl} alt={seat.name} className="w-8 h-8 rounded-xl object-cover border border-amber-400/40 shrink-0" />
-                          ) : (
-                            <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm font-black shrink-0 ${
-                              seat
-                                ? (isTeam1 ? 'bg-blue-600 text-white shadow' : 'bg-red-600 text-white shadow')
-                                : 'bg-slate-800 text-slate-400'
-                            }`}>
-                              {seat ? (isTeam1 ? '🛡️' : '⚔️') : '⏳'}
-                            </div>
-                          )}
+                          <div className="relative shrink-0">
+                            {seat && seat.avatarUrl && seat.avatarUrl.length > 5 ? (
+                              <img src={seat.avatarUrl} alt={seat.name} className={`w-8 h-8 rounded-xl object-cover border border-amber-400/40 shrink-0 ${speakingPeers[seatIdx] ? 'ring-2 ring-emerald-400 shadow-md shadow-emerald-500/60' : ''}`} />
+                            ) : (
+                              <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm font-black shrink-0 ${
+                                seat
+                                  ? (isTeam1 ? 'bg-blue-600 text-white shadow' : 'bg-red-600 text-white shadow')
+                                  : 'bg-slate-800 text-slate-400'
+                              } ${speakingPeers[seatIdx] ? 'ring-2 ring-emerald-400 shadow-md shadow-emerald-500/60' : ''}`}>
+                                {seat ? (isTeam1 ? '🛡️' : '⚔️') : '⏳'}
+                              </div>
+                            )}
+                            {seat && (seatIdx === mySeatIndex ? isMicMuted : voicePeerStates[seatIdx]?.isMuted) && (
+                              <span className="absolute -bottom-1 -right-1 bg-red-600 text-white rounded-full p-0.5 border border-red-300 shadow">
+                                <MicOff size={8} />
+                              </span>
+                            )}
+                          </div>
                           <div className="truncate flex-1 leading-tight">
                             <span className="text-xs font-extrabold block truncate flex items-center gap-1.5">
                               <span className="truncate">{seat ? `${seat.name} ${isMe ? '(Tú)' : ''}` : `Esperando ${roleTitle}...`}</span>
+                              {seat && speakingPeers[seatIdx] && (
+                                <span className="bg-emerald-500 text-white text-[8px] px-1.5 py-0.2 rounded-full font-black animate-pulse flex items-center gap-0.5 shrink-0">
+                                  <Mic size={9} /> Hablando
+                                </span>
+                              )}
                               {seat && seat.isConnected === false && (
                                 <span className="bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9px] px-1.5 py-0.2 rounded-full font-black animate-pulse shrink-0">
                                   Reconectando...
@@ -2279,13 +2413,25 @@ export default function GameTwoVsTwo() {
           return (
             <div className="w-full flex flex-col items-center justify-center relative z-10 shrink-0">
               <div className={`bg-gradient-to-r ${isPartnerTeam1 ? 'from-blue-950/90 to-sky-950/90 border-blue-400/60 shadow-blue-500/20' : 'from-red-950/90 to-rose-950/90 border-red-400/60 shadow-red-500/20'} border-2 px-2.5 py-0.5 sm:px-3 sm:py-1 rounded-xl sm:rounded-2xl flex items-center gap-1.5 sm:gap-2 shadow-lg`}>
-                {partner.avatarUrl && partner.avatarUrl.length > 5 ? (
-                  <img src={partner.avatarUrl} alt={partner.name} className="w-4 h-4 sm:w-6 sm:h-6 rounded-full object-cover border border-blue-200 shrink-0" />
-                ) : (
-                  <div className={`w-4 h-4 sm:w-6 sm:h-6 rounded-full ${isPartnerTeam1 ? 'bg-blue-500 border-blue-200' : 'bg-red-500 border-red-200'} text-white flex items-center justify-center text-[8px] sm:text-[10px] font-black border shrink-0`}>
-                    🤝
-                  </div>
-                )}
+                <div className="relative shrink-0">
+                  {partner.avatarUrl && partner.avatarUrl.length > 5 ? (
+                    <img src={partner.avatarUrl} alt={partner.name} className={`w-4 h-4 sm:w-6 sm:h-6 rounded-full object-cover border border-blue-200 shrink-0 ${speakingPeers[partnerSeat] ? 'ring-2 ring-emerald-400 shadow-md shadow-emerald-500/70 scale-105 transition-all' : ''}`} />
+                  ) : (
+                    <div className={`w-4 h-4 sm:w-6 sm:h-6 rounded-full ${isPartnerTeam1 ? 'bg-blue-500 border-blue-200' : 'bg-red-500 border-red-200'} text-white flex items-center justify-center text-[8px] sm:text-[10px] font-black border shrink-0 ${speakingPeers[partnerSeat] ? 'ring-2 ring-emerald-400 shadow-md shadow-emerald-500/70 scale-105 transition-all' : ''}`}>
+                      🤝
+                    </div>
+                  )}
+                  {voicePeerStates[partnerSeat]?.isMuted && (
+                    <span className="absolute -bottom-1 -right-1 bg-red-600/95 text-white rounded-full p-0.5 border border-red-300 shadow">
+                      <MicOff size={7} />
+                    </span>
+                  )}
+                  {speakingPeers[partnerSeat] && (
+                    <span className="absolute -top-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5 border border-emerald-300 animate-bounce shadow">
+                      <Mic size={7} />
+                    </span>
+                  )}
+                </div>
                 <div className="text-left leading-tight">
                   <span className={`text-[10px] sm:text-xs font-bold ${isPartnerTeam1 ? 'text-blue-100' : 'text-red-100'} block max-w-[110px] sm:max-w-none truncate`}>{partner.name}</span>
                   <span className={`text-[7px] sm:text-[8px] ${isPartnerTeam1 ? 'text-blue-300' : 'text-red-300'} uppercase font-black`}>Compañero ({isPartnerTeam1 ? 'Azul' : 'Rojo'})</span>
@@ -2321,13 +2467,25 @@ export default function GameTwoVsTwo() {
             return (
               <div className="flex flex-col items-center justify-center z-10 w-12 sm:w-24 shrink-0 relative">
                 <div className={`bg-gradient-to-b ${isRival1Team1 ? 'from-blue-950/90 to-sky-950/90' : 'from-red-950/90 to-rose-950/90'} border-2 ${isRival1Turn ? 'border-yellow-400 ring-2 ring-yellow-400/50' : (isRival1Team1 ? 'border-blue-500/60' : 'border-red-500/60')} p-1 sm:p-1.5 rounded-xl sm:rounded-2xl flex flex-col items-center text-center shadow-lg ${isRival1Team1 ? 'shadow-blue-500/20' : 'shadow-red-500/20'} w-full`}>
-                  {rival1.avatarUrl && rival1.avatarUrl.length > 5 ? (
-                    <img src={rival1.avatarUrl} alt={rival1.name} className="w-5 h-5 sm:w-7 sm:h-7 rounded-full object-cover border border-red-200 shrink-0" />
-                  ) : (
-                    <div className={`w-5 h-5 sm:w-7 sm:h-7 rounded-full ${isRival1Team1 ? 'bg-blue-600 border-blue-200' : 'bg-red-600 border-red-200'} text-white flex items-center justify-center text-[9px] sm:text-xs font-bold border shrink-0`}>
-                      ⚔️
-                    </div>
-                  )}
+                  <div className="relative shrink-0">
+                    {rival1.avatarUrl && rival1.avatarUrl.length > 5 ? (
+                      <img src={rival1.avatarUrl} alt={rival1.name} className={`w-5 h-5 sm:w-7 sm:h-7 rounded-full object-cover border border-red-200 shrink-0 ${speakingPeers[leftRivalSeat] ? 'ring-2 ring-emerald-400 shadow-md shadow-emerald-500/70 scale-105 transition-all' : ''}`} />
+                    ) : (
+                      <div className={`w-5 h-5 sm:w-7 sm:h-7 rounded-full ${isRival1Team1 ? 'bg-blue-600 border-blue-200' : 'bg-red-600 border-red-200'} text-white flex items-center justify-center text-[9px] sm:text-xs font-bold border shrink-0 ${speakingPeers[leftRivalSeat] ? 'ring-2 ring-emerald-400 shadow-md shadow-emerald-500/70 scale-105 transition-all' : ''}`}>
+                        ⚔️
+                      </div>
+                    )}
+                    {voicePeerStates[leftRivalSeat]?.isMuted && (
+                      <span className="absolute -bottom-1 -right-1 bg-red-600/95 text-white rounded-full p-0.5 border border-red-300 shadow">
+                        <MicOff size={7} />
+                      </span>
+                    )}
+                    {speakingPeers[leftRivalSeat] && (
+                      <span className="absolute -top-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5 border border-emerald-300 animate-bounce shadow">
+                        <Mic size={7} />
+                      </span>
+                    )}
+                  </div>
                   <span className={`text-[9px] sm:text-[11px] font-bold ${isRival1Team1 ? 'text-blue-100' : 'text-red-100'} mt-0.5 truncate w-full`}>{rival1.name}</span>
                   <span className={`text-[7px] sm:text-[8px] ${isRival1Team1 ? 'text-blue-300' : 'text-red-300'} font-black uppercase`}>Rival 1</span>
                   {isRival1Turn && (
@@ -2507,13 +2665,25 @@ export default function GameTwoVsTwo() {
             return (
               <div className="flex flex-col items-center justify-center z-10 w-12 sm:w-24 shrink-0 relative">
                 <div className={`bg-gradient-to-b ${isRival2Team1 ? 'from-blue-950/90 to-sky-950/90' : 'from-red-950/90 to-rose-950/90'} border-2 ${isRival2Turn ? 'border-yellow-400 ring-2 ring-yellow-400/50' : (isRival2Team1 ? 'border-blue-500/60' : 'border-red-500/60')} p-1 sm:p-1.5 rounded-xl sm:rounded-2xl flex flex-col items-center text-center shadow-lg ${isRival2Team1 ? 'shadow-blue-500/20' : 'shadow-red-500/20'} w-full`}>
-                  {rival2.avatarUrl && rival2.avatarUrl.length > 5 ? (
-                    <img src={rival2.avatarUrl} alt={rival2.name} className="w-5 h-5 sm:w-7 sm:h-7 rounded-full object-cover border border-red-200 shrink-0" />
-                  ) : (
-                    <div className={`w-5 h-5 sm:w-7 sm:h-7 rounded-full ${isRival2Team1 ? 'bg-blue-600 border-blue-200' : 'bg-red-600 border-red-200'} text-white flex items-center justify-center text-[9px] sm:text-xs font-bold border shrink-0`}>
-                      ⚔️
-                    </div>
-                  )}
+                  <div className="relative shrink-0">
+                    {rival2.avatarUrl && rival2.avatarUrl.length > 5 ? (
+                      <img src={rival2.avatarUrl} alt={rival2.name} className={`w-5 h-5 sm:w-7 sm:h-7 rounded-full object-cover border border-red-200 shrink-0 ${speakingPeers[rightRivalSeat] ? 'ring-2 ring-emerald-400 shadow-md shadow-emerald-500/70 scale-105 transition-all' : ''}`} />
+                    ) : (
+                      <div className={`w-5 h-5 sm:w-7 sm:h-7 rounded-full ${isRival2Team1 ? 'bg-blue-600 border-blue-200' : 'bg-red-600 border-red-200'} text-white flex items-center justify-center text-[9px] sm:text-xs font-bold border shrink-0 ${speakingPeers[rightRivalSeat] ? 'ring-2 ring-emerald-400 shadow-md shadow-emerald-500/70 scale-105 transition-all' : ''}`}>
+                        ⚔️
+                      </div>
+                    )}
+                    {voicePeerStates[rightRivalSeat]?.isMuted && (
+                      <span className="absolute -bottom-1 -right-1 bg-red-600/95 text-white rounded-full p-0.5 border border-red-300 shadow">
+                        <MicOff size={7} />
+                      </span>
+                    )}
+                    {speakingPeers[rightRivalSeat] && (
+                      <span className="absolute -top-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5 border border-emerald-300 animate-bounce shadow">
+                        <Mic size={7} />
+                      </span>
+                    )}
+                  </div>
                   <span className={`text-[9px] sm:text-[11px] font-bold ${isRival2Team1 ? 'text-blue-100' : 'text-red-100'} mt-0.5 truncate w-full`}>{rival2.name}</span>
                   <span className={`text-[7px] sm:text-[8px] ${isRival2Team1 ? 'text-blue-300' : 'text-red-300'} font-black uppercase`}>Rival 2</span>
                   {isRival2Turn && (
@@ -2595,12 +2765,24 @@ export default function GameTwoVsTwo() {
             
             {/* Identidad del Jugador Local */}
             <div className="flex items-center gap-1 sm:gap-2 bg-blue-950/80 border border-blue-500/50 px-2 py-0.5 sm:py-1.5 rounded-xl sm:rounded-2xl shadow shrink-0">
-              <div className="w-5 h-5 sm:w-7 sm:h-7 rounded-full overflow-hidden border border-blue-200 shrink-0 bg-blue-600 flex items-center justify-center text-xs font-black">
-                <img
-                  src={user?.avatarUrl && user.avatarUrl.length > 5 ? user.avatarUrl : '/avatar.png'}
-                  alt={user?.name || 'Tú'}
-                  className="w-full h-full object-cover"
-                />
+              <div className="relative shrink-0">
+                <div className={`w-5 h-5 sm:w-7 sm:h-7 rounded-full overflow-hidden border border-blue-200 shrink-0 bg-blue-600 flex items-center justify-center text-xs font-black ${speakingPeers[mySeatIndex] ? 'ring-2 ring-emerald-400 shadow-md shadow-emerald-500/70 scale-105 transition-all' : ''}`}>
+                  <img
+                    src={user?.avatarUrl && user.avatarUrl.length > 5 ? user.avatarUrl : '/avatar.png'}
+                    alt={user?.name || 'Tú'}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+                {isMicMuted && (
+                  <span className="absolute -bottom-1 -right-1 bg-red-600/95 text-white rounded-full p-0.5 border border-red-300 shadow">
+                    <MicOff size={7} />
+                  </span>
+                )}
+                {speakingPeers[mySeatIndex] && !isMicMuted && (
+                  <span className="absolute -top-1 -right-1 bg-emerald-500 text-white rounded-full p-0.5 border border-emerald-300 animate-bounce shadow">
+                    <Mic size={7} />
+                  </span>
+                )}
               </div>
               <div className="text-left leading-tight">
                 <span className="text-[10px] sm:text-xs font-bold text-blue-100 block max-w-[70px] sm:max-w-[120px] truncate">
