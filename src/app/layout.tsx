@@ -30,6 +30,17 @@ export const metadata: Metadata = {
   title: "El Pericón - Juego de Cartas Venezolano",
   description: "El legendario juego de naipes del llano venezolano en vivo. Partidas 1 vs 1 y 2 vs 2 con amigos.",
   manifest: "/manifest.json",
+  icons: {
+    icon: [
+      { url: '/favicon.ico', sizes: 'any' },
+      { url: '/icon.png', sizes: '512x512', type: 'image/png' },
+      { url: '/icon.svg', type: 'image/svg+xml' },
+    ],
+    shortcut: '/favicon.ico',
+    apple: [
+      { url: '/apple-icon.png', sizes: '180x180', type: 'image/png' },
+    ],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",
