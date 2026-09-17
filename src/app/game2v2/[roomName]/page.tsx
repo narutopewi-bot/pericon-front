@@ -76,8 +76,14 @@ const evaluatePericonCard = (cardId: number, lifeCardId: number): number => {
   if (lifeSuit >= 0 && cardSuit === lifeSuit && faceVal === 2) return 24;
 
   if (lifeSuit >= 0 && cardSuit === lifeSuit) {
-    if (faceVal === 1) return 14; // El As de la vida vale 5 y medio (no mata al 4 ni al 5)
-    return 11 + faceVal; // 4=15, 5=16, 6=17, 7=18, 10=21, 11=22, 12=23
+    if (faceVal === 4) return 15;
+    if (faceVal === 5) return 16;
+    if (faceVal === 1) return 17; // As de la vida ("cinco y medio"): ¡le gana al 4 y al 5 de la vida!
+    if (faceVal === 6) return 18; // El 6 de la vida le gana al As
+    if (faceVal === 7) return 19;
+    if (faceVal === 10) return 20;
+    if (faceVal === 11) return 21;
+    if (faceVal === 12) return 22;
   }
   return 0; // Carta común
 };
@@ -1166,6 +1172,62 @@ export default function GameTwoVsTwo() {
     if (isMyTeamWinner) {
       vibrateDevice('winMatch');
       playSynthSound('win');
+    }
+
+    // ---------------------------------------------------------
+    // DETECCIÓN DE LA COGÍA (10 DE ORO MATADO CON 1 DE ORO)
+    // ---------------------------------------------------------
+    const hasTenGold = fourCards.some(p => p.card.id === 7);
+    const hasOneGold = fourCards.some(p => p.card.id === 0);
+
+    if (hasTenGold && hasOneGold) {
+      const tenGoldIdx = fourCards.findIndex(p => p.card.id === 7);
+      const oneGoldIdx = fourCards.findIndex(p => p.card.id === 0);
+
+      // La Cogía ocurre cuando el 1 de Oro se tira después para matar el 10 de Oro de un rival
+      if (oneGoldIdx > tenGoldIdx) {
+        const tenGoldPlayer = fourCards[tenGoldIdx].playerIndex;
+        const oneGoldPlayer = fourCards[oneGoldIdx].playerIndex;
+        const tenGoldTeam = (tenGoldPlayer === 0 || tenGoldPlayer === 2) ? 1 : 2;
+        const oneGoldTeam = (oneGoldPlayer === 0 || oneGoldPlayer === 2) ? 1 : 2;
+
+        if (tenGoldTeam !== oneGoldTeam) {
+          const isMyTeamCogia = oneGoldTeam === myTeam;
+          if (oneGoldTeam === 1) {
+            const newT1 = pointsTeam1Ref.current + 3;
+            updatePoints(newT1, pointsTeam2Ref.current);
+            if (isMyTeamCogia) {
+              speakPhrase("¡La Cogía! Mataron el diez con el As de Oro.");
+              vibrateDevice('winMatch');
+              playSynthSound('win');
+            } else {
+              speakPhrase("¡La Cogía para los rivales!");
+            }
+            triggerAnnouncement({
+              type: 'la_cogia',
+              title: isMyTeamCogia ? '¡LA COGÍA!' : '¡LA COGÍA RIVAL!',
+              subtitle: '¡Mataron el 10 con el As de Oro!',
+              badge: '+3 piedras automáticas'
+            }, 3500);
+          } else {
+            const newT2 = pointsTeam2Ref.current + 3;
+            updatePoints(pointsTeam1Ref.current, newT2);
+            if (isMyTeamCogia) {
+              speakPhrase("¡La Cogía! Mataron el diez con el As de Oro.");
+              vibrateDevice('winMatch');
+              playSynthSound('win');
+            } else {
+              speakPhrase("¡La Cogía para los rivales!");
+            }
+            triggerAnnouncement({
+              type: 'la_cogia',
+              title: isMyTeamCogia ? '¡LA COGÍA!' : '¡LA COGÍA RIVAL!',
+              subtitle: 'Mataron el 10 con el As de Oro',
+              badge: '+3 piedras automáticas'
+            }, 3500);
+          }
+        }
+      }
     }
 
     // Pausa de 3.8 segundos para apreciar las 4 cartas y el ganador

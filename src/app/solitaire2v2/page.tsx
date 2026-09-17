@@ -62,8 +62,14 @@ const evaluateCard = (cardId: number, lifeId: number): number => {
 
   // Resto de cartas del palo de la vida
   if (lifeSuit >= 0 && cardSuit === lifeSuit) {
-    if (faceVal === 1) return 14; // As de la vida ("5 y medio")
-    return 11 + faceVal; // 4=15, 5=16, 6=17, 7=18, 10=21, 11=22, 12=23
+    if (faceVal === 4) return 15;
+    if (faceVal === 5) return 16;
+    if (faceVal === 1) return 17; // As de la vida ("cinco y medio"): ¡le gana al 4 y al 5 de la vida!
+    if (faceVal === 6) return 18; // El 6 de la vida le gana al As
+    if (faceVal === 7) return 19;
+    if (faceVal === 10) return 20;
+    if (faceVal === 11) return 21;
+    if (faceVal === 12) return 22;
   }
 
   return 0; // Carta común
@@ -706,39 +712,57 @@ export default function SolitaireTwoVsTwo() {
     // ---------------------------------------------------------
     // DETECCIÓN DE LA COGÍA (10 DE ORO MATADO CON 1 DE ORO)
     // ---------------------------------------------------------
-    const team1InTumba = (pointsTeam1Ref.current >= 9 || (partT1Ref.current === 1 && pointsTeam1Ref.current === 8));
-    const team2InTumba = (pointsTeam2Ref.current >= 9 || (partT2Ref.current === 1 && pointsTeam2Ref.current === 8));
-    const isAnyTumba = team1InTumba || team2InTumba;
-
     const hasTenGold = trickCards.some(p => p.card.id === 7);
     const hasOneGold = trickCards.some(p => p.card.id === 0);
 
-    if (!isAnyTumba && hasTenGold && hasOneGold) {
-      const oneGoldPlayer = trickCards.find(p => p.card.id === 0)?.playerIndex ?? -1;
-      const cogiaTeam = (oneGoldPlayer === 0 || oneGoldPlayer === 2) ? 1 : 2;
+    if (hasTenGold && hasOneGold) {
+      const tenGoldIdx = trickCards.findIndex(p => p.card.id === 7);
+      const oneGoldIdx = trickCards.findIndex(p => p.card.id === 0);
 
-      if (cogiaTeam === 1) {
-        updatePointsAndTumba(pointsTeam1Ref.current + 3, pointsTeam2Ref.current);
-        speakPhrase("¡La Cogía! Mataste el diez con el As de Oro");
-        vibrateDevice('winMatch');
-        playSynthSound('win');
-        triggerAnnouncement({
-          type: 'la_cogia',
-          title: '¡LA COGÍA!',
-          subtitle: '¡Mataron el 10 con el As de Oro!',
-          badge: '+3 piedras automáticas'
-        }, 2500);
-      } else {
-        updatePointsAndTumba(pointsTeam1Ref.current, pointsTeam2Ref.current + 3);
-        speakPhrase("¡La Cogía para los rivales!");
-        vibrateDevice('reject');
-        playSynthSound('reject');
-        triggerAnnouncement({
-          type: 'la_cogia',
-          title: '¡LA COGÍA RIVAL!',
-          subtitle: 'Mataron el 10 con el As de Oro',
-          badge: '+3 piedras rivales'
-        }, 2500);
+      // La Cogía ocurre cuando el 1 de Oro se tira para matar el 10 de Oro de un rival
+      if (oneGoldIdx > tenGoldIdx) {
+        const tenGoldPlayer = trickCards[tenGoldIdx].playerIndex;
+        const oneGoldPlayer = trickCards[oneGoldIdx].playerIndex;
+        const tenGoldTeam = (tenGoldPlayer === 0 || tenGoldPlayer === 2) ? 1 : 2;
+        const oneGoldTeam = (oneGoldPlayer === 0 || oneGoldPlayer === 2) ? 1 : 2;
+
+        if (tenGoldTeam !== oneGoldTeam) {
+          if (oneGoldTeam === 1) {
+            const newT1 = pointsTeam1Ref.current + 3;
+            updatePointsAndTumba(newT1, pointsTeam2Ref.current);
+            speakPhrase("¡La Cogía! Mataron el diez con el As de Oro.");
+            vibrateDevice('winMatch');
+            playSynthSound('win');
+            triggerAnnouncement({
+              type: 'la_cogia',
+              title: '¡LA COGÍA!',
+              subtitle: '¡Mataron el 10 con el As de Oro!',
+              badge: '+3 piedras automáticas'
+            }, 3000);
+
+            if (newT1 >= 10) {
+              endGame(1);
+              return;
+            }
+          } else {
+            const newT2 = pointsTeam2Ref.current + 3;
+            updatePointsAndTumba(pointsTeam1Ref.current, newT2);
+            speakPhrase("¡La Cogía para los rivales!");
+            vibrateDevice('reject');
+            playSynthSound('reject');
+            triggerAnnouncement({
+              type: 'la_cogia',
+              title: '¡LA COGÍA RIVAL!',
+              subtitle: 'Mataron el 10 con el As de Oro',
+              badge: '+3 piedras rivales'
+            }, 3000);
+
+            if (newT2 >= 10) {
+              endGame(2);
+              return;
+            }
+          }
+        }
       }
     }
 
