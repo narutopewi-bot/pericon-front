@@ -1489,7 +1489,7 @@ export default function GameTwoVsTwo() {
     // Tarifa de 10 monedas por entrar/jugar (para la casa). El ganador no se gana nada de pozo de monedas.
     if (isFriendlyRoom) {
       const roomFee = 10;
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
       let currentUserId = user?.id ? parseInt(user.id.toString(), 10) : 0;
       let storedUser: any = null;
       if (typeof window !== 'undefined') {
@@ -1628,7 +1628,7 @@ export default function GameTwoVsTwo() {
     const netCoinsChange = isPlayerTeamWinner ? (myShare - betAmount) : -betAmount;
 
     // Obtener el ID del usuario actual
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
     let currentUserId = user?.id ? parseInt(user.id.toString(), 10) : 0;
     let storedUser: any = null;
     if (typeof window !== 'undefined') {

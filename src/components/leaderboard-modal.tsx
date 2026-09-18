@@ -23,7 +23,7 @@ export default function LeaderboardModal({ isOpen, onClose }: LeaderboardModalPr
   const [players, setPlayers] = useState<LeaderboardUser[]>([]);
   const [loading, setLoading] = useState(false);
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
 
   useEffect(() => {
     if (!isOpen) return;

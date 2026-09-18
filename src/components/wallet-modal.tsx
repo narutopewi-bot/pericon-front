@@ -102,7 +102,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
 
   // Monedas siempre sincronizadas entre Redux y Props
   const currentCoins = typeof reduxPlayer?.coins === "number" ? reduxPlayer.coins : (propCoins ?? 100);

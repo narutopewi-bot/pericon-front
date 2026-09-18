@@ -253,7 +253,7 @@ export default function Desk() {
       }
 
       // Consultar aviso global activo del servidor
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
       fetch(`${apiUrl}/api/admin/announcement/active`)
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
@@ -287,7 +287,7 @@ export default function Desk() {
             setDataplayer(playerObj);
 
             // Sincronizar estadísticas desde la API
-            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
+            const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
             fetch(`${apiUrl}/api/user/${playerObj.id}/profile`)
               .then((res) => (res.ok ? res.json() : null))
               .then((data) => {

@@ -1185,7 +1185,7 @@ export default function Duel() {
     const isWinner = x === 1;
     const coinsChange = isWinner ? betAmount : -betAmount;
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
     let currentUserId = gameplayer?.id ? parseInt(gameplayer.id.toString(), 10) : 0;
     let storedUser: any = null;
     if (typeof window !== 'undefined') {

@@ -8,11 +8,11 @@ const nextConfig = {
     return [
       {
         source: '/api/:path*',
-        destination: 'https://pericon-api.onrender.com/api/:path*',
+        destination: 'https://pericon-api-production.up.railway.app/api/:path*',
       },
       {
         source: '/hub/:path*',
-        destination: 'https://pericon-api.onrender.com/hub/:path*',
+        destination: 'https://pericon-api-production.up.railway.app/hub/:path*',
       },
     ];
   },

@@ -20,6 +20,7 @@ import { playCardSound, playSwooshSound, vibrateDevice, playSynthSound, speakPhr
 import { playCardDealSound, playCardDropSound, playCoinWinSound, playCantoSound } from '@/lib/soundEffects';
 import GameTurnTimer from '@/components/game-turn-timer';
 import { GameAnnouncement, AnnouncementData, AnnouncementType } from '@/components/game-announcement';
+import { reportAppError } from '@/lib/errorLogger';
 import styles from './page.module.css';
 
 
@@ -209,6 +210,45 @@ export default function Duel1vs1() {
   const [timeLeft, setTimeLeft] = useState<number>(30);
   const [isMyTurn, setIsMyTurn] = useState<boolean>(false);
   const hasTimedOut = useRef<boolean>(false);
+
+  // Perro guardián (Watchdog) para transiciones de mano en 1 vs 1
+  const [isWaitingHandChange1v1, setIsWaitingHandChange1v1] = useState<boolean>(false);
+  const isWaitingHandChange1v1Ref = useRef<boolean>(false);
+  useEffect(() => { isWaitingHandChange1v1Ref.current = isWaitingHandChange1v1; }, [isWaitingHandChange1v1]);
+  const handWatchdogTimerRef = useRef<any>(null);
+
+  // Captura global de excepciones y telemetría automática hacia Railway
+  useEffect(() => {
+    const handleGlobalError = (event: ErrorEvent) => {
+      reportAppError({
+        source: 'Game1v1',
+        errorMessage: `Uncaught: ${event.message} en ${event.filename}:${event.lineno}`,
+        roomName: typeof roomName === 'string' ? roomName : undefined,
+        username: user?.name,
+        userId: user?.id,
+        stackTrace: event.error?.stack
+      });
+    };
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      reportAppError({
+        source: 'Game1v1',
+        errorMessage: `Unhandled Promise: ${event.reason?.message || event.reason}`,
+        roomName: typeof roomName === 'string' ? roomName : undefined,
+        username: user?.name,
+        userId: user?.id,
+        stackTrace: event.reason?.stack
+      });
+    };
+
+    window.addEventListener('error', handleGlobalError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
+    return () => {
+      window.removeEventListener('error', handleGlobalError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+    };
+  }, [roomName, user]);
 
   // El botón de Pedir solo debe habilitarse cuando sea tu turno, tengas cartas, no estés en Tumba,
   // la apuesta no haya llegado a 9 y no hayas pedido tú previamente sin que el rival revire.
@@ -484,7 +524,6 @@ export default function Duel1vs1() {
       if (connection && !hasConnected.current && deserialized) {
         try {
           const obj = JSON.parse(decodeURIComponent(deserialized));
-          //  console.log("Datos por Recibir: ", obj);
           datos.current = obj;
           const turny: string = obj.flag == true ? "1" : "0";
           playerturn.current = turny;
@@ -496,13 +535,15 @@ export default function Duel1vs1() {
           hasTimedOut.current = false;
           console.log("runStart. Playerturn: ", playerturn.current);
           setStateown(obj.flag);
-          if (obj.flag == true) {
-            playerown.current = obj.userone;
-            playeropp.current = obj.usertwo;
+          idGame.current = obj.id;
+
+          // Asignar el connectionId vivo si está disponible
+          if (connection.connectionId) {
+            playerown.current = connection.connectionId;
           } else {
-            playerown.current = obj.usertwo;
-            playeropp.current = obj.userone;
+            playerown.current = obj.flag == true ? obj.userone : obj.usertwo;
           }
+          playeropp.current = obj.flag == true ? obj.usertwo : obj.userone;
 
           const myName = obj.flag == true ? obj.nameone : obj.nametwo;
           if (myName) {
@@ -516,8 +557,16 @@ export default function Duel1vs1() {
           const juego: number = obj.id;
           await connection.invoke("GetInitHand", juego, obj.flag);
           hasConnected.current = true;
-        } catch (error) {
-          console.error("Error al iniciar el juego.", error);
+        } catch (error: any) {
+          console.error("Error al iniciar el juego 1vs1:", error);
+          reportAppError({
+            source: 'Game1v1',
+            errorMessage: `Error en runStart 1vs1: ${error?.message || error}`,
+            roomName: typeof roomName === 'string' ? roomName : undefined,
+            username: user?.name,
+            userId: user?.id,
+            stackTrace: error?.stack
+          });
         }
       }
     };
@@ -526,24 +575,83 @@ export default function Duel1vs1() {
 
   useEffect(() => {
     if (!connection) return;
+
+    // Manejo de reconexión transparente de SignalR en 1 vs 1
+    const handleReconnected = async (newConnectionId?: string) => {
+      console.log("[SignalR 1v1] Reconexión exitosa. Nuevo ID:", newConnectionId);
+      if (newConnectionId) playerown.current = newConnectionId;
+      if (connection && idGame.current > 0) {
+        try {
+          await connection.invoke("RejoinGame1vs1", idGame.current, datos.current.flag);
+        } catch (err: any) {
+          console.error("Error en RejoinGame1vs1 tras reconexión:", err);
+        }
+      }
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        if (connection && idGame.current > 0) {
+          connection.invoke("RejoinGame1vs1", idGame.current, datos.current.flag).catch(() => {});
+        }
+      }
+    };
+
+    connection.onreconnected(handleReconnected);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleVisibilityChange);
+
+    connection.on('OpponentConnectionUpdated', (data: any) => {
+      console.log("[OpponentConnectionUpdated] Socket del rival actualizado:", data);
+      if (data?.newConnectionId) {
+        playeropp.current = data.newConnectionId;
+      }
+    });
+
+    connection.on('OpponentReconnected1vs1', (data: any) => {
+      console.log("[OpponentReconnected1vs1] El rival reconectó:", data);
+      if (data?.opponentConnectionId) {
+        playeropp.current = data.opponentConnectionId;
+      }
+    });
+
     connection.on('setInitHand', (modelo: Message) => {
+      setIsWaitingHandChange1v1(false);
+      if (handWatchdogTimerRef.current) clearTimeout(handWatchdogTimerRef.current);
       playCardDealSound();
       execHand(modelo, false);
     });
-    return () => {
-      connection.off('setInitHand');
-    };
-  }, [connection]);
 
-
-
-  useEffect(() => {
-    if (!connection) return;
     connection.on('setChangeHand', (modelo: Message) => {
+      setIsWaitingHandChange1v1(false);
+      if (handWatchdogTimerRef.current) clearTimeout(handWatchdogTimerRef.current);
       execHand(modelo, true);
     });
+
+    connection.on('GameHandUpdated1vs1', (data: any) => {
+      console.log("[GameHandUpdated1vs1] Respaldo grupal de mano recibido:", data);
+      setIsWaitingHandChange1v1(false);
+      if (handWatchdogTimerRef.current) clearTimeout(handWatchdogTimerRef.current);
+      if (playerCards.length === 0 && data?.handCards) {
+        const isPlayerOne = (datos.current.flag === true);
+        const isMyTurn = isPlayerOne ? (data.handStarter === 1) : (data.handStarter === 2);
+        const sentence: Message = {
+          game: data.game,
+          order: 87,
+          content: `${data.handCards}-${isMyTurn ? "1" : "0"}-${data.pointsOne}-${data.pointsTwo}`
+        };
+        execHand(sentence, true);
+      }
+    });
+
     return () => {
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleVisibilityChange);
+      connection.off('OpponentConnectionUpdated');
+      connection.off('OpponentReconnected1vs1');
+      connection.off('setInitHand');
       connection.off('setChangeHand');
+      connection.off('GameHandUpdated1vs1');
     };
   }, [connection]);
 
@@ -600,6 +708,11 @@ export default function Duel1vs1() {
 
   const execHand = async (modelo: Message, bandera: boolean) => {
     console.log("Modelo: ", modelo);
+    setIsWaitingHandChange1v1(false);
+    if (handWatchdogTimerRef.current) {
+      clearTimeout(handWatchdogTimerRef.current);
+      handWatchdogTimerRef.current = null;
+    }
     isProcessingRef.current = false;
     setIsProcessingMove(false);
     setIsWaitingOppTumba(false);
@@ -806,6 +919,9 @@ export default function Duel1vs1() {
       let strMessage: string = ""; //card.id.toString();
       let flagTurn: string = (!roundturn.current == true ? " 1" : " 0");
       cpownRef.current = cardZero;
+      if (connection?.connectionId) {
+        playerown.current = connection.connectionId;
+      }
       if (roundturn.current == true && switchturn.current == true) {
         numOrder = 82;
         strMessage = playerown.current + " " + playeropp.current + " " + cardZero.id.toString() + flagTurn;
@@ -858,8 +974,16 @@ export default function Duel1vs1() {
       try {
         console.log("Enviando objeto al servidor:", dato);
         await connection.invoke("RequestCard1vs1", dato);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error al enviar objeto al servidor:", error);
+        reportAppError({
+          source: 'Game1v1',
+          errorMessage: `Error al enviar carta (orden ${numOrder}): ${error?.message || error}`,
+          roomName: typeof roomName === 'string' ? roomName : undefined,
+          username: user?.name,
+          userId: user?.id,
+          extraData: { dato }
+        });
       };
     };
   };
@@ -1015,6 +1139,19 @@ export default function Duel1vs1() {
         setTableCards(prev => [cpEightRef.current]);
         setPlayerCards([]);
 
+        setIsWaitingHandChange1v1(true);
+        if (handWatchdogTimerRef.current) clearTimeout(handWatchdogTimerRef.current);
+        handWatchdogTimerRef.current = setTimeout(async () => {
+          if (playerCards.length === 0 && connection) {
+            console.warn("[Watchdog 1v1] Espera de nueva mano tras rechazo agotada. Solicitando...");
+            try {
+              await connection.invoke("RequestNewHand1vs1", idGame.current);
+            } catch (e) {
+              console.error("Error en Watchdog RequestNewHand1vs1:", e);
+            }
+          }
+        }, 5500);
+
         setTimeout(async () => {
           const dato = { game: idGame.current, order: 87, content: "" };
           try {
@@ -1082,6 +1219,19 @@ export default function Duel1vs1() {
 
         setTableCards(prev => [cpEightRef.current]);
         setPlayerCards([]);
+
+        setIsWaitingHandChange1v1(true);
+        if (handWatchdogTimerRef.current) clearTimeout(handWatchdogTimerRef.current);
+        handWatchdogTimerRef.current = setTimeout(async () => {
+          if (playerCards.length === 0 && connection) {
+            console.warn("[Watchdog 1v1] Espera de nueva mano en EndAsk369Round agotada. Solicitando...");
+            try {
+              await connection.invoke("RequestNewHand1vs1", idGame.current);
+            } catch (e) {
+              console.error("Error en Watchdog RequestNewHand1vs1:", e);
+            }
+          }
+        }, 5500);
       }
     });
 
@@ -1218,6 +1368,19 @@ export default function Duel1vs1() {
                   }, 2600);
                 }
 
+                setIsWaitingHandChange1v1(true);
+                if (handWatchdogTimerRef.current) clearTimeout(handWatchdogTimerRef.current);
+                handWatchdogTimerRef.current = setTimeout(async () => {
+                  if (playerCards.length === 0 && connection) {
+                    console.warn("[Watchdog 1v1] Tiempo de espera agotado. Solicitando nueva mano autoritativa...");
+                    try {
+                      await connection.invoke("RequestNewHand1vs1", idGame.current);
+                    } catch (e) {
+                      console.error("Error en Watchdog RequestNewHand1vs1:", e);
+                    }
+                  }
+                }, 5500);
+
                 setTimeout(async () => {
                   setTableCards(prev => [cpEightRef.current]);
                   const dato = { game: idGame.current, order: 87, content: "" };
@@ -1271,6 +1434,19 @@ export default function Duel1vs1() {
                 setTimeLeft(30);
                 hasTimedOut.current = false;
                 setPlayerCards([]);
+
+                setIsWaitingHandChange1v1(true);
+                if (handWatchdogTimerRef.current) clearTimeout(handWatchdogTimerRef.current);
+                handWatchdogTimerRef.current = setTimeout(async () => {
+                  if (playerCards.length === 0 && connection) {
+                    console.warn("[Watchdog 1v1] Espera de nueva mano agotada en rival. Solicitando...");
+                    try {
+                      await connection.invoke("RequestNewHand1vs1", idGame.current);
+                    } catch (e) {
+                      console.error("Error en Watchdog RequestNewHand1vs1:", e);
+                    }
+                  }
+                }, 5500);
 
                 const playerWasInTumba = (pointsown.current >= 9 || (partownRef.current === 1 && pointsown.current === 8));
                 if (playerWasInTumba) {
@@ -1440,6 +1616,19 @@ export default function Duel1vs1() {
                 }, 2600);
               }
 
+              setIsWaitingHandChange1v1(true);
+              if (handWatchdogTimerRef.current) clearTimeout(handWatchdogTimerRef.current);
+              handWatchdogTimerRef.current = setTimeout(async () => {
+                if (playerCards.length === 0 && connection) {
+                  console.warn("[Watchdog 1v1] Tiempo de espera agotado tras ronda. Solicitando nueva mano...");
+                  try {
+                    await connection.invoke("RequestNewHand1vs1", idGame.current);
+                  } catch (e) {
+                    console.error("Error en Watchdog RequestNewHand1vs1:", e);
+                  }
+                }
+              }, 5500);
+
               setTimeout(async () => {
                 setTableCards(prev => [cpEightRef.current]);
                 const dato = { game: idGame.current, order: 87, content: "" };
@@ -1493,6 +1682,19 @@ export default function Duel1vs1() {
               setTimeLeft(30);
               hasTimedOut.current = false;
               setPlayerCards([]);
+
+              setIsWaitingHandChange1v1(true);
+              if (handWatchdogTimerRef.current) clearTimeout(handWatchdogTimerRef.current);
+              handWatchdogTimerRef.current = setTimeout(async () => {
+                if (playerCards.length === 0 && connection) {
+                  console.warn("[Watchdog 1v1] Espera de nueva mano agotada en rival tras ronda. Solicitando...");
+                  try {
+                    await connection.invoke("RequestNewHand1vs1", idGame.current);
+                  } catch (e) {
+                    console.error("Error en Watchdog RequestNewHand1vs1:", e);
+                  }
+                }
+              }, 5500);
 
               const playerWasInTumba = (pointsown.current >= 9 || (partownRef.current === 1 && pointsown.current === 8));
               if (playerWasInTumba) {

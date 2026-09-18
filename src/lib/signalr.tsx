@@ -5,7 +5,7 @@ export const useSignalR = () => {
   const [connection, setConnection] = useState<signalR.HubConnection | null>(null);
 
   useEffect(() => {
-    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
+    const baseUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
     const hubUrl = `${baseUrl}/hub`;
 
     const newConnection = new signalR.HubConnectionBuilder()

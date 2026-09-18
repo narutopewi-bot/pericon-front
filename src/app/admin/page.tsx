@@ -191,7 +191,7 @@ export default function AdminPage() {
   const [resettingLoading, setResettingLoading] = useState<boolean>(false);
   const [resetSuccessModal, setResetSuccessModal] = useState<{ username: string; password: string; phone?: string } | null>(null);
 
-  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
+  const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
   const [adminToken, setAdminToken] = useState<string>("");
 
   const getAdminHeaders = (extraHeaders: Record<string, string> = {}) => {

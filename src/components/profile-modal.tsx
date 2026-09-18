@@ -143,7 +143,7 @@ export default function ProfileModal({ isOpen, onClose, player, onProfileUpdated
     setIsSaving(true);
     setErrorMsg("");
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
 
     try {
       const res = await fetch(`${apiUrl}/api/user/update-profile`, {

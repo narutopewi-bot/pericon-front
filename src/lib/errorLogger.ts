@@ -10,7 +10,7 @@ export interface AppErrorReport {
   extraData?: Record<string, any> | string;
 }
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api.onrender.com";
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
 
 let lastReportedTime = 0;
 let lastReportedMessage = '';
