@@ -262,6 +262,8 @@ export default function GameTwoVsTwo() {
   const [isCleaningTable, setIsCleaningTable] = useState<boolean>(false);
   const [isProcessingMove, setIsProcessingMove] = useState<boolean>(false);
   const isProcessingMoveRef = useRef<boolean>(false);
+  const [isWaitingNextHand, setIsWaitingNextHand] = useState<boolean>(false);
+  const isWaitingNextHandRef = useRef<boolean>(false);
 
   // Cantes y Apuestas (1, 3, 6, 9)
   const [currentStake, setCurrentStake] = useState<number>(1);
@@ -596,6 +598,17 @@ export default function GameTwoVsTwo() {
         setTimeout(() => {
           handleGameOver(winningTeam === myTeam);
         }, 2000);
+      } else {
+        setIsWaitingNextHand(true);
+        isWaitingNextHandRef.current = true;
+        setTimeout(() => {
+          if (isWaitingNextHandRef.current && connection) {
+            console.warn('[Watchdog 2v2 Tumba] 5.5s sin NewHandDealt2v2. Solicitando RequestNewHand2v2...');
+            connection.invoke('RequestNewHand2v2', roomName).catch((err: any) => {
+              console.error('[Watchdog 2v2 invoke error]:', err);
+            });
+          }
+        }, 5500);
       }
     });
 
@@ -641,6 +654,17 @@ export default function GameTwoVsTwo() {
         setTimeout(() => {
           handleGameOver(data.winningTeamOfMatch === myTeam);
         }, 3500);
+      } else {
+        setIsWaitingNextHand(true);
+        isWaitingNextHandRef.current = true;
+        setTimeout(() => {
+          if (isWaitingNextHandRef.current && connection) {
+            console.warn('[Watchdog 2v2 HandFinished] 5.5s sin NewHandDealt2v2. Solicitando RequestNewHand2v2...');
+            connection.invoke('RequestNewHand2v2', roomName).catch((err: any) => {
+              console.error('[Watchdog 2v2 invoke error]:', err);
+            });
+          }
+        }, 5500);
       }
     });
 
@@ -895,6 +919,8 @@ export default function GameTwoVsTwo() {
 
   // Manejar el inicio formal de la partida
   const handleGameStarted = (data: any) => {
+    setIsWaitingNextHand(false);
+    isWaitingNextHandRef.current = false;
     setIsDealing(true);
     playCardDealSound();
     playCardSound();
@@ -975,6 +1001,8 @@ export default function GameTwoVsTwo() {
 
   // Manejar el reparto de una nueva mano
   const handleNewHandDealt = (data: any) => {
+    setIsWaitingNextHand(false);
+    isWaitingNextHandRef.current = false;
     setIsDealing(true);
     playCardDealSound();
     playCardSound();
@@ -1070,7 +1098,23 @@ export default function GameTwoVsTwo() {
       .filter((t: any) => t.seatIndex === myIdx)
       .map((t: any) => t.cardId);
 
-    setMyCards(hand.filter(c => !myPlayedIds.includes(c.id)));
+    const remainingCards = hand.filter(c => !myPlayedIds.includes(c.id));
+    setMyCards(remainingCards);
+    if (remainingCards.length === 0 && !(data.pointsTeam1 >= 10 || data.pointsTeam2 >= 10)) {
+      setIsWaitingNextHand(true);
+      isWaitingNextHandRef.current = true;
+      setTimeout(() => {
+        if (isWaitingNextHandRef.current && connection) {
+          console.warn('[Watchdog 2v2 Reconnect] 3s sin cartas. Solicitando RequestNewHand2v2...');
+          connection.invoke('RequestNewHand2v2', roomName).catch(err => {
+            console.error('[Watchdog 2v2 invoke error]:', err);
+          });
+        }
+      }, 3000);
+    } else {
+      setIsWaitingNextHand(false);
+      isWaitingNextHandRef.current = false;
+    }
 
     // 5. Calcular conteo exacto de cartas de cada jugador (0 a 3)
     const counts: { [seat: number]: number } = { 0: 3, 1: 3, 2: 3, 3: 3 };
@@ -1397,6 +1441,18 @@ export default function GameTwoVsTwo() {
   const resolveHandWinner = (t1Tricks: number, t2Tricks: number) => {
     isProcessingMoveRef.current = true;
     setIsProcessingMove(true);
+    setIsWaitingNextHand(true);
+    isWaitingNextHandRef.current = true;
+
+    // Perro guardián (Watchdog Fallback): si tras 5.5s no ha llegado NewHandDealt2v2, solicitar forzar reparto
+    setTimeout(() => {
+      if (isWaitingNextHandRef.current && connection) {
+        console.warn('[Watchdog 2v2] 5.5s sin NewHandDealt2v2. Solicitando RequestNewHand2v2...');
+        connection.invoke('RequestNewHand2v2', roomName).catch((err: any) => {
+          console.error('[Watchdog 2v2 invoke error]:', err);
+        });
+      }
+    }, 5500);
 
     const handWinningTeam = t1Tricks > t2Tricks ? 1 : 2;
     const myTeam = (mySeatIndexRef.current === 0 || mySeatIndexRef.current === 2) ? 1 : 2;
@@ -1887,6 +1943,8 @@ export default function GameTwoVsTwo() {
       // Bloquear cualquier jugada de cartas hasta que se reparta la nueva mano
       isProcessingMoveRef.current = true;
       setIsProcessingMove(true);
+      setIsWaitingNextHand(true);
+      isWaitingNextHandRef.current = true;
       playedCardsRef.current = [];
       setPlayedCards([]);
       setTrickResult(null);
@@ -1894,6 +1952,16 @@ export default function GameTwoVsTwo() {
       currentStakeRef.current = 1;
       setLastStakeAskedBy(null);
       lastStakeAskedByRef.current = null;
+
+      // Watchdog fallback
+      setTimeout(() => {
+        if (isWaitingNextHandRef.current && connection) {
+          console.warn('[Watchdog 2v2 Stake] 5.5s sin NewHandDealt2v2. Solicitando RequestNewHand2v2...');
+          connection.invoke('RequestNewHand2v2', roomName).catch((err: any) => {
+            console.error('[Watchdog 2v2 invoke error]:', err);
+          });
+        }
+      }, 5500);
 
       if (data.isGameOver || newT1 >= 10 || newT2 >= 10) {
         setTimeout(() => {
@@ -2407,7 +2475,7 @@ export default function GameTwoVsTwo() {
         {/* ARRIBA: COMPAÑERO */}
         {(() => {
           const partner = players[partnerSeat] || { name: 'Compañero', team: (mySeatIndex % 2 === 0 ? 1 : 2), role: 'Compañero' };
-          const isPartnerTurn = currentTurn === partnerSeat;
+          const isPartnerTurn = !isWaitingNextHand && currentTurn === partnerSeat;
           const isPartnerTeam1 = partnerSeat === 0 || partnerSeat === 2;
 
           return (
@@ -2461,7 +2529,7 @@ export default function GameTwoVsTwo() {
           {/* IZQUIERDA: RIVAL 1 */}
           {(() => {
             const rival1 = players[leftRivalSeat] || { name: 'Rival 1', team: (leftRivalSeat % 2 === 0 ? 1 : 2), role: 'Rival 1' };
-            const isRival1Turn = currentTurn === leftRivalSeat;
+            const isRival1Turn = !isWaitingNextHand && currentTurn === leftRivalSeat;
             const isRival1Team1 = leftRivalSeat === 0 || leftRivalSeat === 2;
 
             return (
@@ -2647,6 +2715,11 @@ export default function GameTwoVsTwo() {
                     {trickResult.message}
                   </span>
                 </div>
+              ) : isWaitingNextHand ? (
+                <div className="w-full bg-amber-950/80 border border-amber-500/50 rounded-xl py-0.5 sm:py-1 px-1.5 text-center text-amber-300 text-[8px] sm:text-xs leading-tight animate-pulse flex items-center justify-center gap-1.5 shadow-lg">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-ping" />
+                  <span>Repartiendo nueva mano...</span>
+                </div>
               ) : (
                 <div className="w-full bg-black/60 border border-amber-500/20 rounded-xl py-0.5 sm:py-1 px-1.5 text-center text-emerald-200/80 text-[8px] sm:text-xs leading-tight">
                   <span>Mano: <strong>{currentStake}</strong> {currentStake === 1 ? 'piedra' : 'piedras'} • Turno: <strong className="text-amber-300">{players[currentTurn]?.name}</strong></span>
@@ -2659,7 +2732,7 @@ export default function GameTwoVsTwo() {
           {/* DERECHA: RIVAL 2 */}
           {(() => {
             const rival2 = players[rightRivalSeat] || { name: 'Rival 2', team: (rightRivalSeat % 2 === 0 ? 1 : 2), role: 'Rival 2' };
-            const isRival2Turn = currentTurn === rightRivalSeat;
+            const isRival2Turn = !isWaitingNextHand && currentTurn === rightRivalSeat;
             const isRival2Team1 = rightRivalSeat === 0 || rightRivalSeat === 2;
 
             return (
@@ -2796,13 +2869,20 @@ export default function GameTwoVsTwo() {
 
             {/* Banner de Turno con Temporizador de 30s */}
             <div className="flex-1 flex items-center justify-center min-w-0">
-              <span className={`border font-bold text-[8.5px] sm:text-xs px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full truncate max-w-[140px] sm:max-w-[170px] ${
-                currentTurn === mySeatIndex
-                  ? (timeLeft <= 10 ? 'bg-red-950/80 border-red-500 text-red-300 animate-pulse' : 'bg-emerald-950/80 border-emerald-500 text-emerald-300')
-                  : 'bg-black/60 border-slate-700 text-slate-300'
-              }`}>
-                {currentTurn === mySeatIndex ? `¡Tu turno! (${timeLeft}s)` : `Turno: ${players[currentTurn]?.name || 'Jugador'} (${timeLeft}s)`}
-              </span>
+              {isWaitingNextHand ? (
+                <span className="border border-amber-500/60 bg-amber-950/80 text-amber-300 font-bold text-[8.5px] sm:text-xs px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full truncate max-w-[170px] sm:max-w-[200px] animate-pulse flex items-center gap-1.5 shadow-lg">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping inline-block" />
+                  Repartiendo cartas...
+                </span>
+              ) : (
+                <span className={`border font-bold text-[8.5px] sm:text-xs px-2.5 sm:px-3 py-0.5 sm:py-1 rounded-full truncate max-w-[140px] sm:max-w-[170px] ${
+                  currentTurn === mySeatIndex
+                    ? (timeLeft <= 10 ? 'bg-red-950/80 border-red-500 text-red-300 animate-pulse' : 'bg-emerald-950/80 border-emerald-500 text-emerald-300')
+                    : 'bg-black/60 border-slate-700 text-slate-300'
+                }`}>
+                  {currentTurn === mySeatIndex ? `¡Tu turno! (${timeLeft}s)` : `Turno: ${players[currentTurn]?.name || 'Jugador'} (${timeLeft}s)`}
+                </span>
+              )}
             </div>
 
             {/* Botón de PEDIR */}
@@ -2813,7 +2893,7 @@ export default function GameTwoVsTwo() {
                                       (pointsTeam2 >= 9 || (isTumbaDeParaAtrasT2 && pointsTeam2 === 8));
                 const myTeam = (mySeatIndex === 0 || mySeatIndex === 2) ? 1 : 2;
                 const cannotRaise = lastStakeAskedBy === myTeam && currentStake > 1;
-                const isPedirDisabled = currentStake >= 9 || isProcessingMove || isCleaningTable || isTumbaActive || tumbaCountdown !== null || isWaitingOppTumba || isStakePending || cannotRaise;
+                const isPedirDisabled = currentStake >= 9 || isProcessingMove || isCleaningTable || isTumbaActive || tumbaCountdown !== null || isWaitingOppTumba || isStakePending || cannotRaise || myCards.length === 0 || isWaitingNextHand;
                 return (
                   <button
                     type="button"
