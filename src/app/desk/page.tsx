@@ -509,8 +509,8 @@ export default function Desk() {
             </div>
           )}
 
-          {/* Cuadrícula 2x2 Optimizada para Móvil y Desktop */}
-          <div className="grid grid-cols-2 gap-2.5 sm:gap-4 w-full">
+          {/* Cuadrícula Optimizada de 3 Modos Principales */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4 w-full">
 
             {/* 1. DUELO (Activo: Solitario y 1 vs 1) */}
             <div
@@ -537,32 +537,7 @@ export default function Desk() {
               </div>
             </div>
 
-            {/* 2. 2 VS 2 COMPUTADORA (Modo de prueba con 3 IAs) */}
-            <div
-              onClick={() => router.push("/solitaire2v2")}
-              className="rounded-2xl sm:rounded-3xl border-2 border-emerald-500/80 p-3 sm:p-4 flex flex-col items-center justify-between text-center relative cursor-pointer active:scale-95 hover:scale-[1.02] transition-all duration-150 bg-gradient-to-b from-[#0b2416]/90 via-[#07190f]/95 to-[#040d08] shadow-lg shadow-emerald-500/20 backdrop-blur-md group"
-            >
-              <div className="absolute -top-2.5 right-2 bg-gradient-to-r from-emerald-600 to-teal-500 text-white font-black text-[8px] sm:text-[9px] uppercase tracking-wider px-2 py-0.5 rounded-full shadow border border-emerald-300 animate-pulse">
-                🤖 NUEVO MÓDULO
-              </div>
-              <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-400 p-2 shadow-lg border border-emerald-300/40 flex items-center justify-center mt-1 group-hover:rotate-6 transition transform">
-                <span className="text-2xl sm:text-3xl">🤖</span>
-              </div>
-              <div className="mt-2">
-                <h3 className={`text-xs sm:text-base text-emerald-100 tracking-wider font-extrabold ${fonts.bowlbyOneSC.className}`}>
-                  2 VS 2 COMPUTADORA
-                </h3>
-                <p className={`text-emerald-200/80 text-[9.5px] sm:text-xs font-medium leading-tight mt-0.5 ${fonts.almarai.className}`}>
-                  Práctica con 3 IAs (Reglas y Tumba)
-                </p>
-              </div>
-              <div className="w-full mt-2 bg-emerald-600/30 border border-emerald-400/50 rounded-xl py-1 sm:py-1.5 text-[10px] sm:text-xs font-black text-emerald-200 flex items-center justify-center gap-1 group-hover:bg-emerald-600 group-hover:text-white transition">
-                <span>PROBAR AHORA</span>
-                <span>➜</span>
-              </div>
-            </div>
-
-            {/* 3. CREAR SALA (Activo: Salas Privadas) */}
+            {/* 2. CREAR SALA (Activo: Salas Privadas) */}
             <div
               onClick={() => handleCreatePrivateRoom()}
               className="rounded-2xl sm:rounded-3xl border-2 border-emerald-500/70 hover:border-emerald-400 p-3 sm:p-4 flex flex-col items-center justify-between text-center relative cursor-pointer active:scale-95 hover:scale-[1.02] transition-all duration-150 bg-gradient-to-b from-[#0d2417]/90 via-[#07170f]/95 to-[#030d08] shadow-lg shadow-emerald-500/20 backdrop-blur-md group"
@@ -587,7 +562,7 @@ export default function Desk() {
               </div>
             </div>
 
-            {/* 4. UNIRSE (Activo: Código de Sala o Enlace) */}
+            {/* 3. UNIRSE (Activo: Código de Sala o Enlace) */}
             <div
               onClick={() => handleJoinPrivateRoom()}
               className="rounded-2xl sm:rounded-3xl border-2 border-purple-500/70 hover:border-purple-400 p-3 sm:p-4 flex flex-col items-center justify-between text-center relative cursor-pointer active:scale-95 hover:scale-[1.02] transition-all duration-150 bg-gradient-to-b from-[#21112b]/90 via-[#14081c]/95 to-[#0b030f] shadow-lg shadow-purple-500/20 backdrop-blur-md group"

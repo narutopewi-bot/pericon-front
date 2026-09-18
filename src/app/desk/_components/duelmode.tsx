@@ -104,7 +104,7 @@ const Duelmode: React.FC<DuelmodeProps> = ({ onMode, duelToggle }) => {
           <button
             type="button"
             onClick={() => setSelectedValue("2 vs 2")}
-            className={`p-3 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all duration-150 active:scale-95 relative border-2 ${
+            className={`col-span-2 p-3 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all duration-150 active:scale-95 relative border-2 ${
               selectedValue === "2 vs 2"
                 ? "border-purple-400 bg-gradient-to-b from-purple-600/30 to-purple-950/60 shadow-lg shadow-purple-500/20"
                 : "border-slate-800 bg-black/40 hover:border-slate-700 text-slate-400"
@@ -121,31 +121,7 @@ const Duelmode: React.FC<DuelmodeProps> = ({ onMode, duelToggle }) => {
             <span className={`text-xs font-black tracking-wide ${selectedValue === "2 vs 2" ? "text-white" : "text-slate-300"}`}>
               2 CONTRA 2
             </span>
-            <span className="text-[9px] text-purple-300/90 font-semibold">En Parejas (Aleatorio)</span>
-          </button>
-
-          {/* Opción 4: 2 vs 2 CPU (Práctica) */}
-          <button
-            type="button"
-            onClick={() => setSelectedValue("2 vs 2 CPU")}
-            className={`p-3 rounded-2xl flex flex-col items-center justify-center gap-1 transition-all duration-150 active:scale-95 relative border-2 ${
-              selectedValue === "2 vs 2 CPU"
-                ? "border-emerald-400 bg-gradient-to-b from-emerald-600/30 to-emerald-950/60 shadow-lg shadow-emerald-500/20"
-                : "border-slate-800 bg-black/40 hover:border-slate-700 text-slate-400"
-            }`}
-          >
-            <div className="absolute -top-2 right-2 bg-gradient-to-r from-emerald-600 to-teal-500 text-white font-black text-[8px] uppercase tracking-wider px-2 py-0.5 rounded-full border border-emerald-300">
-              PRÁCTICA IA
-            </div>
-            <div className={`w-9 h-9 rounded-xl flex items-center justify-center text-xl ${
-              selectedValue === "2 vs 2 CPU" ? "bg-emerald-500 text-black" : "bg-slate-800 text-slate-300"
-            }`}>
-              🤖
-            </div>
-            <span className={`text-xs font-black tracking-wide ${selectedValue === "2 vs 2 CPU" ? "text-white" : "text-slate-300"}`}>
-              2 VS 2 CPU
-            </span>
-            <span className="text-[9px] text-emerald-300/90 font-semibold">Tú + 3 Bots</span>
+            <span className="text-[9px] text-purple-300/90 font-semibold">En Parejas (Multijugador)</span>
           </button>
         </div>
       </div>

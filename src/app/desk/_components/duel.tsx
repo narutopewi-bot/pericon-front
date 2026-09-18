@@ -110,11 +110,6 @@ const Duel = ({ open, duelToggle, }: any) => {
       return;
     }
 
-    if (mode === "2 vs 2 CPU") {
-      router.push(`/solitaire2v2?bet=${bet}`);
-      return;
-    }
-
     // Tanto 1 vs 1 como 2 vs 2 entran en cola de emparejamiento automático
     if ((mode === "1 vs 1" || mode === "2 vs 2") && connection) {
       try {
