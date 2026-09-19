@@ -343,6 +343,11 @@ export default function Duel1vs1() {
       charTurn = targetStake === 3 ? "3" : (targetStake === 6 ? "6" : "9");
     } else if (action === 'doblar') {
       charTurn = targetStake === 3 ? "4" : "7";
+      const nextStake = targetStake === 3 ? 6 : 9;
+      setCurrentStake(nextStake);
+      currentStakeRef.current = nextStake;
+      setLastStakeAskedBy('player');
+      lastStakeAskedByRef.current = 'player';
     }
 
     setPedirChallenge(null);
@@ -548,7 +553,7 @@ export default function Duel1vs1() {
           const myName = obj.flag == true ? obj.nameone : obj.nametwo;
           if (myName) {
             try {
-              await connection.invoke("IdentifyPlayer", myName, "", obj.coins || 0);
+              await connection.invoke("IdentifyPlayer", myName, gameplayer.email || "", gameplayer.coins || 0);
             } catch (e) {
               console.error("Error al identificar jugador en juego:", e);
             }
@@ -1060,6 +1065,8 @@ export default function Duel1vs1() {
 
       setLastStakeAskedBy('opp');
       lastStakeAskedByRef.current = 'opp';
+      setCurrentStake(targetStake);
+      currentStakeRef.current = targetStake;
 
       const phrase = targetStake === 3 ? "¡Dame tres!" : targetStake === 6 ? "¡Quiero seis!" : "¡Van nueve!";
       const audioKey = targetStake === 3 ? 'dame_tres' : targetStake === 6 ? 'quiero_seis' : 'van_nueve';

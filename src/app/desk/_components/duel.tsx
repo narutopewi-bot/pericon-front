@@ -52,11 +52,14 @@ const Duel = ({ open, duelToggle, }: any) => {
     connection.on("MatchFound", (modelo: any) => {
       console.log("¡MatchFound 1vs1 recibido desde el servidor!", modelo);
       const idplay : number = modelo.game;
-      const player_1 : string = Trozo(modelo.content, 0);
-      const player_2 : string = Trozo(modelo.content, 2);
-      const nplayer_1 : string = Trozo(modelo.content, 1);
-      const nplayer_2 : string = Trozo(modelo.content, 3);
-      const turnplay : boolean = Trozo(modelo.content, 4) === "1";
+      const parts = typeof modelo.content === 'string' && modelo.content.includes('|')
+        ? modelo.content.split('|')
+        : modelo.content.split(' ');
+      const player_1 : string = parts[0];
+      const nplayer_1 : string = parts[1];
+      const player_2 : string = parts[2];
+      const nplayer_2 : string = parts[3];
+      const turnplay : boolean = parts[4] === "1";
       const partial = { 
         id: idplay, 
         userone: player_1, 
