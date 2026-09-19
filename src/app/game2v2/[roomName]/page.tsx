@@ -717,6 +717,8 @@ export default function GameTwoVsTwo() {
     let isSubscribed = true;
     let vm = voiceManagerRef.current;
 
+    const myName = userRef.current?.name && userRef.current.name !== 'nulo' ? userRef.current.name : `Jugador ${mySeatIndex + 1}`;
+
     if (!vm) {
       vm = new WebRTCVoiceManager();
       voiceManagerRef.current = vm;
@@ -736,13 +738,12 @@ export default function GameTwoVsTwo() {
         setVoicePeerStates({ ...states });
       };
 
-      const myName = userRef.current?.name && userRef.current.name !== 'nulo' ? userRef.current.name : `Jugador ${mySeatIndex + 1}`;
       vm.init(roomName, mySeatIndex, myName, connection).then((hasMic) => {
         if (!isSubscribed) return;
-        if (!hasMic) {
-          setIsMicMuted(true);
-        }
+        setIsMicMuted(!hasMic);
       });
+    } else {
+      vm.updateSession(roomName, mySeatIndex, myName, connection);
     }
 
     return () => {
@@ -771,14 +772,16 @@ export default function GameTwoVsTwo() {
     });
   }, [roomState?.seats, mySeatIndex]);
 
-  const toggleVoiceMute = () => {
+  const toggleVoiceMute = async () => {
     if (!voiceManagerRef.current) return;
-    const muted = voiceManagerRef.current.toggleMute();
+    voiceManagerRef.current.resumeAllAudio();
+    const muted = await voiceManagerRef.current.toggleMute();
     setIsMicMuted(muted);
   };
 
   const toggleDeafenAudio = () => {
     if (!voiceManagerRef.current) return;
+    voiceManagerRef.current.resumeAllAudio();
     const deaf = voiceManagerRef.current.toggleDeafen();
     setIsDeafened(deaf);
   };

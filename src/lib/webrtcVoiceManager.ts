@@ -18,13 +18,25 @@ interface VoiceSignalPayload {
   candidate?: RTCIceCandidateInit;
 }
 
+// Configuración robusta de STUN y TURN (OpenRelay público + Google STUN)
+// Imprescindible en Venezuela para conexiones móviles 4G/5G y NAT simétrico/CGNAT (CANTV, Movistar, Digitel, etc.)
 const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun.relay.metered.ca:80' },
+    {
+      urls: [
+        'turn:openrelay.metered.ca:80',
+        'turn:openrelay.metered.ca:443',
+        'turn:openrelay.metered.ca:443?transport=tcp',
+      ],
+      username: 'openrelayproject',
+      credential: 'openrelayproject',
+    },
   ],
+  iceCandidatePoolSize: 10,
 };
 
 export class WebRTCVoiceManager {
@@ -39,22 +51,35 @@ export class WebRTCVoiceManager {
   private candidateQueues: Map<number, RTCIceCandidateInit[]> = new Map();
 
   private isMuted: boolean = false;
-  private isDeafened: boolean = false; // Mute all incoming audio
+  private isDeafened: boolean = false;
   private isSpeaking: boolean = false;
   private hasMicPermission: boolean = false;
+  private isRequestingMic: boolean = false;
 
   private audioContext: AudioContext | null = null;
   private analyser: AnalyserNode | null = null;
   private animFrameId: number | null = null;
   private speakingTimeout: any = null;
 
-  // States
+  // Estados
   public peerStates: Record<number, VoicePeerState> = {};
   public onStateChange: VoiceStateChangeCallback | null = null;
   public onLocalMuteChange: LocalMuteChangeCallback | null = null;
   public onSpeakingChange: SpeakingChangeCallback | null = null;
 
-  constructor() {}
+  private boundInteractionHandler: () => void;
+
+  constructor() {
+    this.boundInteractionHandler = () => {
+      this.resumeAllAudio();
+    };
+
+    if (typeof window !== 'undefined') {
+      window.addEventListener('click', this.boundInteractionHandler, { passive: true });
+      window.addEventListener('touchstart', this.boundInteractionHandler, { passive: true });
+      window.addEventListener('keydown', this.boundInteractionHandler, { passive: true });
+    }
+  }
 
   public async init(
     roomName: string,
@@ -71,17 +96,49 @@ export class WebRTCVoiceManager {
       seatIndex: mySeatIndex,
       name: myName,
       isSpeaking: false,
-      isMuted: false,
+      isMuted: this.isMuted,
       isConnected: true,
     };
 
-    // Listen to incoming voice signals from SignalR
+    // Escuchar señales y eventos de voz desde SignalR
     this.setupSignalRListeners();
 
-    // Try to obtain microphone stream
+    // Intentar solicitar micrófono
+    const micGranted = await this.requestMicrophone();
+    if (!micGranted) {
+      console.warn('[WebRTCVoice] Iniciado en modo oyente (micrófono apagado o pendiente de permiso)');
+    }
+
+    this.notifyState();
+    return micGranted;
+  }
+
+  public updateSession(
+    roomName: string,
+    mySeatIndex: number,
+    myName: string,
+    connection: HubConnection
+  ) {
+    this.roomName = roomName;
+    this.mySeatIndex = mySeatIndex;
+    this.myName = myName;
+    this.connection = connection;
+    this.setupSignalRListeners();
+  }
+
+  public async requestMicrophone(): Promise<boolean> {
+    if (this.isRequestingMic) return false;
+    this.isRequestingMic = true;
+
     try {
       if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-        this.localStream = await navigator.mediaDevices.getUserMedia({
+        // Detener stream anterior si existía
+        if (this.localStream) {
+          this.localStream.getTracks().forEach((t) => t.stop());
+          this.localStream = null;
+        }
+
+        const stream = await navigator.mediaDevices.getUserMedia({
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
@@ -89,26 +146,71 @@ export class WebRTCVoiceManager {
           },
           video: false,
         });
+
+        this.localStream = stream;
         this.hasMicPermission = true;
+        this.isMuted = false;
+
+        const audioTrack = stream.getAudioTracks()[0];
+        if (audioTrack) {
+          audioTrack.enabled = true;
+
+          // Adjuntar track a todas las conexiones P2P activas sin romper la negociación
+          this.peerConnections.forEach((pc, seatIdx) => {
+            try {
+              const senders = pc.getSenders();
+              const audioSender = senders.find((s) => s.track?.kind === 'audio' || !s.track);
+              if (audioSender) {
+                audioSender.replaceTrack(audioTrack);
+              } else {
+                pc.addTrack(audioTrack, this.localStream!);
+              }
+            } catch (err) {
+              console.warn(`[WebRTCVoice] Error asociando track con peer ${seatIdx}:`, err);
+            }
+          });
+        }
+
         this.setupAudioAnalysis();
+        this.resumeAllAudio();
+        this.notifyState();
+        this.isRequestingMic = false;
+        return true;
       }
     } catch (err: any) {
-      console.warn('[WebRTCVoice] Micrófono no concedido o no disponible (Modo Oyente activado):', err?.message);
+      console.warn('[WebRTCVoice] No se pudo acceder al micrófono:', err?.message || err);
       this.hasMicPermission = false;
       this.isMuted = true;
+      this.notifyState();
+      this.isRequestingMic = false;
+      return false;
     }
 
-    this.notifyState();
-    return this.hasMicPermission;
+    this.isRequestingMic = false;
+    return false;
+  }
+
+  public resumeAllAudio() {
+    try {
+      if (this.audioContext && this.audioContext.state === 'suspended') {
+        this.audioContext.resume().catch(() => {});
+      }
+
+      this.remoteAudioElements.forEach((audioEl) => {
+        if (audioEl && audioEl.paused) {
+          audioEl.play().catch(() => {});
+        }
+      });
+    } catch (e) {}
   }
 
   private setupSignalRListeners() {
     if (!this.connection) return;
 
-    // Handle VoiceSignalReceived2v2
+    // Recibir señales de WebRTC (offer, answer, candidate)
     this.connection.off('VoiceSignalReceived2v2');
     this.connection.on('VoiceSignalReceived2v2', async (fromSeat: number, toSeat: number, signalJson: string) => {
-      // If signal is specifically addressed to me, or broadcast (-1)
+      // Filtrar señales que no son para este asiento ni broadcast
       if (toSeat !== -1 && toSeat !== this.mySeatIndex) return;
       if (fromSeat === this.mySeatIndex) return;
 
@@ -116,11 +218,11 @@ export class WebRTCVoiceManager {
         const payload: VoiceSignalPayload = JSON.parse(signalJson);
         await this.handleIncomingSignal(fromSeat, payload);
       } catch (err) {
-        console.error('[WebRTCVoice] Error procesando señal:', err);
+        console.error('[WebRTCVoice] Error procesando señal de voz:', err);
       }
     });
 
-    // Handle VoiceStateUpdated2v2
+    // Actualización de estado de habla y muteo
     this.connection.off('VoiceStateUpdated2v2');
     this.connection.on('VoiceStateUpdated2v2', (seatIndex: number, speaking: boolean, muted: boolean) => {
       if (seatIndex === this.mySeatIndex) return;
@@ -146,7 +248,7 @@ export class WebRTCVoiceManager {
   }
 
   /**
-   * Called when a peer joins or when seats are refreshed
+   * Conectar con un compañero o rival cuando entra al asiento
    */
   public async connectToPeer(targetSeatIndex: number, targetName: string) {
     if (targetSeatIndex === this.mySeatIndex) return;
@@ -162,19 +264,19 @@ export class WebRTCVoiceManager {
       };
     }
 
-    // Politeness rule: the peer with LOWER seatIndex creates the Offer
+    // Regla de cortesía WebRTC: el asiento de menor índice crea la Offer inicial
     const isInitiator = this.mySeatIndex < targetSeatIndex;
     let pc = this.peerConnections.get(targetSeatIndex);
 
-    if (pc && (pc.connectionState === 'failed' || pc.connectionState === 'closed')) {
-      try { pc.close(); } catch (e) {}
-      this.peerConnections.delete(targetSeatIndex);
-      pc = undefined;
-    }
-
     if (pc) {
-      // Ya conectado o en proceso de conexión
-      return;
+      if (pc.connectionState === 'failed' || pc.connectionState === 'closed') {
+        try { pc.close(); } catch (e) {}
+        this.peerConnections.delete(targetSeatIndex);
+        pc = undefined;
+      } else {
+        // Ya existe una conexión en proceso o conectada
+        return;
+      }
     }
 
     pc = this.createPeerConnection(targetSeatIndex);
@@ -201,14 +303,29 @@ export class WebRTCVoiceManager {
   private createPeerConnection(targetSeatIndex: number): RTCPeerConnection {
     const pc = new RTCPeerConnection(ICE_SERVERS);
 
-    // Add local audio track if available
-    if (this.localStream) {
-      this.localStream.getAudioTracks().forEach((track) => {
-        pc.addTrack(track, this.localStream!);
-      });
+    // Siempre añadir un transceiver de audio en sendrecv
+    // Así el SDP inicial reserva el canal de audio aunque el micrófono tarde unos segundos en activarse
+    try {
+      pc.addTransceiver('audio', { direction: 'sendrecv' });
+    } catch (e) {
+      // Fallback para navegadores antiguos
     }
 
-    // ICE Candidate event
+    // Si ya disponemos de micrófono, asociar el track inmediatamente
+    if (this.localStream) {
+      const track = this.localStream.getAudioTracks()[0];
+      if (track) {
+        const senders = pc.getSenders();
+        const audioSender = senders.find((s) => s.track?.kind === 'audio' || !s.track);
+        if (audioSender) {
+          audioSender.replaceTrack(track);
+        } else {
+          pc.addTrack(track, this.localStream);
+        }
+      }
+    }
+
+    // Manejo de ICE Candidates
     pc.onicecandidate = (event) => {
       if (event.candidate) {
         this.sendSignal(targetSeatIndex, {
@@ -218,13 +335,19 @@ export class WebRTCVoiceManager {
       }
     };
 
-    // Remote Track event (incoming audio from peer)
+    // Manejo de recepción de audio del peer
     pc.ontrack = (event) => {
       let audioEl = this.remoteAudioElements.get(targetSeatIndex);
       if (!audioEl) {
         audioEl = document.createElement('audio');
         audioEl.autoplay = true;
-        audioEl.style.display = 'none';
+        (audioEl as any).playsInline = true;
+        // Posicionamiento invisible fuera de pantalla en vez de display:none para evitar throttling en WebKit/iOS
+        audioEl.style.position = 'fixed';
+        audioEl.style.top = '-9999px';
+        audioEl.style.left = '-9999px';
+        audioEl.style.opacity = '0';
+        audioEl.style.pointerEvents = 'none';
         document.body.appendChild(audioEl);
         this.remoteAudioElements.set(targetSeatIndex, audioEl);
       }
@@ -237,15 +360,20 @@ export class WebRTCVoiceManager {
       }
 
       audioEl.muted = this.isDeafened;
-      audioEl.play().catch(() => {
-        // Autoplay policy: user interaction will resume
-      });
+      const playPromise = audioEl.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          // Autoplay policy bloqueado; se reactivará al primer clic
+          console.log(`[WebRTCVoice] Autoplay pendiente de interacción de usuario para asiento ${targetSeatIndex}`);
+        });
+      }
     };
 
-    // Connection state changes
+    // Cambios de estado de conexión P2P
     pc.onconnectionstatechange = () => {
+      const isConnected = pc.connectionState === 'connected';
       if (this.peerStates[targetSeatIndex]) {
-        this.peerStates[targetSeatIndex].isConnected = pc.connectionState === 'connected';
+        this.peerStates[targetSeatIndex].isConnected = isConnected;
       }
       this.notifyState();
     };
@@ -259,11 +387,11 @@ export class WebRTCVoiceManager {
 
     while (queue.length > 0) {
       const candidate = queue.shift();
-      if (candidate) {
+      if (candidate && pc.remoteDescription) {
         try {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
         } catch (err) {
-          console.warn(`[WebRTCVoice] Error aplicando candidate encolado:`, err);
+          // Ignorar error seguro de candidato desactualizado
         }
       }
     }
@@ -271,12 +399,19 @@ export class WebRTCVoiceManager {
 
   private async handleIncomingSignal(fromSeat: number, payload: VoiceSignalPayload) {
     let pc = this.peerConnections.get(fromSeat);
-    if (!pc) {
-      pc = this.createPeerConnection(fromSeat);
-      this.peerConnections.set(fromSeat, pc);
-    }
 
     if (payload.type === 'offer' && payload.sdp) {
+      // Si ya existía una conexión en estado no estable, recrearla limpiamente
+      if (pc && pc.signalingState !== 'stable') {
+        try { pc.close(); } catch (e) {}
+        pc = undefined;
+      }
+
+      if (!pc) {
+        pc = this.createPeerConnection(fromSeat);
+        this.peerConnections.set(fromSeat, pc);
+      }
+
       await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
       await this.drainCandidateQueue(fromSeat, pc);
 
@@ -287,7 +422,15 @@ export class WebRTCVoiceManager {
         type: 'answer',
         sdp: answer,
       });
-    } else if (payload.type === 'answer' && payload.sdp) {
+      return;
+    }
+
+    if (!pc) {
+      pc = this.createPeerConnection(fromSeat);
+      this.peerConnections.set(fromSeat, pc);
+    }
+
+    if (payload.type === 'answer' && payload.sdp) {
       if (pc.signalingState === 'have-local-offer') {
         await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
         await this.drainCandidateQueue(fromSeat, pc);
@@ -297,7 +440,7 @@ export class WebRTCVoiceManager {
         try {
           await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
         } catch (err) {
-          // Safe ignore candidate errors
+          // Ignorar seguro
         }
       } else {
         if (!this.candidateQueues.has(fromSeat)) {
@@ -313,7 +456,7 @@ export class WebRTCVoiceManager {
     try {
       this.connection.invoke('SendVoiceSignal2v2', this.roomName, this.mySeatIndex, toSeat, JSON.stringify(payload));
     } catch (err) {
-      console.warn('[WebRTCVoice] Error enviando señal:', err);
+      console.warn('[WebRTCVoice] Error enviando señal de voz:', err);
     }
   }
 
@@ -324,7 +467,14 @@ export class WebRTCVoiceManager {
       const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
       if (!AudioCtx) return;
 
-      this.audioContext = new AudioCtx();
+      if (!this.audioContext || this.audioContext.state === 'closed') {
+        this.audioContext = new AudioCtx();
+      }
+
+      if (this.audioContext.state === 'suspended') {
+        this.audioContext.resume().catch(() => {});
+      }
+
       const source = this.audioContext.createMediaStreamSource(this.localStream);
       this.analyser = this.audioContext.createAnalyser();
       this.analyser.fftSize = 256;
@@ -349,8 +499,8 @@ export class WebRTCVoiceManager {
         }
         const average = sum / bufferLength;
 
-        // Threshold for speaking detection (approx 12 on 0-255 scale)
-        if (average > 14) {
+        // Umbral de detección de voz (>10)
+        if (average > 10) {
           this.setSpeaking(true);
           if (this.speakingTimeout) clearTimeout(this.speakingTimeout);
           this.speakingTimeout = setTimeout(() => {
@@ -361,6 +511,7 @@ export class WebRTCVoiceManager {
         this.animFrameId = requestAnimationFrame(checkVolume);
       };
 
+      if (this.animFrameId) cancelAnimationFrame(this.animFrameId);
       checkVolume();
     } catch (err) {
       console.warn('[WebRTCVoice] Análisis de audio no disponible:', err);
@@ -379,7 +530,7 @@ export class WebRTCVoiceManager {
       this.onSpeakingChange(this.mySeatIndex, speaking);
     }
 
-    // Broadcast voice state to room via SignalR
+    // Transmitir cambio de voz a la sala
     if (this.connection && this.roomName) {
       try {
         this.connection.invoke('BroadcastVoiceState2v2', this.roomName, this.mySeatIndex, speaking, this.isMuted);
@@ -387,8 +538,19 @@ export class WebRTCVoiceManager {
     }
   }
 
-  public toggleMute(): boolean {
-    if (!this.localStream) return this.isMuted;
+  public async toggleMute(): Promise<boolean> {
+    // Si no tiene micrófono o permiso, solicitarlo al hacer clic
+    if (!this.localStream || !this.hasMicPermission) {
+      const granted = await this.requestMicrophone();
+      if (!granted) {
+        this.isMuted = true;
+        this.notifyState();
+        return true;
+      }
+      this.isMuted = false;
+      this.notifyState();
+      return false;
+    }
 
     this.isMuted = !this.isMuted;
     this.localStream.getAudioTracks().forEach((track) => {
@@ -451,6 +613,12 @@ export class WebRTCVoiceManager {
   }
 
   public destroy() {
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('click', this.boundInteractionHandler);
+      window.removeEventListener('touchstart', this.boundInteractionHandler);
+      window.removeEventListener('keydown', this.boundInteractionHandler);
+    }
+
     if (this.animFrameId) {
       cancelAnimationFrame(this.animFrameId);
     }
