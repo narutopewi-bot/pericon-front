@@ -593,23 +593,16 @@ export default function GameTwoVsTwo() {
         }, 3000);
       }
 
-      if (data.pointsTeam1 >= 10 || data.pointsTeam2 >= 10) {
-        const winningTeam = data.pointsTeam1 >= 10 ? 1 : 2;
-        setTimeout(() => {
-          handleGameOver(winningTeam === myTeam);
-        }, 2000);
-      } else {
-        setIsWaitingNextHand(true);
-        isWaitingNextHandRef.current = true;
-        setTimeout(() => {
-          if (isWaitingNextHandRef.current && connection) {
-            console.warn('[Watchdog 2v2 Tumba] 5.5s sin NewHandDealt2v2. Solicitando RequestNewHand2v2...');
-            connection.invoke('RequestNewHand2v2', roomName).catch((err: any) => {
-              console.error('[Watchdog 2v2 invoke error]:', err);
-            });
-          }
-        }, 5500);
-      }
+      setIsWaitingNextHand(true);
+      isWaitingNextHandRef.current = true;
+      setTimeout(() => {
+        if (isWaitingNextHandRef.current && connection) {
+          console.warn('[Watchdog 2v2 Tumba] 5.5s sin NewHandDealt2v2. Solicitando RequestNewHand2v2...');
+          connection.invoke('RequestNewHand2v2', roomName).catch((err: any) => {
+            console.error('[Watchdog 2v2 invoke error]:', err);
+          });
+        }
+      }, 5500);
     });
 
     connection.on('HandFinished2v2', (data: any) => {
@@ -1963,7 +1956,7 @@ export default function GameTwoVsTwo() {
         }
       }, 5500);
 
-      if (data.isGameOver || newT1 >= 10 || newT2 >= 10) {
+      if (data.isGameOver) {
         setTimeout(() => {
           handleGameOver((data.winningTeamOfMatch ? data.winningTeamOfMatch === myTeam : challengerTeam === myTeam));
         }, 3000);
