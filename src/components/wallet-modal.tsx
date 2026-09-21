@@ -80,6 +80,14 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
   const [promoSuccess, setPromoSuccess] = useState<string | null>(null);
   const [promoError, setPromoError] = useState<string | null>(null);
 
+  // Recompensa Instagram (+300 Monedas)
+  const [instagramClaimed, setInstagramClaimed] = useState<boolean>(false);
+  const [instagramLoading, setInstagramLoading] = useState<boolean>(false);
+  const [showIgVerify, setShowIgVerify] = useState<boolean>(false);
+  const [igHandleInput, setIgHandleInput] = useState<string>("");
+  const [igRewardSuccess, setIgRewardSuccess] = useState<string | null>(null);
+  const [igRewardError, setIgRewardError] = useState<string | null>(null);
+
   // Formulario de Recarga (con soporte para borrar sin trabarse en 1)
   const [amountBs, setAmountBs] = useState<string>("100");
   const [reference, setReference] = useState<string>("");
@@ -152,21 +160,35 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
       }
       if (resProf.ok) {
         const profile = await resProf.json();
-        if (profile && typeof profile.coins === "number") {
-          dispatch(setGamePlayer({
-            coins: profile.coins,
-            wins: profile.wins,
-            losses: profile.losses,
-            level: profile.level,
-          }));
-          if (typeof window !== "undefined") {
-            const stored = localStorage.getItem("pericon_user");
-            if (stored) {
-              try {
-                const u = JSON.parse(stored);
-                u.coins = profile.coins;
-                localStorage.setItem("pericon_user", JSON.stringify(u));
-              } catch (e) {}
+        if (profile) {
+          if (profile.hasClaimedInstagramReward) {
+            setInstagramClaimed(true);
+          }
+          if (profile.instagramHandle) {
+            setIgHandleInput(profile.instagramHandle);
+          }
+          if (typeof profile.coins === "number") {
+            dispatch(setGamePlayer({
+              coins: profile.coins,
+              wins: profile.wins,
+              losses: profile.losses,
+              level: profile.level,
+            }));
+            if (typeof window !== "undefined") {
+              const stored = localStorage.getItem("pericon_user");
+              if (stored) {
+                try {
+                  const u = JSON.parse(stored);
+                  u.coins = profile.coins;
+                  if (profile.hasClaimedInstagramReward) {
+                    u.hasClaimedInstagramReward = true;
+                  }
+                  if (profile.instagramHandle) {
+                    u.instagramHandle = profile.instagramHandle;
+                  }
+                  localStorage.setItem("pericon_user", JSON.stringify(u));
+                } catch (e) {}
+              }
             }
           }
         }
@@ -254,6 +276,78 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
       setBonusMessage("Error de conexión al reclamar el bono.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleInstagramRewardClick = () => {
+    const validId = getValidNumericUserId();
+    if (!validId) {
+      setBonusMessage("Inicia sesión para reclamar tu recompensa de Instagram.");
+      return;
+    }
+    // Abre el perfil de Instagram en una pestaña nueva
+    if (typeof window !== "undefined") {
+      window.open("https://www.instagram.com/pericon.lat", "_blank", "noopener,noreferrer");
+    }
+    setShowIgVerify(true);
+    setIgRewardError(null);
+    setIgRewardSuccess(null);
+  };
+
+  const handleConfirmInstagramClaim = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const validId = getValidNumericUserId();
+    if (!validId) {
+      setIgRewardError("Debes iniciar sesión para reclamar tus monedas.");
+      return;
+    }
+
+    const cleanHandle = igHandleInput.trim();
+    if (!cleanHandle || cleanHandle.length < 3) {
+      setIgRewardError("Por favor ingresa tu usuario de Instagram (ej: @carlos_carora).");
+      return;
+    }
+
+    setInstagramLoading(true);
+    setIgRewardError(null);
+    setIgRewardSuccess(null);
+
+    try {
+      const res = await fetch(`${apiUrl}/api/user/claim-instagram-reward`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: validId,
+          instagramHandle: cleanHandle
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setInstagramClaimed(true);
+        setIgRewardSuccess(data.message || "¡300 monedas acreditadas con éxito por apoyar a @pericon.lat! 🐐📸🪙");
+        dispatch(setGamePlayer({ coins: data.coins }));
+        try { playCoinWinSound(); } catch (err) {}
+        if (typeof window !== "undefined") {
+          const stored = localStorage.getItem("pericon_user");
+          if (stored) {
+            try {
+              const u = JSON.parse(stored);
+              u.coins = data.coins;
+              u.hasClaimedInstagramReward = true;
+              u.instagramHandle = cleanHandle.startsWith("@") ? cleanHandle : `@${cleanHandle}`;
+              localStorage.setItem("pericon_user", JSON.stringify(u));
+            } catch (err) {}
+          }
+        }
+      } else {
+        setIgRewardError(data.message || "No se pudo acreditar la recompensa.");
+      }
+    } catch (err) {
+      console.error(err);
+      setIgRewardError("Error de conexión al validar tu recompensa.");
+    } finally {
+      setInstagramLoading(false);
     }
   };
 
@@ -503,7 +597,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
         </div>
 
         {/* Bono Diario (10 Monedas) */}
-        <div className="w-full bg-gradient-to-r from-amber-950/70 via-black/60 to-amber-950/70 border border-amber-500/40 rounded-2xl p-2.5 sm:p-3 mb-3 flex items-center justify-between gap-2 shadow">
+        <div className="w-full bg-gradient-to-r from-amber-950/70 via-black/60 to-amber-950/70 border border-amber-500/40 rounded-2xl p-2.5 sm:p-3 mb-2 flex items-center justify-between gap-2 shadow">
           <div className="flex items-center gap-2.5">
             <span className="text-2xl">🐐</span>
             <div>
@@ -522,11 +616,89 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
           <button
             onClick={handleClaimDaily}
             disabled={loading}
-            className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:brightness-110 text-black font-extrabold text-[11px] rounded-xl shadow transition disabled:opacity-50 flex-shrink-0"
+            className="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 hover:brightness-110 text-black font-extrabold text-[11px] rounded-xl shadow transition disabled:opacity-50 flex-shrink-0 cursor-pointer"
           >
             {loading ? "..." : "Reclamar 🎁"}
           </button>
         </div>
+
+        {/* Recompensa Instagram (+300 Monedas) */}
+        <div className="w-full bg-gradient-to-r from-purple-950/80 via-black/75 to-pink-950/80 border border-pink-500/40 rounded-2xl p-2.5 sm:p-3 mb-3 flex items-center justify-between gap-2 shadow-lg shadow-pink-950/20">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 flex items-center justify-center shadow-md flex-shrink-0 p-1.5">
+              <Image width={24} height={24} src="/instagram.svg" alt="Instagram" className="w-full h-full object-contain drop-shadow" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <span className="text-xs font-black text-pink-300 truncate">Seguir en Instagram</span>
+                <span className="text-[10px] bg-gradient-to-r from-pink-500 to-rose-500 text-white font-extrabold px-2 py-0.5 rounded-full shadow">
+                  +300 🪙
+                </span>
+              </div>
+              <span className="text-[10px] text-pink-200/80 block truncate">
+                Sigue a @pericon.lat y gana 300 monedas
+              </span>
+            </div>
+          </div>
+
+          <button
+            onClick={handleInstagramRewardClick}
+            disabled={instagramClaimed || instagramLoading}
+            className={`px-3 py-1.5 font-extrabold text-[11px] rounded-xl shadow transition flex-shrink-0 ${
+              instagramClaimed
+                ? "bg-emerald-950/80 border border-emerald-500/50 text-emerald-300 cursor-default"
+                : "bg-gradient-to-r from-pink-500 via-rose-500 to-purple-600 hover:brightness-110 text-white active:scale-95 cursor-pointer"
+            }`}
+          >
+            {instagramClaimed ? "✅ Reclamado" : instagramLoading ? "..." : "Seguir y Ganar 📸"}
+          </button>
+        </div>
+
+        {/* Modal / Diálogo de Verificación de Instagram */}
+        {showIgVerify && !instagramClaimed && (
+          <div className="w-full bg-gradient-to-b from-purple-950/95 to-black/95 border-2 border-pink-500/60 rounded-2xl p-3 sm:p-4 mb-3 shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-2">
+                <span className="text-base">📸</span>
+                <span className="text-xs font-black text-pink-300">Validar Recompensa de Instagram</span>
+              </div>
+              <button
+                onClick={() => setShowIgVerify(false)}
+                className="text-pink-300/70 hover:text-white text-xs font-bold px-1.5 py-0.5 rounded-lg hover:bg-white/10"
+              >
+                ✕
+              </button>
+            </div>
+            <p className="text-[11px] text-pink-100/90 mb-3 leading-snug">
+              Ya abrimos <strong className="text-pink-300">@pericon.lat</strong> en Instagram. Dale a <strong>Seguir</strong> y escribe aquí tu usuario para acreditarte tus <strong className="text-amber-300 font-black">+300 monedas</strong>:
+            </p>
+            <form onSubmit={handleConfirmInstagramClaim} className="flex gap-2">
+              <input
+                type="text"
+                value={igHandleInput}
+                onChange={(e) => setIgHandleInput(e.target.value)}
+                placeholder="@tu_usuario_instagram"
+                className="flex-1 bg-black/80 border border-pink-500/50 rounded-xl px-3 py-2 text-xs text-white placeholder-pink-300/40 focus:outline-none focus:border-pink-400"
+              />
+              <button
+                type="submit"
+                disabled={instagramLoading}
+                className="px-3 py-2 bg-gradient-to-r from-pink-500 to-rose-600 hover:brightness-110 text-white font-extrabold text-xs rounded-xl shadow transition disabled:opacity-50 whitespace-nowrap cursor-pointer"
+              >
+                {instagramLoading ? "..." : "Validar y Ganar 🪙"}
+              </button>
+            </form>
+            {igRewardError && (
+              <p className="text-[11px] text-rose-400 font-semibold mt-2">⚠️ {igRewardError}</p>
+            )}
+          </div>
+        )}
+
+        {igRewardSuccess && (
+          <div className="w-full bg-emerald-950/90 border border-emerald-500/60 text-emerald-200 text-xs p-2.5 rounded-xl mb-3 text-center font-bold shadow animate-in fade-in">
+            {igRewardSuccess}
+          </div>
+        )}
 
         {bonusMessage && (
           <div className="w-full bg-amber-950/90 border border-amber-500/60 text-amber-200 text-xs p-2.5 rounded-xl mb-3 text-center font-medium">

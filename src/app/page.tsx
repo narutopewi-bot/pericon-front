@@ -158,9 +158,15 @@ export default function Home() {
           </p>
 
           <div className="flex justify-center mt-4">
-            <div className="mx-4 md:mx-6 hover:cursor-pointer z-10">
-              <Image width={40} height={40} src="/instagram.svg" alt="Instagram" />
-            </div>
+            <a
+              href="https://www.instagram.com/pericon.lat"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mx-4 md:mx-6 hover:cursor-pointer z-10 flex flex-col items-center group transition-transform hover:scale-110 active:scale-95"
+              title="Síguenos en Instagram @pericon.lat (Gana 300 monedas)">
+              <Image width={40} height={40} src="/instagram.svg" alt="Instagram @pericon.lat" className="drop-shadow-[0_2px_10px_rgba(225,48,108,0.5)]" />
+              <span className="text-[10px] text-amber-300 font-bold mt-1 group-hover:text-yellow-200">@pericon.lat</span>
+            </a>
 
             <div className="mx-4 md:mx-6 hover:cursor-pointer z-10">
               <Image width={40} height={40} src="/facebook.svg" alt="Facebook" />
