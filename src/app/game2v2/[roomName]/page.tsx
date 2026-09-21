@@ -1184,15 +1184,19 @@ export default function GameTwoVsTwo() {
   const handlePlayMyCard = (card: Card) => {
     if (currentTurnRef.current !== mySeatIndexRef.current || isProcessingMoveRef.current || isCleaningTable || isWaitingOppTumba || tumbaCountdown !== null || isStakePendingRef.current) return;
 
-    // Regla del Pelao: Si salieron con un triunfo y poseemos triunfos en la mano, obligatorio tirar triunfo
+    // Regla del Pelao: Si salieron con un triunfo y poseemos triunfos en la mano, obligatorio tirar triunfo (salvo excepción del 5 de Oro en 1ra baza)
     if (playedCardsRef.current.length > 0) {
       const leadCardId = playedCardsRef.current[0].card.id;
       const lifeId = lifeCardRef.current.id;
       const isLeadTrump = isTrumpCard(leadCardId, lifeId);
       const playerHasTrump = myCards.some(c => isTrumpCard(c.id, lifeId));
       const isSelectedTrump = isTrumpCard(card.id, lifeId);
+      const isFirstBaza = myCards.length === 3;
+      const hasCincoDeOro = myCards.some(c => c.id === 4);
+      const trumpsCount = myCards.filter(c => isTrumpCard(c.id, lifeId)).length;
+      const canDenyCinco = isFirstBaza && hasCincoDeOro && trumpsCount === 1;
 
-      if (isLeadTrump && playerHasTrump && !isSelectedTrump) {
+      if (isLeadTrump && playerHasTrump && !canDenyCinco && !isSelectedTrump) {
         speakPhrase("¡Regla del Pelao! Debes lanzar un triunfo.");
         vibrateDevice('reject');
         playSynthSound('reject');
@@ -1233,7 +1237,12 @@ export default function GameTwoVsTwo() {
       const lifeId = lifeCardRef.current.id;
       const isLeadTrump = isTrumpCard(leadCardId, lifeId);
       const playerHasTrump = myCards.some(c => isTrumpCard(c.id, lifeId));
-      if (isLeadTrump && playerHasTrump) {
+      const isFirstBaza = myCards.length === 3;
+      const hasCincoDeOro = myCards.some(c => c.id === 4);
+      const trumpsCount = myCards.filter(c => isTrumpCard(c.id, lifeId)).length;
+      const canDenyCinco = isFirstBaza && hasCincoDeOro && trumpsCount === 1;
+
+      if (isLeadTrump && playerHasTrump && !canDenyCinco) {
         const trump = myCards.find(c => isTrumpCard(c.id, lifeId));
         if (trump) chosenCard = trump;
       }
@@ -2812,21 +2821,38 @@ export default function GameTwoVsTwo() {
             </div>
           )}
 
-          {/* Indicador visual de Regla del Pelao */}
+          {/* Indicador visual de Regla del Pelao / Negar 5 de Oro */}
           {(() => {
             const currentLifeId = lifeCard?.id ?? -1;
             const isLeadTrump = playedCards.length > 0 && isTrumpCard(playedCards[0].card.id, currentLifeId);
             const playerHasTrump = myCards.some(c => isTrumpCard(c.id, currentLifeId));
+            const isFirstBaza = myCards.length === 3;
+            const hasCincoDeOro = myCards.some(c => c.id === 4);
+            const trumpsCount = myCards.filter(c => isTrumpCard(c.id, currentLifeId)).length;
+            const canDenyCinco = isFirstBaza && hasCincoDeOro && trumpsCount === 1;
             const isPelaoActive = isLeadTrump && playerHasTrump;
 
-            return isPelaoActive && currentTurn === mySeatIndex ? (
+            if (!isPelaoActive || currentTurn !== mySeatIndex) return null;
+
+            if (canDenyCinco) {
+              return (
+                <div className="flex justify-center mb-1 animate-pulse z-30">
+                  <div className="flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black px-3 sm:px-4 py-0.5 sm:py-1 rounded-full font-black text-[9px] sm:text-xs shadow-xl border-2 border-yellow-200">
+                    <span className="text-xs sm:text-sm">👑</span>
+                    <span>REGLA DEL 5 DE ORO: ¡Puedes negarlo y tirar otra carta, o jugarlo si prefieres!</span>
+                  </div>
+                </div>
+              );
+            }
+
+            return (
               <div className="flex justify-center mb-1 animate-pulse z-30">
                 <div className="flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 text-black px-3 sm:px-4 py-0.5 sm:py-1 rounded-full font-black text-[9px] sm:text-xs shadow-xl border-2 border-amber-300">
                   <span className="text-xs sm:text-sm">⚡</span>
                   <span>REGLA DEL PELAO: ¡Salieron con triunfo, debes lanzar triunfo!</span>
                 </div>
               </div>
-            ) : null;
+            );
           })()}
 
           {/* Barra de Acciones del Jugador: Identidad, Estado de Turno y Botón de PEDIR */}
@@ -2921,7 +2947,11 @@ export default function GameTwoVsTwo() {
               const currentLifeId = lifeCard?.id ?? -1;
               const isLeadTrump = playedCards.length > 0 && isTrumpCard(playedCards[0].card.id, currentLifeId);
               const playerHasTrump = myCards.some(c => isTrumpCard(c.id, currentLifeId));
-              const isPelaoActive = isLeadTrump && playerHasTrump;
+              const isFirstBaza = myCards.length === 3;
+              const hasCincoDeOro = myCards.some(c => c.id === 4);
+              const trumpsCount = myCards.filter(c => isTrumpCard(c.id, currentLifeId)).length;
+              const canDenyCinco = isFirstBaza && hasCincoDeOro && trumpsCount === 1;
+              const isPelaoActive = isLeadTrump && playerHasTrump && !canDenyCinco;
               const isTrump = isTrumpCard(card.id, currentLifeId);
               const isBlockedByPelao = isPelaoActive && !isTrump;
 

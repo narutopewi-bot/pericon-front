@@ -275,8 +275,12 @@ export default function Duel1vs1() {
       ? isTrumpCard(cpoppRef.current.id, currentLifeId)
       : false;
     const playerHasTrump = playerCards.some(c => isTrumpCard(c.id, currentLifeId));
+    const isFirstBaza = playerCards.length === 3;
+    const hasCincoDeOro = playerCards.some(c => c.id === 4);
+    const trumpsCount = playerCards.filter(c => isTrumpCard(c.id, currentLifeId)).length;
+    const canDenyCinco = isFirstBaza && hasCincoDeOro && trumpsCount === 1;
 
-    if (isOppTrump && playerHasTrump) {
+    if (isOppTrump && playerHasTrump && !canDenyCinco) {
       const trump = playerCards.find(c => isTrumpCard(c.id, currentLifeId));
       if (trump) chosen = trump;
     }
@@ -937,14 +941,18 @@ export default function Duel1vs1() {
         setTimeLeft(30);
         hasTimedOut.current = false;
       } else if (roundturn.current == false && switchturn.current == true) {
-        // Regla del Pelao: Si el rival salió con triunfo y tenemos triunfos, obligatorio tirar triunfo
+        // Regla del Pelao: Si el rival salió con triunfo y tenemos triunfos, obligatorio tirar triunfo (salvo excepción del 5 de Oro en 1ra baza)
         const currentLifeId = cpEightRef.current?.id ?? -1;
         const isOppTrump = (cpoppRef.current?.id !== undefined && cpoppRef.current.id !== -1)
           ? isTrumpCard(cpoppRef.current.id, currentLifeId)
           : false;
         const playerHasTrump = playerCards.some(c => isTrumpCard(c.id, currentLifeId));
+        const isFirstBaza = playerCards.length === 3;
+        const hasCincoDeOro = playerCards.some(c => c.id === 4);
+        const trumpsCount = playerCards.filter(c => isTrumpCard(c.id, currentLifeId)).length;
+        const canDenyCinco = isFirstBaza && hasCincoDeOro && trumpsCount === 1;
 
-        if (isOppTrump && playerHasTrump && !isTrumpCard(cardZero.id, currentLifeId)) {
+        if (isOppTrump && playerHasTrump && !canDenyCinco && !isTrumpCard(cardZero.id, currentLifeId)) {
           speakPhrase("¡Regla del Pelao! Debes lanzar un triunfo.");
           vibrateDevice('reject');
           playSynthSound('reject');
@@ -2324,7 +2332,7 @@ export default function Duel1vs1() {
                   </div>
                 </div>
 
-                {/* Indicador de Regla del Pelao */}
+                {/* Indicador de Regla del Pelao / Negar 5 de Oro */}
                 {(() => {
                   const currentLifeId = cpEightRef.current?.id ?? -1;
                   const isOppLead = roundturn.current === false && switchturn.current === true;
@@ -2332,16 +2340,33 @@ export default function Duel1vs1() {
                     ? isTrumpCard(cpoppRef.current.id, currentLifeId)
                     : false;
                   const playerHasTrump = playerCards.some(c => isTrumpCard(c.id, currentLifeId));
+                  const isFirstBaza = playerCards.length === 3;
+                  const hasCincoDeOro = playerCards.some(c => c.id === 4);
+                  const trumpsCount = playerCards.filter(c => isTrumpCard(c.id, currentLifeId)).length;
+                  const canDenyCinco = isFirstBaza && hasCincoDeOro && trumpsCount === 1;
                   const isPelaoActive = isOppTrump && playerHasTrump;
 
-                  return isPelaoActive ? (
+                  if (!isPelaoActive) return null;
+
+                  if (canDenyCinco) {
+                    return (
+                      <div className='flex justify-center mb-2 animate-bounce-subtle'>
+                        <div className='flex items-center gap-2 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black px-4 py-1.5 rounded-full font-black text-xs sm:text-sm shadow-xl border-2 border-yellow-200'>
+                          <span className='text-sm sm:text-base'>👑</span>
+                          <span>REGLA DEL 5 DE ORO: ¡Puedes negarlo y tirar otra carta, o jugarlo si prefieres!</span>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  return (
                     <div className='flex justify-center mb-2 animate-bounce-subtle'>
                       <div className='flex items-center gap-2 bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 text-black px-4 py-1 rounded-full font-black text-xs sm:text-sm shadow-xl border-2 border-amber-300'>
                         <span className='text-sm sm:text-base'>⚡</span>
                         <span>REGLA DEL PELAO: ¡Salieron con triunfo, debes lanzar triunfo!</span>
                       </div>
                     </div>
-                  ) : null;
+                  );
                 })()}
 
                 {/* Contador de tiempo para decisión de Tumba */}
@@ -2414,7 +2439,11 @@ export default function Duel1vs1() {
                         ? isTrumpCard(cpoppRef.current.id, currentLifeId)
                         : false;
                       const playerHasTrump = playerCards.some(c => isTrumpCard(c.id, currentLifeId));
-                      const isPelaoActive = isOppTrump && playerHasTrump;
+                      const isFirstBaza = playerCards.length === 3;
+                      const hasCincoDeOro = playerCards.some(c => c.id === 4);
+                      const trumpsCount = playerCards.filter(c => isTrumpCard(c.id, currentLifeId)).length;
+                      const canDenyCinco = isFirstBaza && hasCincoDeOro && trumpsCount === 1;
+                      const isPelaoActive = isOppTrump && playerHasTrump && !canDenyCinco;
 
                       return playerCards.map((card, index) => {
                         const isTrump = isTrumpCard(card.id, currentLifeId);

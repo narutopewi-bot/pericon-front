@@ -1110,8 +1110,12 @@ export default function Duel() {
     const oppLeadCard = isOpponentLead ? tableCards[1] : null;
     const isLeadTrump = oppLeadCard ? isTrumpCard(oppLeadCard.id, currentLifeId) : false;
     const playerHasTrump = playerCards.some(c => isTrumpCard(c.id, currentLifeId));
+    const isFirstBaza = playerCards.length === 3;
+    const hasCincoDeOro = playerCards.some(c => c.id === 4);
+    const trumpsCount = playerCards.filter(c => isTrumpCard(c.id, currentLifeId)).length;
+    const canDenyCinco = isFirstBaza && hasCincoDeOro && trumpsCount === 1;
 
-    if (isOpponentLead && isLeadTrump && playerHasTrump && !isTrumpCard(card.id, currentLifeId)) {
+    if (isOpponentLead && isLeadTrump && playerHasTrump && !canDenyCinco && !isTrumpCard(card.id, currentLifeId)) {
       speakPhrase("¡Regla del Pelao! Debes lanzar un triunfo.");
       vibrateDevice('reject');
       playSynthSound('reject');
@@ -1315,7 +1319,12 @@ export default function Duel() {
   const oppLeadCard = isOpponentLead ? tableCards[1] : null;
   const isLeadTrump = oppLeadCard ? isTrumpCard(oppLeadCard.id, currentLifeId) : false;
   const playerHasTrump = playerCards.some(c => isTrumpCard(c.id, currentLifeId));
+  const isFirstBaza = playerCards.length === 3;
+  const hasCincoDeOro = playerCards.some(c => c.id === 4);
+  const trumpsCount = playerCards.filter(c => isTrumpCard(c.id, currentLifeId)).length;
+  const canDenyCinco = isFirstBaza && hasCincoDeOro && trumpsCount === 1;
   const isPelaoActive = isOpponentLead && isLeadTrump && playerHasTrump;
+  const isCardBlockingActive = isPelaoActive && !canDenyCinco;
 
   const isUserTurn = !isProcessingMove && !isRoundEnding && !isDealing && tumbaCountdown === null && (
     (tableCards.length <= 1 && roundturn) ||
@@ -1339,7 +1348,7 @@ export default function Duel() {
     // Seleccionar automáticamente una carta legal para no congelar la partida
     const playableCard = playerCards.find(c => {
       const isTrump = isTrumpCard(c.id, currentLifeId);
-      return !isPelaoActive || isTrump;
+      return !isCardBlockingActive || isTrump;
     }) || playerCards[0];
 
     if (playableCard) {
@@ -1693,13 +1702,20 @@ export default function Duel() {
                   </div>
                 </div>
 
-                {/* Indicador de Regla del Pelao */}
+                {/* Indicador de Regla del Pelao / Negar 5 de Oro */}
                 {isPelaoActive && (
                   <div className='flex justify-center mb-2 animate-bounce-subtle'>
-                    <div className='flex items-center gap-2 bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 text-black px-4 py-1 rounded-full font-black text-xs sm:text-sm shadow-xl border-2 border-amber-300'>
-                      <span className='text-sm sm:text-base'>⚡</span>
-                      <span>REGLA DEL PELAO: ¡Salieron con triunfo, debes lanzar triunfo!</span>
-                    </div>
+                    {canDenyCinco ? (
+                      <div className='flex items-center gap-2 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black px-4 py-1.5 rounded-full font-black text-xs sm:text-sm shadow-xl border-2 border-yellow-200'>
+                        <span className='text-sm sm:text-base'>👑</span>
+                        <span>REGLA DEL 5 DE ORO: ¡Puedes negarlo y tirar otra carta, o jugarlo si prefieres!</span>
+                      </div>
+                    ) : (
+                      <div className='flex items-center gap-2 bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 text-black px-4 py-1 rounded-full font-black text-xs sm:text-sm shadow-xl border-2 border-amber-300'>
+                        <span className='text-sm sm:text-base'>⚡</span>
+                        <span>REGLA DEL PELAO: ¡Salieron con triunfo, debes lanzar triunfo!</span>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1753,7 +1769,7 @@ export default function Duel() {
                     {playerCards &&
                       playerCards.map((card, index) => {
                         const isTrump = isTrumpCard(card.id, currentLifeId);
-                        const isBlockedByPelao = isPelaoActive && !isTrump;
+                        const isBlockedByPelao = isCardBlockingActive && !isTrump;
 
                         return (
                           <div
