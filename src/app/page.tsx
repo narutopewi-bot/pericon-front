@@ -162,19 +162,29 @@ export default function Home() {
               href="https://www.instagram.com/pericon.lat"
               target="_blank"
               rel="noopener noreferrer"
-              className="mx-4 md:mx-6 hover:cursor-pointer z-10 flex flex-col items-center group transition-transform hover:scale-110 active:scale-95"
+              className="mx-4 md:mx-6 cursor-pointer z-10 flex flex-col items-center group transition-transform hover:scale-110 active:scale-95"
               title="Síguenos en Instagram @pericon.lat (Gana 300 monedas)">
-              <Image width={40} height={40} src="/instagram.svg" alt="Instagram @pericon.lat" className="drop-shadow-[0_2px_10px_rgba(225,48,108,0.5)]" />
+              <Image width={40} height={40} src="/instagram.svg" alt="Instagram @pericon.lat" className="drop-shadow-[0_2px_10px_rgba(225,48,108,0.5)] cursor-pointer" />
               <span className="text-[10px] text-amber-300 font-bold mt-1 group-hover:text-yellow-200">@pericon.lat</span>
             </a>
 
-            <div className="mx-4 md:mx-6 hover:cursor-pointer z-10">
-              <Image width={40} height={40} src="/facebook.svg" alt="Facebook" />
-            </div>
+            <button
+              type="button"
+              onClick={() => alert("¡Facebook estará disponible muy pronto! Por ahora síguenos en Instagram oficial: @pericon.lat")}
+              className="mx-4 md:mx-6 cursor-pointer z-10 flex flex-col items-center opacity-80 hover:opacity-100 transition-transform hover:scale-110 active:scale-95"
+              title="Facebook oficial (Próximamente)">
+              <Image width={40} height={40} src="/facebook.svg" alt="Facebook" className="cursor-pointer" />
+              <span className="text-[9px] text-white/50 font-semibold mt-1">Pronto</span>
+            </button>
 
-            <div className="mx-4 md:mx-6 hover:cursor-pointer z-10">
-              <Image width={40} height={40} src="/telegram.svg" alt="Telegram" />
-            </div>
+            <button
+              type="button"
+              onClick={() => alert("¡Comunidad de Telegram próximamente! Por ahora síguenos en Instagram oficial: @pericon.lat")}
+              className="mx-4 md:mx-6 cursor-pointer z-10 flex flex-col items-center opacity-80 hover:opacity-100 transition-transform hover:scale-110 active:scale-95"
+              title="Telegram oficial (Próximamente)">
+              <Image width={40} height={40} src="/telegram.svg" alt="Telegram" className="cursor-pointer" />
+              <span className="text-[9px] text-white/50 font-semibold mt-1">Pronto</span>
+            </button>
           </div>
 
           <div className="mt-6 flex items-center justify-center gap-3 text-[11px] text-amber-300/70 font-semibold">
