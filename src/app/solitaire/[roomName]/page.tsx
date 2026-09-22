@@ -757,14 +757,16 @@ export default function Duel() {
             }
 
             const alertTwo = AlertMessage(xcad);
-            Swal.fire(alertTwo.firstMessage).then(() => {
-              // Permanece bloqueado hasta que el servidor reparta la nueva mano
-              delay(500).then(() => {
-                shuffleCards();
+            setTimeout(() => {
+              Swal.fire(alertTwo.firstMessage).then(() => {
+                // Permanece bloqueado hasta que el servidor reparta la nueva mano
+                delay(500).then(() => {
+                  shuffleCards();
+                });
               });
-            });
+            }, 1800);
           }, 850);
-        }, 2400);
+        }, 4000);
       }
 
     });

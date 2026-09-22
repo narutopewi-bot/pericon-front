@@ -1405,7 +1405,10 @@ export default function GameTwoVsTwo() {
       }
     }
 
-    // Pausa de 3.8 segundos para apreciar las 4 cartas y el ganador
+    // Pausa ampliada: 4.2 segundos en baza final de la mano (o 3.2s en bazas intermedias)
+    const isHandConcluding = (newTricksT1 >= 2 || newTricksT2 >= 2 || (newTricksT1 + newTricksT2 >= 3));
+    const pauseMs2v2 = isHandConcluding ? 4200 : 3200;
+
     setTimeout(() => {
       setIsCleaningTable(true);
       playSwooshSound();
@@ -1437,7 +1440,7 @@ export default function GameTwoVsTwo() {
           }
         }
       }, 700);
-    }, 3800);
+    }, pauseMs2v2);
   };
 
   // Resolver la mano y pausar para la siguiente mano repartida por el servidor
@@ -1549,76 +1552,80 @@ export default function GameTwoVsTwo() {
         playSynthSound('win');
         speakPhrase('¡Felicidades! Tu equipo ha ganado la partida amistosa.');
 
-        Swal.fire({
-          title: '🏆 ¡VICTORIA AMISTOSA!',
-          html: `
-            <div style="font-family: inherit; font-size: 13px; text-align: left; padding: 4px 0;">
-              <p style="margin-bottom: 12px; font-weight: bold; color: #4ade80; font-size: 15px; text-align: center;">
-                ¡Tu equipo dominó el encuentro amistoso!
-              </p>
-              <div style="background: rgba(0,0,0,0.45); border-radius: 12px; padding: 10px 14px; border: 1px solid rgba(56,189,248,0.3);">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                  <span style="color: #cbd5e1;">🎮 Modalidad:</span>
-                  <span style="font-weight: bold; color: #38bdf8;">Sala Amistosa 2 vs 2</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                  <span style="color: #cbd5e1;">🏛️ Tarifa de sala (para la casa):</span>
-                  <span style="font-weight: bold; color: #fb923c;">10 monedas</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                  <span style="color: #cbd5e1;">🏅 Récord personal:</span>
-                  <span style="font-weight: bold; color: #4ade80;">+1 Victoria sumada</span>
-                </div>
-                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                  <span style="color: #cbd5e1;">💰 Pozo de apuestas:</span>
-                  <span style="color: #94a3b8; font-style: italic;">Sin apuestas (Amistoso)</span>
-                </div>
-                <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.15); margin: 8px 0;" />
-                <div style="display: flex; justify-content: space-between; font-size: 14px;">
-                  <span style="font-weight: bold; color: #fff;">👛 Tu nuevo saldo:</span>
-                  <span style="font-weight: 900; color: #fde047;">${estimatedNewCoins} monedas</span>
+        setTimeout(() => {
+          Swal.fire({
+            title: '🏆 ¡VICTORIA AMISTOSA!',
+            html: `
+              <div style="font-family: inherit; font-size: 13px; text-align: left; padding: 4px 0;">
+                <p style="margin-bottom: 12px; font-weight: bold; color: #4ade80; font-size: 15px; text-align: center;">
+                  ¡Tu equipo dominó el encuentro amistoso!
+                </p>
+                <div style="background: rgba(0,0,0,0.45); border-radius: 12px; padding: 10px 14px; border: 1px solid rgba(56,189,248,0.3);">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span style="color: #cbd5e1;">🎮 Modalidad:</span>
+                    <span style="font-weight: bold; color: #38bdf8;">Sala Amistosa 2 vs 2</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span style="color: #cbd5e1;">🏛️ Tarifa de sala (para la casa):</span>
+                    <span style="font-weight: bold; color: #fb923c;">10 monedas</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span style="color: #cbd5e1;">🏅 Récord personal:</span>
+                    <span style="font-weight: bold; color: #4ade80;">+1 Victoria sumada</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span style="color: #cbd5e1;">💰 Pozo de apuestas:</span>
+                    <span style="color: #94a3b8; font-style: italic;">Sin apuestas (Amistoso)</span>
+                  </div>
+                  <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.15); margin: 8px 0;" />
+                  <div style="display: flex; justify-content: space-between; font-size: 14px;">
+                    <span style="font-weight: bold; color: #fff;">👛 Tu nuevo saldo:</span>
+                    <span style="font-weight: 900; color: #fde047;">${estimatedNewCoins} monedas</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          `,
-          icon: 'success',
-          confirmButtonText: 'Volver al Menú',
-          confirmButtonColor: '#22c55e',
-          background: '#1a0e06',
-          color: '#fff',
-        }).then(() => {
-          router.push('/desk');
-        });
+            `,
+            icon: 'success',
+            confirmButtonText: 'Volver al Menú',
+            confirmButtonColor: '#22c55e',
+            background: '#1a0e06',
+            color: '#fff',
+          }).then(() => {
+            router.push('/desk');
+          });
+        }, 3200);
       } else {
         speakPhrase('Partida amistosa finalizada.');
-        Swal.fire({
-          title: 'PARTIDA AMISTOSA FINALIZADA',
-          html: `
-            <div style="font-family: inherit; font-size: 13px; text-align: left; padding: 4px 0;">
-              <p style="margin-bottom: 12px; font-weight: bold; color: #cbd5e1; font-size: 14px; text-align: center;">
-                Los rivales completaron la partida amistosa.
-              </p>
-              <div style="background: rgba(0,0,0,0.45); border-radius: 12px; padding: 10px 14px; border: 1px solid rgba(255,255,255,0.15);">
-                <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                  <span style="color: #cbd5e1;">🏛️ Tarifa de sala (para la casa):</span>
-                  <span style="font-weight: bold; color: #fb923c;">10 monedas</span>
-                </div>
-                <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.15); margin: 8px 0;" />
-                <div style="display: flex; justify-content: space-between; font-size: 14px;">
-                  <span style="font-weight: bold; color: #fff;">👛 Tu nuevo saldo:</span>
-                  <span style="font-weight: 900; color: #fde047;">${estimatedNewCoins} monedas</span>
+        setTimeout(() => {
+          Swal.fire({
+            title: 'PARTIDA AMISTOSA FINALIZADA',
+            html: `
+              <div style="font-family: inherit; font-size: 13px; text-align: left; padding: 4px 0;">
+                <p style="margin-bottom: 12px; font-weight: bold; color: #cbd5e1; font-size: 14px; text-align: center;">
+                  Los rivales completaron la partida amistosa.
+                </p>
+                <div style="background: rgba(0,0,0,0.45); border-radius: 12px; padding: 10px 14px; border: 1px solid rgba(255,255,255,0.15);">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                    <span style="color: #cbd5e1;">🏛️ Tarifa de sala (para la casa):</span>
+                    <span style="font-weight: bold; color: #fb923c;">10 monedas</span>
+                  </div>
+                  <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.15); margin: 8px 0;" />
+                  <div style="display: flex; justify-content: space-between; font-size: 14px;">
+                    <span style="font-weight: bold; color: #fff;">👛 Tu nuevo saldo:</span>
+                    <span style="font-weight: 900; color: #fde047;">${estimatedNewCoins} monedas</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          `,
-          icon: 'info',
-          confirmButtonText: 'Volver al Menú',
-          confirmButtonColor: '#d97706',
-          background: '#1a0e06',
-          color: '#fff',
-        }).then(() => {
-          router.push('/desk');
-        });
+            `,
+            icon: 'info',
+            confirmButtonText: 'Volver al Menú',
+            confirmButtonColor: '#d97706',
+            background: '#1a0e06',
+            color: '#fff',
+          }).then(() => {
+            router.push('/desk');
+          });
+        }, 3200);
       }
       return;
     }

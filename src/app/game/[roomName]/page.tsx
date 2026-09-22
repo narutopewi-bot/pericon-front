@@ -1313,7 +1313,10 @@ export default function Duel1vs1() {
           }
         }
 
-        // PAUSA GENEROSA DE 2.4 SEGUNDOS PARA VER Y APRECIAR LA CARTA DEL CONTRINCANTE
+        // PAUSA AMPLIADA: 4.0 SEGUNDOS EN BAZA FINAL (O 2.6s EN BAZAS INTERMEDIAS) PARA APRECIAR LA CARTA GANADORA/PERDEDORA
+        const isHandOrGameEnding = (Orden == "2" || Orden == "3" || Orden == "4" || Orden == "5");
+        const trickPauseMs = isHandOrGameEnding ? 4000 : 2600;
+
         setTimeout(() => {
           setIsReturningToDeck(true);
           playSwooshSound();
@@ -1511,7 +1514,7 @@ export default function Duel1vs1() {
               }
             }
           }, 850);
-        }, 2400);
+        }, trickPauseMs);
       }
 
 
@@ -1561,7 +1564,10 @@ export default function Duel1vs1() {
         }
       }
 
-      // PAUSA GENEROSA DE 2.4 SEGUNDOS: CERO POPUPS NI MODALES. LAS CARTAS SE VEN CLARAMENTE EN LA MESA.
+      // PAUSA AMPLIADA: 4.0 SEGUNDOS EN BAZA FINAL (O 2.6s EN BAZAS INTERMEDIAS) PARA APRECIAR LA CARTA GANADORA/PERDEDORA
+      const isHandOrGameEnding = (Orden == "2" || Orden == "3" || Orden == "4" || Orden == "5");
+      const trickPauseMs = isHandOrGameEnding ? 4000 : 2600;
+
       setTimeout(() => {
         setIsReturningToDeck(true);
         playSwooshSound();
@@ -1759,14 +1765,14 @@ export default function Duel1vs1() {
             }
           }
         }, 850);
-      }, 2400);
+      }, trickPauseMs);
     });
     return () => {
       connection.off('ReasonRound1vs1');
     };
   }, [connection]);
 
-  // Centinela de seguridad para 1 vs 1: si la mesa tiene cartas de baza (>= 3 cartas con la vida) por más de 4.5s
+  // Centinela de seguridad para 1 vs 1: si la mesa tiene cartas de baza (>= 3 cartas con la vida) por más de 6.5s
   useEffect(() => {
     if (tableCards.length >= 3 && !isReturningToDeck) {
       const centinela = setTimeout(() => {
@@ -1774,7 +1780,7 @@ export default function Duel1vs1() {
         setIsReturningToDeck(false);
         setTrickWinner(null);
         setTableCards([cpEightRef.current]);
-      }, 4800);
+      }, 6500);
       return () => clearTimeout(centinela);
     }
   }, [tableCards, isReturningToDeck]);
