@@ -201,6 +201,30 @@ export default function PericonTutorialModal({
         </div>
       ),
     },
+    {
+      stepNumber: 7,
+      tag: "Aviso Legal y Responsabilidad",
+      title: "🔞 Juego Solo para Mayores de 18 Años",
+      dialogue:
+        "¡Aviso muy importante! En Pericón se disputan partidas con apuestas y dinero real. Por regulaciones legales y juego responsable, esta plataforma es de acceso exclusivo para mayores de 18 años. Juega con prudencia, cabeza fría y diviértete con responsabilidad.",
+      visual: (
+        <div className="w-full max-w-[290px] bg-gradient-to-b from-red-950/80 via-black/80 to-red-950/60 border-2 border-red-500/70 rounded-xl p-3 flex flex-col items-center gap-2 text-center shadow-lg shadow-red-900/40">
+          <div className="flex items-center justify-center w-12 h-12 rounded-full border-2 border-red-400 bg-red-600/30 text-red-300 font-black text-xl shadow-[0_0_15px_rgba(239,68,68,0.5)]">
+            +18
+          </div>
+          <div className="text-xs font-black text-red-300 uppercase tracking-wider">
+            Juego Exclusivo para Mayores de 18 Años
+          </div>
+          <p className="text-[11px] text-amber-100/90 leading-relaxed">
+            Plataforma con transacciones y apuestas en <strong className="text-amber-400 font-bold">dinero real</strong>. El registro y participación están estrictamente reservados a mayores de edad.
+          </p>
+          <div className="bg-red-900/40 border border-red-500/40 rounded-lg px-3 py-1 text-[10px] text-red-200 font-semibold flex items-center gap-1.5">
+            <span>🛡️</span>
+            <span>Juego Responsable • Dinero Real</span>
+          </div>
+        </div>
+      ),
+    },
   ];
 
   const current = steps[currentStep];
@@ -469,7 +493,7 @@ export default function PericonTutorialModal({
               onClick={handleFinish}
               className={`${fonts.bowlbyOneSC.className} flex-1 py-2.5 px-4 bg-gradient-to-r from-emerald-500 to-amber-400 hover:from-emerald-400 hover:to-amber-300 text-black font-black text-xs rounded-xl shadow-lg shadow-emerald-500/30 transition transform hover:scale-[1.02] active:scale-95 animate-pulse`}
             >
-              ¡Entendido, vamos a jugar! 🚀
+              ¡Entendido, soy mayor de 18 y quiero jugar! 🚀
             </button>
           )}
         </div>
