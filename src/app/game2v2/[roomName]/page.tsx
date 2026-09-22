@@ -666,6 +666,7 @@ export default function GameTwoVsTwo() {
       setIsWaitingOppTumba(false);
       isProcessingMoveRef.current = false;
       setIsProcessingMove(false);
+      setTimeLeft(30);
       if (tumbaCountdownTimerRef.current) clearInterval(tumbaCountdownTimerRef.current);
       setTumbaCountdown(null);
       Swal.close();
@@ -838,9 +839,17 @@ export default function GameTwoVsTwo() {
           if (tumbaCountdownTimerRef.current) clearInterval(tumbaCountdownTimerRef.current);
           setTumbaCountdown(null);
 
+          let tumbaTimerInterval2v2: any;
           Swal.fire({
             title: "¿Deseas jugar esta ronda en TUMBA?",
-            text: "Si aceptas y pierdes, se le restarán 3 piedras a tu equipo. Si rechazas, se te resta 1 piedra y se le suma al contrario.",
+            html: `
+              <p style="font-size: 13px; color: #fde68a; margin-bottom: 8px;">
+                Si aceptas y pierdes, se le restarán 3 piedras a tu equipo. Si rechazas, se te resta 1 piedra y se le suma al contrario.
+              </p>
+              <div style="background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.4); border-radius: 8px; padding: 6px; font-size: 12px; color: #fca5a5; font-weight: bold;">
+                Auto-ingreso a la mano en: <strong id="tumba-swal-timer-2v2" style="color: #ef4444; font-size: 14px;">3</strong>s
+              </div>
+            `,
             icon: "warning",
             showCancelButton: true,
             confirmButtonText: "Sí, acepto jugar",
@@ -849,18 +858,34 @@ export default function GameTwoVsTwo() {
             cancelButtonColor: "#ef4444",
             allowOutsideClick: false,
             allowEscapeKey: false,
+            timer: 3000,
+            timerProgressBar: true,
             background: "#1a0e06",
-            color: "#fff"
+            color: "#fff",
+            didOpen: () => {
+              const timerEl = document.getElementById("tumba-swal-timer-2v2");
+              tumbaTimerInterval2v2 = setInterval(() => {
+                if (timerEl) {
+                  const left = Math.ceil((Swal.getTimerLeft() || 0) / 1000);
+                  timerEl.textContent = left.toString();
+                }
+              }, 100);
+            },
+            willClose: () => {
+              if (tumbaTimerInterval2v2) clearInterval(tumbaTimerInterval2v2);
+            }
           }).then(async (result) => {
-            if (result.isConfirmed) {
+            const autoAcceptedByTimer = result.dismiss === Swal.DismissReason.timer;
+            if (result.isConfirmed || autoAcceptedByTimer) {
               triggerAnnouncement({
                 type: 'tumba',
                 title: '¡A JUGAR EN TUMBA!',
-                subtitle: 'Tu equipo aceptó jugar esta mano',
+                subtitle: autoAcceptedByTimer ? 'Auto-ingreso a la mano por tiempo' : 'Tu equipo aceptó jugar esta mano',
                 badge: 'MANO DE TUMBA'
               }, 2000);
               isProcessingMoveRef.current = false;
               setIsProcessingMove(false);
+              setTimeLeft(30);
               if (connection) {
                 try {
                   await connection.invoke("AcceptTumba2v2", roomName, mySeatIndexRef.current);
@@ -868,7 +893,7 @@ export default function GameTwoVsTwo() {
                   console.error("Error al enviar AcceptTumba2v2:", e);
                 }
               }
-            } else {
+            } else if (result.dismiss === Swal.DismissReason.cancel) {
               isProcessingMoveRef.current = false;
               setIsProcessingMove(false);
               setIsWaitingOppTumba(false);
@@ -899,6 +924,21 @@ export default function GameTwoVsTwo() {
       setIsWaitingOppTumba(true);
       isProcessingMoveRef.current = true;
       setIsProcessingMove(true);
+      setTimeLeft(30);
+
+      // Watchdog de seguridad: máximo 15 segundos esperando decisión de Tumba del equipo rival
+      setTimeout(() => {
+        setIsWaitingOppTumba(prev => {
+          if (prev) {
+            console.warn("[Watchdog Tumba 2v2] Tiempo agotado esperando a los rivales (15s). Desbloqueando mesa...");
+            setTimeLeft(30);
+            isProcessingMoveRef.current = false;
+            setIsProcessingMove(false);
+            return false;
+          }
+          return false;
+        });
+      }, 15000);
     } else {
       setIsWaitingOppTumba(false);
       isProcessingMoveRef.current = false;

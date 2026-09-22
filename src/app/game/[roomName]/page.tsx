@@ -366,9 +366,9 @@ export default function Duel1vs1() {
     }
   };
 
-  // Cuenta regresiva de 30 segundos por turno
+  // Cuenta regresiva de 30 segundos por turno (se pausa durante análisis y decisión de Tumba)
   useEffect(() => {
-    if (isDealing || isReturningToDeck || !hasConnected.current) {
+    if (isDealing || isReturningToDeck || !hasConnected.current || isWaitingOppTumba || tumbaCountdown !== null || pedirChallenge !== null) {
       return;
     }
 
@@ -376,7 +376,7 @@ export default function Duel1vs1() {
       setTimeLeft(prev => {
         if (prev <= 1) {
           clearInterval(interval);
-          if (isMyTurn && !hasTimedOut.current) {
+          if (isMyTurn && !hasTimedOut.current && !isWaitingOppTumba && tumbaCountdown === null) {
             handleTimeoutForfeit();
           }
           return 0;
@@ -386,7 +386,7 @@ export default function Duel1vs1() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isMyTurn, isDealing, isReturningToDeck]);
+  }, [isMyTurn, isDealing, isReturningToDeck, isWaitingOppTumba, tumbaCountdown, pedirChallenge]);
 
   // Cuenta regresiva para responder al Pedir (12 segundos)
   useEffect(() => {
@@ -699,6 +699,8 @@ export default function Duel1vs1() {
       setIsWaitingOppTumba(false);
       isProcessingRef.current = false;
       setIsProcessingMove(false);
+      setTimeLeft(30);
+      hasTimedOut.current = false;
       triggerAnnouncement({
         type: 'tumba',
         title: '¡RIVAL ACEPTÓ JUGAR!',
@@ -838,9 +840,17 @@ export default function Duel1vs1() {
           if (tumbaCountdownTimerRef.current) clearInterval(tumbaCountdownTimerRef.current);
           setTumbaCountdown(null);
 
+          let tumbaTimerInterval: any;
           Swal.fire({
             title: "¿Deseas jugar esta ronda en TUMBA?",
-            text: "Si aceptas y pierdes, se te restarán 3 piedras. Si rechazas, se te resta 1 piedra y se le suma al contrario.",
+            html: `
+              <p style="font-size: 13px; color: #fde68a; margin-bottom: 8px;">
+                Si aceptas y pierdes, se te restarán 3 piedras. Si rechazas, se te resta 1 piedra y se le suma al contrario.
+              </p>
+              <div style="background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.4); border-radius: 8px; padding: 6px; font-size: 12px; color: #fca5a5; font-weight: bold;">
+                Auto-ingreso a la mano en: <strong id="tumba-swal-timer" style="color: #ef4444; font-size: 14px;">3</strong>s
+              </div>
+            `,
             icon: "warning",
             showCancelButton: true,
             confirmButtonText: "Sí, acepto jugar",
@@ -849,20 +859,37 @@ export default function Duel1vs1() {
             cancelButtonColor: "#ef4444",
             allowOutsideClick: false,
             allowEscapeKey: false,
+            timer: 3000,
+            timerProgressBar: true,
+            didOpen: () => {
+              const timerEl = document.getElementById("tumba-swal-timer");
+              tumbaTimerInterval = setInterval(() => {
+                if (timerEl) {
+                  const left = Math.ceil((Swal.getTimerLeft() || 0) / 1000);
+                  timerEl.textContent = left.toString();
+                }
+              }, 100);
+            },
+            willClose: () => {
+              if (tumbaTimerInterval) clearInterval(tumbaTimerInterval);
+            },
             customClass: {
               title: styles.customtitle,
               popup: styles.custompopup
             }
           }).then(async (result) => {
-            if (result.isConfirmed) {
+            const autoAcceptedByTimer = result.dismiss === Swal.DismissReason.timer;
+            if (result.isConfirmed || autoAcceptedByTimer) {
               triggerAnnouncement({
                 type: 'tumba',
                 title: '¡A JUGAR EN TUMBA!',
-                subtitle: turno ? 'Te toca salir a ti' : 'El rival sale primero',
+                subtitle: autoAcceptedByTimer ? 'Auto-ingreso a la mano por tiempo' : (turno ? 'Te toca salir a ti' : 'El rival sale primero'),
                 badge: 'MANO DE TUMBA'
               }, 2000);
               isProcessingRef.current = false;
               setIsProcessingMove(false);
+              setTimeLeft(30);
+              hasTimedOut.current = false;
               if (connection) {
                 try {
                   await connection.invoke("AcceptTumba1vs1", {
@@ -874,7 +901,7 @@ export default function Duel1vs1() {
                   console.error("Error al enviar AcceptTumba1vs1:", e);
                 }
               }
-            } else {
+            } else if (result.dismiss === Swal.DismissReason.cancel) {
               isProcessingRef.current = false;
               setIsProcessingMove(false);
               setIsWaitingOppTumba(false);
@@ -907,6 +934,23 @@ export default function Duel1vs1() {
       vibrateDevice('tumba');
       playSynthSound('tumba');
       setIsWaitingOppTumba(true);
+      setTimeLeft(30);
+      hasTimedOut.current = false;
+
+      // Watchdog de seguridad: máximo 15 segundos esperando la decisión de Tumba del rival
+      setTimeout(() => {
+        setIsWaitingOppTumba(prev => {
+          if (prev) {
+            console.warn("[Watchdog Tumba 1v1] Tiempo de espera del rival agotado (15s). Desbloqueando mesa...");
+            setTimeLeft(30);
+            hasTimedOut.current = false;
+            isProcessingRef.current = false;
+            setIsProcessingMove(false);
+            return false;
+          }
+          return false;
+        });
+      }, 15000);
     } else {
       setIsWaitingOppTumba(false);
       isProcessingRef.current = false;

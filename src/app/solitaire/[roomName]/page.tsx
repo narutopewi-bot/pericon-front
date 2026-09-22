@@ -329,10 +329,18 @@ export default function Duel() {
             if (tumbaCountdownTimerRef.current) clearInterval(tumbaCountdownTimerRef.current);
             setTumbaCountdown(null);
 
-            // Una vez concluidos los 10 segundos, mostrar el modal de decisión
+            // Una vez concluidos los 10 segundos, mostrar el modal de decisión (3 segundos con auto-ingreso)
+            let tumbaSolTimerInterval: any;
             Swal.fire({
               title: "¿Deseas jugar esta ronda en TUMBA?",
-              text: "Si aceptas y pierdes, se te restarán 3 piedras. Si rechazas, se te resta 1 piedra y se le suma al contrario.",
+              html: `
+                <p style="font-size: 13px; color: #fde68a; margin-bottom: 8px;">
+                  Si aceptas y pierdes, se te restarán 3 piedras. Si rechazas, se te resta 1 piedra y se le suma al contrario.
+                </p>
+                <div style="background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.4); border-radius: 8px; padding: 6px; font-size: 12px; color: #fca5a5; font-weight: bold;">
+                  Auto-ingreso a la mano en: <strong id="tumba-swal-timer-sol" style="color: #ef4444; font-size: 14px;">3</strong>s
+                </div>
+              `,
               icon: "warning",
               showCancelButton: true,
               confirmButtonText: "Sí, acepto jugar",
@@ -340,14 +348,29 @@ export default function Duel() {
               confirmButtonColor: "#22c55e",
               cancelButtonColor: "#ef4444",
               allowOutsideClick: false,
-              allowEscapeKey: false
+              allowEscapeKey: false,
+              timer: 3000,
+              timerProgressBar: true,
+              didOpen: () => {
+                const timerEl = document.getElementById("tumba-swal-timer-sol");
+                tumbaSolTimerInterval = setInterval(() => {
+                  if (timerEl) {
+                    const left = Math.ceil((Swal.getTimerLeft() || 0) / 1000);
+                    timerEl.textContent = left.toString();
+                  }
+                }, 100);
+              },
+              willClose: () => {
+                if (tumbaSolTimerInterval) clearInterval(tumbaSolTimerInterval);
+              }
             }).then((result) => {
-              if (result.isConfirmed) {
-                // El jugador acepta jugar
+              const autoAcceptedByTimer = result.dismiss === Swal.DismissReason.timer;
+              if (result.isConfirmed || autoAcceptedByTimer) {
+                // El jugador acepta jugar (o auto-ingresa al agotarse los 3s)
                 triggerAnnouncement({
                   type: 'tumba',
                   title: '¡A JUGAR EN TUMBA!',
-                  subtitle: nmZero === 99 ? 'Te toca salir a ti' : 'El rival sale primero',
+                  subtitle: autoAcceptedByTimer ? 'Auto-ingreso a la mano por tiempo' : (nmZero === 99 ? 'Te toca salir a ti' : 'El rival sale primero'),
                   badge: 'MANO DE TUMBA'
                 }, 2000);
 
