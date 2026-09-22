@@ -11,6 +11,7 @@ export interface VoicePeerState {
 export type VoiceStateChangeCallback = (states: Record<number, VoicePeerState>) => void;
 export type LocalMuteChangeCallback = (isMuted: boolean) => void;
 export type SpeakingChangeCallback = (seatIndex: number, isSpeaking: boolean) => void;
+export type VolumeChangeCallback = (volumePercent: number) => void;
 
 interface VoiceSignalPayload {
   type: 'offer' | 'answer' | 'candidate';
@@ -18,23 +19,16 @@ interface VoiceSignalPayload {
   candidate?: RTCIceCandidateInit;
 }
 
-// Configuración robusta de STUN y TURN (OpenRelay público + Google STUN)
-// Imprescindible en Venezuela para conexiones móviles 4G/5G y NAT simétrico/CGNAT (CANTV, Movistar, Digitel, etc.)
+// Servidores STUN públicos de ultra baja latencia y alta disponibilidad
 const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
     { urls: 'stun:stun1.l.google.com:19302' },
     { urls: 'stun:stun2.l.google.com:19302' },
-    { urls: 'stun:stun.relay.metered.ca:80' },
-    {
-      urls: [
-        'turn:openrelay.metered.ca:80',
-        'turn:openrelay.metered.ca:443',
-        'turn:openrelay.metered.ca:443?transport=tcp',
-      ],
-      username: 'openrelayproject',
-      credential: 'openrelayproject',
-    },
+    { urls: 'stun:stun3.l.google.com:19302' },
+    { urls: 'stun:stun4.l.google.com:19302' },
+    { urls: 'stun:stun.cloudflare.com:3478' },
+    { urls: 'stun:global.stun.twilio.com:3478' },
   ],
   iceCandidatePoolSize: 10,
 };
@@ -61,11 +55,12 @@ export class WebRTCVoiceManager {
   private animFrameId: number | null = null;
   private speakingTimeout: any = null;
 
-  // Estados
+  // Estados y Callbacks
   public peerStates: Record<number, VoicePeerState> = {};
   public onStateChange: VoiceStateChangeCallback | null = null;
   public onLocalMuteChange: LocalMuteChangeCallback | null = null;
   public onSpeakingChange: SpeakingChangeCallback | null = null;
+  public onLocalVolumeChange: VolumeChangeCallback | null = null;
 
   private boundInteractionHandler: () => void;
 
@@ -100,13 +95,13 @@ export class WebRTCVoiceManager {
       isConnected: true,
     };
 
-    // Escuchar señales y eventos de voz desde SignalR
+    // 1. Escuchar señales y eventos de voz desde SignalR
     this.setupSignalRListeners();
 
-    // Intentar solicitar micrófono
+    // 2. Intentar solicitar micrófono de inmediato
     const micGranted = await this.requestMicrophone();
     if (!micGranted) {
-      console.warn('[WebRTCVoice] Iniciado en modo oyente (micrófono apagado o pendiente de permiso)');
+      console.log('[WebRTCVoice] Micrófono en espera de activación del usuario.');
     }
 
     this.notifyState();
@@ -132,6 +127,9 @@ export class WebRTCVoiceManager {
 
     try {
       if (typeof navigator !== 'undefined' && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        // Desbloquear AudioContext si estaba suspendido
+        this.resumeAllAudio();
+
         // Detener stream anterior si existía
         if (this.localStream) {
           this.localStream.getTracks().forEach((t) => t.stop());
@@ -155,15 +153,25 @@ export class WebRTCVoiceManager {
         if (audioTrack) {
           audioTrack.enabled = true;
 
-          // Adjuntar track a todas las conexiones P2P activas sin romper la negociación
-          this.peerConnections.forEach((pc, seatIdx) => {
+          // Adjuntar track a todas las conexiones P2P activas
+          this.peerConnections.forEach(async (pc, seatIdx) => {
             try {
               const senders = pc.getSenders();
               const audioSender = senders.find((s) => s.track?.kind === 'audio' || !s.track);
               if (audioSender) {
-                audioSender.replaceTrack(audioTrack);
+                await audioSender.replaceTrack(audioTrack);
               } else {
                 pc.addTrack(audioTrack, this.localStream!);
+              }
+
+              // Si soy el iniciador y la conexión está estable, renovar oferta SDP para asegurar transmisión
+              if (this.mySeatIndex < seatIdx && pc.signalingState === 'stable') {
+                const offer = await pc.createOffer();
+                await pc.setLocalDescription(offer);
+                this.sendSignal(seatIdx, {
+                  type: 'offer',
+                  sdp: offer,
+                });
               }
             } catch (err) {
               console.warn(`[WebRTCVoice] Error asociando track con peer ${seatIdx}:`, err);
@@ -178,9 +186,10 @@ export class WebRTCVoiceManager {
         return true;
       }
     } catch (err: any) {
-      console.warn('[WebRTCVoice] No se pudo acceder al micrófono:', err?.message || err);
+      console.warn('[WebRTCVoice] Acceso al micrófono rechazado o pendiente:', err?.message || err);
       this.hasMicPermission = false;
       this.isMuted = true;
+      if (this.onLocalVolumeChange) this.onLocalVolumeChange(0);
       this.notifyState();
       this.isRequestingMic = false;
       return false;
@@ -192,6 +201,11 @@ export class WebRTCVoiceManager {
 
   public resumeAllAudio() {
     try {
+      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      if (!this.audioContext && AudioCtx) {
+        this.audioContext = new AudioCtx();
+      }
+
       if (this.audioContext && this.audioContext.state === 'suspended') {
         this.audioContext.resume().catch(() => {});
       }
@@ -248,7 +262,7 @@ export class WebRTCVoiceManager {
   }
 
   /**
-   * Conectar con un compañero o rival cuando entra al asiento
+   * Conectar con un compañero o rival cuando entra a la sala
    */
   public async connectToPeer(targetSeatIndex: number, targetName: string) {
     if (targetSeatIndex === this.mySeatIndex) return;
@@ -264,8 +278,6 @@ export class WebRTCVoiceManager {
       };
     }
 
-    // Regla de cortesía WebRTC: el asiento de menor índice crea la Offer inicial
-    const isInitiator = this.mySeatIndex < targetSeatIndex;
     let pc = this.peerConnections.get(targetSeatIndex);
 
     if (pc) {
@@ -274,7 +286,7 @@ export class WebRTCVoiceManager {
         this.peerConnections.delete(targetSeatIndex);
         pc = undefined;
       } else {
-        // Ya existe una conexión en proceso o conectada
+        // Ya existe conexión activa o en negociación
         return;
       }
     }
@@ -282,6 +294,8 @@ export class WebRTCVoiceManager {
     pc = this.createPeerConnection(targetSeatIndex);
     this.peerConnections.set(targetSeatIndex, pc);
 
+    // Regla de cortesía WebRTC: el asiento de menor índice crea la Offer inicial
+    const isInitiator = this.mySeatIndex < targetSeatIndex;
     if (isInitiator) {
       try {
         const offer = await pc.createOffer({
@@ -303,13 +317,10 @@ export class WebRTCVoiceManager {
   private createPeerConnection(targetSeatIndex: number): RTCPeerConnection {
     const pc = new RTCPeerConnection(ICE_SERVERS);
 
-    // Siempre añadir un transceiver de audio en sendrecv
-    // Así el SDP inicial reserva el canal de audio aunque el micrófono tarde unos segundos en activarse
+    // Añadir transceiver de audio en sendrecv
     try {
       pc.addTransceiver('audio', { direction: 'sendrecv' });
-    } catch (e) {
-      // Fallback para navegadores antiguos
-    }
+    } catch (e) {}
 
     // Si ya disponemos de micrófono, asociar el track inmediatamente
     if (this.localStream) {
@@ -324,6 +335,24 @@ export class WebRTCVoiceManager {
         }
       }
     }
+
+    // Re-negociación automática cuando cambian los tracks
+    pc.onnegotiationneeded = async () => {
+      try {
+        if (pc.signalingState !== 'stable') return;
+        const isInitiator = this.mySeatIndex < targetSeatIndex;
+        if (isInitiator) {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          this.sendSignal(targetSeatIndex, {
+            type: 'offer',
+            sdp: offer,
+          });
+        }
+      } catch (err) {
+        console.warn(`[WebRTCVoice] Error en renegotiationneeded con peer ${targetSeatIndex}:`, err);
+      }
+    };
 
     // Manejo de ICE Candidates
     pc.onicecandidate = (event) => {
@@ -342,7 +371,6 @@ export class WebRTCVoiceManager {
         audioEl = document.createElement('audio');
         audioEl.autoplay = true;
         (audioEl as any).playsInline = true;
-        // Posicionamiento invisible fuera de pantalla en vez de display:none para evitar throttling en WebKit/iOS
         audioEl.style.position = 'fixed';
         audioEl.style.top = '-9999px';
         audioEl.style.left = '-9999px';
@@ -363,8 +391,7 @@ export class WebRTCVoiceManager {
       const playPromise = audioEl.play();
       if (playPromise !== undefined) {
         playPromise.catch((err) => {
-          // Autoplay policy bloqueado; se reactivará al primer clic
-          console.log(`[WebRTCVoice] Autoplay pendiente de interacción de usuario para asiento ${targetSeatIndex}`);
+          console.log(`[WebRTCVoice] Autoplay pendiente para asiento ${targetSeatIndex}`);
         });
       }
     };
@@ -376,6 +403,14 @@ export class WebRTCVoiceManager {
         this.peerStates[targetSeatIndex].isConnected = isConnected;
       }
       this.notifyState();
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      if (pc.iceConnectionState === 'failed') {
+        try {
+          (pc as any).restartIce?.();
+        } catch (e) {}
+      }
     };
 
     return pc;
@@ -390,9 +425,7 @@ export class WebRTCVoiceManager {
       if (candidate && pc.remoteDescription) {
         try {
           await pc.addIceCandidate(new RTCIceCandidate(candidate));
-        } catch (err) {
-          // Ignorar error seguro de candidato desactualizado
-        }
+        } catch (err) {}
       }
     }
   }
@@ -401,7 +434,6 @@ export class WebRTCVoiceManager {
     let pc = this.peerConnections.get(fromSeat);
 
     if (payload.type === 'offer' && payload.sdp) {
-      // Si ya existía una conexión en estado no estable, recrearla limpiamente
       if (pc && pc.signalingState !== 'stable') {
         try { pc.close(); } catch (e) {}
         pc = undefined;
@@ -439,9 +471,7 @@ export class WebRTCVoiceManager {
       if (pc.remoteDescription && pc.remoteDescription.type) {
         try {
           await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
-        } catch (err) {
-          // Ignorar seguro
-        }
+        } catch (err) {}
       } else {
         if (!this.candidateQueues.has(fromSeat)) {
           this.candidateQueues.set(fromSeat, []);
@@ -454,9 +484,9 @@ export class WebRTCVoiceManager {
   private sendSignal(toSeat: number, payload: VoiceSignalPayload) {
     if (!this.connection || !this.roomName) return;
     try {
-      this.connection.invoke('SendVoiceSignal2v2', this.roomName, this.mySeatIndex, toSeat, JSON.stringify(payload));
+      this.connection.invoke('SendVoiceSignal2v2', this.roomName, this.mySeatIndex, toSeat, JSON.stringify(payload)).catch(() => {});
     } catch (err) {
-      console.warn('[WebRTCVoice] Error enviando señal de voz:', err);
+      console.warn('[WebRTCVoice] Error enviando señal:', err);
     }
   }
 
@@ -488,6 +518,9 @@ export class WebRTCVoiceManager {
           if (this.isSpeaking) {
             this.setSpeaking(false);
           }
+          if (this.onLocalVolumeChange) {
+            this.onLocalVolumeChange(0);
+          }
           this.animFrameId = requestAnimationFrame(checkVolume);
           return;
         }
@@ -499,8 +532,14 @@ export class WebRTCVoiceManager {
         }
         const average = sum / bufferLength;
 
-        // Umbral de detección de voz (>10)
-        if (average > 10) {
+        // Medidor de volumen en porcentaje (0 a 100)
+        const volumePercent = Math.min(100, Math.round((average / 80) * 100));
+        if (this.onLocalVolumeChange) {
+          this.onLocalVolumeChange(volumePercent);
+        }
+
+        // Umbral de detección de voz (>8)
+        if (average > 8) {
           this.setSpeaking(true);
           if (this.speakingTimeout) clearTimeout(this.speakingTimeout);
           this.speakingTimeout = setTimeout(() => {
@@ -533,12 +572,14 @@ export class WebRTCVoiceManager {
     // Transmitir cambio de voz a la sala
     if (this.connection && this.roomName) {
       try {
-        this.connection.invoke('BroadcastVoiceState2v2', this.roomName, this.mySeatIndex, speaking, this.isMuted);
+        this.connection.invoke('BroadcastVoiceState2v2', this.roomName, this.mySeatIndex, speaking, this.isMuted).catch(() => {});
       } catch (e) {}
     }
   }
 
   public async toggleMute(): Promise<boolean> {
+    this.resumeAllAudio();
+
     // Si no tiene micrófono o permiso, solicitarlo al hacer clic
     if (!this.localStream || !this.hasMicPermission) {
       const granted = await this.requestMicrophone();
@@ -565,13 +606,17 @@ export class WebRTCVoiceManager {
       this.setSpeaking(false);
     }
 
+    if (this.isMuted && this.onLocalVolumeChange) {
+      this.onLocalVolumeChange(0);
+    }
+
     if (this.onLocalMuteChange) {
       this.onLocalMuteChange(this.isMuted);
     }
 
     if (this.connection && this.roomName) {
       try {
-        this.connection.invoke('BroadcastVoiceState2v2', this.roomName, this.mySeatIndex, false, this.isMuted);
+        this.connection.invoke('BroadcastVoiceState2v2', this.roomName, this.mySeatIndex, false, this.isMuted).catch(() => {});
       } catch (e) {}
     }
 
@@ -580,6 +625,7 @@ export class WebRTCVoiceManager {
   }
 
   public toggleDeafen(): boolean {
+    this.resumeAllAudio();
     this.isDeafened = !this.isDeafened;
     this.remoteAudioElements.forEach((audioEl) => {
       audioEl.muted = this.isDeafened;

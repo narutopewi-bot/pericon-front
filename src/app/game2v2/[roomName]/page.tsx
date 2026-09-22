@@ -187,6 +187,7 @@ export default function GameTwoVsTwo() {
   const [isDeafened, setIsDeafened] = useState<boolean>(false);
   const [speakingPeers, setSpeakingPeers] = useState<Record<number, boolean>>({});
   const [voicePeerStates, setVoicePeerStates] = useState<Record<number, VoicePeerState>>({});
+  const [localVolume, setLocalVolume] = useState<number>(0);
 
   // Inicialización de usuario invitado persistente para evitar colisiones de asientos en enlaces compartidos
   useEffect(() => {
@@ -729,9 +730,15 @@ export default function GameTwoVsTwo() {
         setSpeakingPeers(prev => ({ ...prev, [seatIdx]: isSpeaking }));
       };
 
+      vm.onLocalVolumeChange = (vol) => {
+        if (!isSubscribed) return;
+        setLocalVolume(vol);
+      };
+
       vm.onLocalMuteChange = (muted) => {
         if (!isSubscribed) return;
         setIsMicMuted(muted);
+        if (muted) setLocalVolume(0);
       };
 
       vm.onStateChange = (states) => {
@@ -2379,6 +2386,96 @@ export default function GameTwoVsTwo() {
                 </div>
               </div>
 
+              {/* PANEL DE CHAT DE VOZ EN VIVO (DESDE EL LOBBY) */}
+              <div className="bg-gradient-to-r from-emerald-950/50 via-stone-900/70 to-emerald-950/50 border-2 border-emerald-500/50 rounded-2xl p-3 sm:p-4 my-3 shadow-xl text-left">
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-2.5">
+                  <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                    <div className="w-9 h-9 rounded-xl bg-emerald-900/60 border border-emerald-400/50 flex items-center justify-center text-lg shadow shrink-0">
+                      {isMicMuted ? '🔇' : (localVolume > 5 ? '🗣️' : '🎙️')}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs sm:text-sm font-black uppercase text-emerald-300 tracking-wide">
+                          Chat de Voz en Vivo
+                        </span>
+                        <span className="bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9px] px-1.5 py-0.5 rounded-full font-black animate-pulse">
+                          EN LÍNEA
+                        </span>
+                      </div>
+                      <span className="text-[10px] sm:text-[11px] text-slate-300 font-semibold block">
+                        {isMicMuted
+                          ? 'Tu micrófono está silenciado'
+                          : (localVolume > 5
+                              ? '¡Detectando tu voz en vivo! Hablando...'
+                              : 'Micrófono activo • Habla para probar tu audio')}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Botones de control en el lobby */}
+                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    <button
+                      type="button"
+                      onClick={toggleVoiceMute}
+                      className={`flex-1 sm:flex-none px-3.5 py-2 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition active:scale-95 shadow-md ${
+                        isMicMuted
+                          ? 'bg-red-600 hover:bg-red-500 text-white border border-red-300 shadow-red-950/50'
+                          : 'bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-300 shadow-emerald-950/50'
+                      }`}
+                    >
+                      {isMicMuted ? <MicOff size={14} /> : <Mic size={14} className={speakingPeers[mySeatIndex] || localVolume > 5 ? 'animate-bounce' : ''} />}
+                      <span>{isMicMuted ? 'Activar Micrófono' : 'Silenciar'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={toggleDeafenAudio}
+                      className={`p-2 rounded-xl text-xs transition active:scale-95 border flex items-center justify-center shadow ${
+                        isDeafened
+                          ? 'bg-red-950/80 border-red-500 text-red-300 hover:bg-red-900'
+                          : 'bg-stone-800 border-stone-600 text-stone-200 hover:bg-stone-700'
+                      }`}
+                      title={isDeafened ? 'Audio de la sala ensordecido (Clic para escuchar)' : 'Escuchando la sala (Clic para ensordecer)'}
+                    >
+                      {isDeafened ? <VolumeX size={16} /> : <Volume2 size={16} />}
+                    </button>
+                  </div>
+                </div>
+
+                {/* VÚMETRO / MEDIDOR DE VOLUMEN EN VIVO */}
+                <div className="bg-black/70 border border-slate-700/60 rounded-xl p-2.5 flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between text-[10px] font-bold">
+                    <span className="flex items-center gap-1.5 text-slate-300">
+                      <span>Prueba de Micrófono:</span>
+                      <span className={isMicMuted ? 'text-red-400 font-extrabold' : (localVolume > 5 ? 'text-emerald-400 font-extrabold animate-pulse' : 'text-slate-400 font-normal')}>
+                        {isMicMuted ? '🔴 SILENCIADO' : (localVolume > 5 ? `🟢 TRANSMITIENDO (${localVolume}%)` : '⚪ EN ESPERA DE VOZ')}
+                      </span>
+                    </span>
+                    <span className="font-mono text-slate-400 font-bold">{isMicMuted ? '0%' : `${localVolume}%`}</span>
+                  </div>
+
+                  {/* Barra interactiva de volumen */}
+                  <div className="w-full h-3 bg-stone-950 rounded-full overflow-hidden border border-slate-700/50 p-0.5 relative">
+                    <div
+                      className={`h-full rounded-full transition-all duration-75 ${
+                        isMicMuted
+                          ? 'w-0'
+                          : localVolume > 65
+                            ? 'bg-gradient-to-r from-emerald-500 via-amber-400 to-red-500 shadow-md shadow-red-500/50'
+                            : localVolume > 10
+                              ? 'bg-gradient-to-r from-emerald-500 to-green-400 shadow-md shadow-emerald-500/50'
+                              : 'bg-emerald-700'
+                      }`}
+                      style={{ width: `${isMicMuted ? 0 : Math.max(localVolume > 0 ? 4 : 0, localVolume)}%` }}
+                    />
+                  </div>
+
+                  <p className="text-[9.5px] text-slate-400 mt-0.5 leading-tight">
+                    🎤 <strong>Prueba aquí mismo:</strong> Habla a tu micrófono y mira cómo la barra reacciona. Todos los compañeros que entren al enlace te escucharán en directo en esta misma sala de espera.
+                  </p>
+                </div>
+              </div>
+
               {/* Estado de los 4 Asientos en la Mesa */}
               <div className="my-4">
                 <div className="flex items-center justify-between text-xs font-bold text-slate-300 mb-2 px-1">
@@ -2394,6 +2491,10 @@ export default function GameTwoVsTwo() {
                     const roleTitle = seatIdx === 0 ? 'Capitán' : (seatIdx === 2 ? 'Tu Compañero' : (seatIdx === 1 ? 'Rival 1' : 'Rival 2'));
                     const roleTeam = isTeam1 ? 'Equipo 1 (Azul)' : 'Equipo 2 (Rojo)';
 
+                    const isSpeakingNow = seatIdx === mySeatIndex
+                      ? (!isMicMuted && (speakingPeers[seatIdx] || localVolume > 5))
+                      : speakingPeers[seatIdx];
+
                     return (
                       <div
                         key={seatIdx}
@@ -2406,13 +2507,13 @@ export default function GameTwoVsTwo() {
                         <div className="flex items-center gap-2.5">
                           <div className="relative shrink-0">
                             {seat && seat.avatarUrl && seat.avatarUrl.length > 5 ? (
-                              <img src={seat.avatarUrl} alt={seat.name} className={`w-8 h-8 rounded-xl object-cover border border-amber-400/40 shrink-0 ${speakingPeers[seatIdx] ? 'ring-2 ring-emerald-400 shadow-md shadow-emerald-500/60' : ''}`} />
+                              <img src={seat.avatarUrl} alt={seat.name} className={`w-8 h-8 rounded-xl object-cover border border-amber-400/40 shrink-0 ${isSpeakingNow ? 'ring-2 ring-emerald-400 shadow-md shadow-emerald-500/60 scale-105 transition-all' : ''}`} />
                             ) : (
                               <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm font-black shrink-0 ${
                                 seat
                                   ? (isTeam1 ? 'bg-blue-600 text-white shadow' : 'bg-red-600 text-white shadow')
                                   : 'bg-slate-800 text-slate-400'
-                              } ${speakingPeers[seatIdx] ? 'ring-2 ring-emerald-400 shadow-md shadow-emerald-500/60' : ''}`}>
+                              } ${isSpeakingNow ? 'ring-2 ring-emerald-400 shadow-md shadow-emerald-500/60 scale-105 transition-all' : ''}`}>
                                 {seat ? (isTeam1 ? '🛡️' : '⚔️') : '⏳'}
                               </div>
                             )}
@@ -2425,8 +2526,8 @@ export default function GameTwoVsTwo() {
                           <div className="truncate flex-1 leading-tight">
                             <span className="text-xs font-extrabold block truncate flex items-center gap-1.5">
                               <span className="truncate">{seat ? `${seat.name} ${isMe ? '(Tú)' : ''}` : `Esperando ${roleTitle}...`}</span>
-                              {seat && speakingPeers[seatIdx] && (
-                                <span className="bg-emerald-500 text-white text-[8px] px-1.5 py-0.2 rounded-full font-black animate-pulse flex items-center gap-0.5 shrink-0">
+                              {seat && isSpeakingNow && (
+                                <span className="bg-emerald-500 text-white text-[8px] px-1.5 py-0.2 rounded-full font-black animate-pulse flex items-center gap-0.5 shrink-0 shadow-sm">
                                   <Mic size={9} /> Hablando
                                 </span>
                               )}
