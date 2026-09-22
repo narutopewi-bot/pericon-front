@@ -133,7 +133,7 @@ export default function PericonTutorialModal({
       tag: "Jugada Maestra",
       title: "¡La Cogía! (+3 piedras directas)",
       dialogue:
-        "¡Cuidado con esta trampa clásica! Si el rival sale con la sota (el 10 de Oro) en la tercera baza creyendo que tiene la victoria, y tú le respondes matándolo con el As de Oro (1 de Oro), ¡se canta 'La Cogía'! Te llevas 3 piedras automáticas.",
+        "¡Cuidado con esta trampa clásica! Si en una baza se cruzan el 10 de Oro y el As de Oro entre rivales —ya sea que mates el 10 con el As o que salgas con el As y obligues al contrario a soltar su 10 por pelado—, ¡se canta 'La Cogía'! Quien jugó el As de Oro se lleva 3 piedras automáticas.",
       visual: (
         <div className="flex flex-col items-center gap-2">
           <div className="flex items-center gap-3">

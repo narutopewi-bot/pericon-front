@@ -586,13 +586,13 @@ export default function Duel() {
             setTableCards([currentLife]);
 
             if (isCogiaBonus === 1) {
-              speakPhrase("¡La Cogía! Mataste el diez con el As de Oro");
+              speakPhrase("¡La Cogía con el As de Oro!");
               vibrateDevice('winMatch');
               playSynthSound('win');
               triggerAnnouncement({
                 type: 'la_cogia',
                 title: '¡LA COGÍA!',
-                subtitle: '¡Mataste el 10 con el As de Oro!',
+                subtitle: '¡Cobraste La Cogía con el As de Oro!',
                 badge: '+3 piedras automáticas'
               }, 2500);
             } else if (isCogiaBonus === 2) {
@@ -602,7 +602,7 @@ export default function Duel() {
               triggerAnnouncement({
                 type: 'la_cogia',
                 title: '¡LA COGÍA PARA LA MÁQUINA!',
-                subtitle: 'Te mataron el 10 con el As de Oro',
+                subtitle: 'La máquina cobró La Cogía con el As de Oro',
                 badge: '+3 piedras para el rival'
               }, 2500);
             }

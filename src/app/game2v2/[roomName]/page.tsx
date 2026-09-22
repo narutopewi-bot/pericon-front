@@ -1361,48 +1361,46 @@ export default function GameTwoVsTwo() {
       const tenGoldIdx = fourCards.findIndex(p => p.card.id === 7);
       const oneGoldIdx = fourCards.findIndex(p => p.card.id === 0);
 
-      // La Cogía ocurre cuando el 1 de Oro se tira después para matar el 10 de Oro de un rival
-      if (oneGoldIdx > tenGoldIdx) {
-        const tenGoldPlayer = fourCards[tenGoldIdx].playerIndex;
-        const oneGoldPlayer = fourCards[oneGoldIdx].playerIndex;
-        const tenGoldTeam = (tenGoldPlayer === 0 || tenGoldPlayer === 2) ? 1 : 2;
-        const oneGoldTeam = (oneGoldPlayer === 0 || oneGoldPlayer === 2) ? 1 : 2;
+      // La Cogía ocurre cuando se juegan el 10 de Oro y el 1 de Oro entre equipos contrarios
+      const tenGoldPlayer = fourCards[tenGoldIdx].playerIndex;
+      const oneGoldPlayer = fourCards[oneGoldIdx].playerIndex;
+      const tenGoldTeam = (tenGoldPlayer === 0 || tenGoldPlayer === 2) ? 1 : 2;
+      const oneGoldTeam = (oneGoldPlayer === 0 || oneGoldPlayer === 2) ? 1 : 2;
 
-        if (tenGoldTeam !== oneGoldTeam) {
-          const isMyTeamCogia = oneGoldTeam === myTeam;
-          if (oneGoldTeam === 1) {
-            const newT1 = pointsTeam1Ref.current + 3;
-            updatePoints(newT1, pointsTeam2Ref.current);
-            if (isMyTeamCogia) {
-              speakPhrase("¡La Cogía! Mataron el diez con el As de Oro.");
-              vibrateDevice('winMatch');
-              playSynthSound('win');
-            } else {
-              speakPhrase("¡La Cogía para los rivales!");
-            }
-            triggerAnnouncement({
-              type: 'la_cogia',
-              title: isMyTeamCogia ? '¡LA COGÍA!' : '¡LA COGÍA RIVAL!',
-              subtitle: '¡Mataron el 10 con el As de Oro!',
-              badge: '+3 piedras automáticas'
-            }, 3500);
+      if (tenGoldTeam !== oneGoldTeam) {
+        const isMyTeamCogia = oneGoldTeam === myTeam;
+        if (oneGoldTeam === 1) {
+          const newT1 = pointsTeam1Ref.current + 3;
+          updatePoints(newT1, pointsTeam2Ref.current);
+          if (isMyTeamCogia) {
+            speakPhrase("¡La Cogía con el As de Oro!");
+            vibrateDevice('winMatch');
+            playSynthSound('win');
           } else {
-            const newT2 = pointsTeam2Ref.current + 3;
-            updatePoints(pointsTeam1Ref.current, newT2);
-            if (isMyTeamCogia) {
-              speakPhrase("¡La Cogía! Mataron el diez con el As de Oro.");
-              vibrateDevice('winMatch');
-              playSynthSound('win');
-            } else {
-              speakPhrase("¡La Cogía para los rivales!");
-            }
-            triggerAnnouncement({
-              type: 'la_cogia',
-              title: isMyTeamCogia ? '¡LA COGÍA!' : '¡LA COGÍA RIVAL!',
-              subtitle: 'Mataron el 10 con el As de Oro',
-              badge: '+3 piedras automáticas'
-            }, 3500);
+            speakPhrase("¡La Cogía para los rivales!");
           }
+          triggerAnnouncement({
+            type: 'la_cogia',
+            title: isMyTeamCogia ? '¡LA COGÍA!' : '¡LA COGÍA RIVAL!',
+            subtitle: isMyTeamCogia ? '¡Cobrada La Cogía con el As de Oro!' : '¡Los rivales cobraron La Cogía con el As de Oro!',
+            badge: '+3 piedras automáticas'
+          }, 3500);
+        } else {
+          const newT2 = pointsTeam2Ref.current + 3;
+          updatePoints(pointsTeam1Ref.current, newT2);
+          if (isMyTeamCogia) {
+            speakPhrase("¡La Cogía con el As de Oro!");
+            vibrateDevice('winMatch');
+            playSynthSound('win');
+          } else {
+            speakPhrase("¡La Cogía para los rivales!");
+          }
+          triggerAnnouncement({
+            type: 'la_cogia',
+            title: isMyTeamCogia ? '¡LA COGÍA!' : '¡LA COGÍA RIVAL!',
+            subtitle: isMyTeamCogia ? '¡Cobrada La Cogía con el As de Oro!' : '¡Los rivales cobraron La Cogía con el As de Oro!',
+            badge: '+3 piedras automáticas'
+          }, 3500);
         }
       }
     }

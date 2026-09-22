@@ -1286,18 +1286,18 @@ export default function Duel1vs1() {
         const winner = Razon == "1" ? 'player' : 'opp';
         setTrickWinner(winner);
 
-        // Verificar si ocurrió La Cogía (10 de oro vs 1 de oro)
+        // Verificar si ocurrió La Cogía (10 de oro vs 1 de oro en cualquier sentido)
         const isCogiaInTrick = (cpownRef.current.id === 7 && cardZero.id === 0) || (cpownRef.current.id === 0 && cardZero.id === 7);
         if (isCogiaInTrick) {
-          const playerDidCogia = (cpownRef.current.id === 0 && cardZero.id === 7);
+          const playerDidCogia = (cpownRef.current.id === 0);
           if (playerDidCogia) {
-            speakPhrase("¡La Cogía! Mataste el diez con el As de Oro");
+            speakPhrase("¡La Cogía con el As de Oro!");
             vibrateDevice('winMatch');
             playSynthSound('win');
             triggerAnnouncement({
               type: 'la_cogia',
               title: '¡LA COGÍA!',
-              subtitle: '¡Mataste el 10 con el As de Oro!',
+              subtitle: '¡Cobraste La Cogía con el As de Oro!',
               badge: '+3 piedras automáticas'
             }, 2600);
           } else {
@@ -1307,7 +1307,7 @@ export default function Duel1vs1() {
             triggerAnnouncement({
               type: 'la_cogia',
               title: '¡LA COGÍA PARA EL RIVAL!',
-              subtitle: 'Te mataron el 10 con el As de Oro',
+              subtitle: 'El rival cobró La Cogía con el As de Oro',
               badge: '+3 piedras para el rival'
             }, 2600);
           }
@@ -1534,18 +1534,18 @@ export default function Duel1vs1() {
       const winner = Razon == "0" ? 'player' : 'opp';
       setTrickWinner(winner);
 
-      // Verificar si ocurrió La Cogía (10 de oro vs 1 de oro)
+      // Verificar si ocurrió La Cogía (10 de oro vs 1 de oro en cualquier sentido)
       const isCogiaInTrick = (cpownRef.current.id === 7 && cpoppRef.current.id === 0) || (cpownRef.current.id === 0 && cpoppRef.current.id === 7);
       if (isCogiaInTrick) {
-        const playerDidCogia = (cpownRef.current.id === 0 && cpoppRef.current.id === 7);
+        const playerDidCogia = (cpownRef.current.id === 0);
         if (playerDidCogia) {
-          speakPhrase("¡La Cogía! Mataste el diez con el As de Oro");
+          speakPhrase("¡La Cogía con el As de Oro!");
           vibrateDevice('winMatch');
           playSynthSound('win');
           triggerAnnouncement({
             type: 'la_cogia',
             title: '¡LA COGÍA!',
-            subtitle: '¡Mataste el 10 con el As de Oro!',
+            subtitle: '¡Cobraste La Cogía con el As de Oro!',
             badge: '+3 piedras automáticas'
           }, 2600);
         } else {
@@ -1555,7 +1555,7 @@ export default function Duel1vs1() {
           triggerAnnouncement({
             type: 'la_cogia',
             title: '¡LA COGÍA PARA EL RIVAL!',
-            subtitle: 'Te mataron el 10 con el As de Oro',
+            subtitle: 'El rival cobró La Cogía con el As de Oro',
             badge: '+3 piedras para el rival'
           }, 2600);
         }
