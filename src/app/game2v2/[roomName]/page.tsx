@@ -2337,7 +2337,7 @@ export default function GameTwoVsTwo() {
             </div>
           ) : (
             /* Lobby de Espera para Sala Privada con Amigos */
-            <div className="w-full max-w-lg bg-gradient-to-b from-[#221208] via-[#180c05] to-[#0d0602] border-2 border-amber-500/60 rounded-3xl p-5 sm:p-6 shadow-2xl text-center">
+            <div className="w-full max-w-lg bg-gradient-to-b from-[#221208] via-[#180c05] to-[#0d0602] border-2 border-amber-500/60 rounded-3xl p-3.5 sm:p-6 shadow-2xl text-center">
               
               <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-500 flex items-center justify-center mx-auto text-2xl shadow-lg border border-purple-300/40 mb-3">
                 👑
@@ -2397,71 +2397,102 @@ export default function GameTwoVsTwo() {
               </div>
 
               {/* BARRA LIMPIA Y COMPACTA DE VOZ Y CORNETAS (ADAPTADA A CELULAR Y PC) */}
-              <div className="bg-black/60 border border-amber-500/40 rounded-2xl p-2.5 sm:px-4 sm:py-2 my-2.5 shadow-md flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3 text-left">
-                {/* Estado limpio del micrófono */}
-                <div className="flex items-center gap-2">
-                  <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm shadow shrink-0 ${
-                    isMicMuted ? 'bg-red-950/80 border border-red-500/50 text-red-300' : 'bg-emerald-950/80 border border-emerald-500/50 text-emerald-300'
-                  }`}>
-                    {isMicMuted ? <MicOff size={15} /> : <Mic size={15} className={localVolume > 5 ? 'animate-bounce text-emerald-400' : ''} />}
+              <div className="bg-black/60 border border-amber-500/40 rounded-2xl p-2.5 sm:px-4 sm:py-2.5 my-2.5 shadow-md flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 text-left">
+                {/* Fila 1 en móvil / Lado izquierdo en PC: Estado del Micrófono y controles directos */}
+                <div className="flex items-center justify-between sm:justify-start gap-2 w-full sm:w-auto">
+                  <div className="flex items-center gap-2">
+                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm shadow shrink-0 ${
+                      isMicMuted ? 'bg-red-950/80 border border-red-500/50 text-red-300' : 'bg-emerald-950/80 border border-emerald-500/50 text-emerald-300'
+                    }`}>
+                      {isMicMuted ? <MicOff size={15} /> : <Mic size={15} className={localVolume > 5 ? 'animate-bounce text-emerald-400' : ''} />}
+                    </div>
+                    <div className="leading-tight">
+                      <span className="text-xs sm:text-sm font-extrabold block text-white flex items-center gap-1.5">
+                        <span>{isMicMuted ? 'Micrófono Silenciado' : 'Micrófono Activo'}</span>
+                        {!isMicMuted && (
+                          <span className={`w-2 h-2 rounded-full ${localVolume > 5 ? 'bg-emerald-400 animate-ping' : 'bg-emerald-500'}`}></span>
+                        )}
+                      </span>
+                      <span className="text-[10px] text-slate-400 block">
+                        {isMicMuted ? 'Toca Activar para hablar' : (localVolume > 5 ? 'Detectando tu voz...' : 'Listo para hablar')}
+                      </span>
+                    </div>
                   </div>
-                  <div className="leading-tight">
-                    <span className="text-xs sm:text-sm font-extrabold block text-white flex items-center gap-1.5">
-                      <span>{isMicMuted ? 'Micrófono Silenciado' : 'Micrófono Activo'}</span>
-                      {!isMicMuted && (
-                        <span className={`w-2 h-2 rounded-full ${localVolume > 5 ? 'bg-emerald-400 animate-ping' : 'bg-emerald-500'}`}></span>
-                      )}
-                    </span>
-                    <span className="text-[10px] text-slate-400 block">
-                      {isMicMuted ? 'Toca Activar para hablar' : (localVolume > 5 ? 'Detectando tu voz...' : 'Listo para hablar')}
-                    </span>
+
+                  {/* En móvil: Botones rápidos a la derecha del título (Silenciar y Ensordecer) */}
+                  <div className="flex sm:hidden items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={toggleVoiceMute}
+                      className={`px-2.5 py-1.5 rounded-xl font-black text-xs flex items-center gap-1 transition active:scale-95 border shadow-sm ${
+                        isMicMuted
+                          ? 'bg-red-600 hover:bg-red-500 text-white border-red-400'
+                          : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400'
+                      }`}
+                    >
+                      {isMicMuted ? <MicOff size={12} /> : <Mic size={12} />}
+                      <span>{isMicMuted ? 'Activar' : 'Silenciar'}</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={toggleDeafenAudio}
+                      className={`p-1.5 rounded-xl text-xs transition active:scale-95 border ${
+                        isDeafened
+                          ? 'bg-red-950/80 border-red-500 text-red-300 hover:bg-red-900'
+                          : 'bg-stone-800 border-stone-600 text-stone-300 hover:bg-stone-700'
+                      }`}
+                      title={isDeafened ? 'Audio ensordecido' : 'Escuchando la sala'}
+                    >
+                      {isDeafened ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                    </button>
                   </div>
                 </div>
 
-                {/* Botones directos y adaptables sin desbordar en celular */}
-                <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto justify-between sm:justify-end shrink-0">
-                  {/* Botón para probar cornetas */}
+                {/* Fila 2 en móvil (Botón Probar Cornetas a lo ancho) / Lado derecho en PC */}
+                <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto">
                   <button
                     type="button"
                     onClick={handleTestSpeakers}
-                    className={`flex-1 sm:flex-initial px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 border shadow-sm ${
+                    className={`w-full sm:w-auto px-3.5 py-2 sm:py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 border shadow-sm ${
                       speakerTested
                         ? 'bg-amber-400 text-black border-amber-200 shadow-amber-500/50 animate-pulse'
                         : 'bg-stone-800 hover:bg-stone-700 text-amber-300 border-amber-500/40'
                     }`}
                     title="Probar sonido y desbloquear altavoces del teléfono o computadora"
                   >
-                    <Volume2 size={14} className={speakerTested ? 'animate-bounce text-black' : 'text-amber-400'} />
-                    <span>{speakerTested ? '🔔 ¡Sonando!' : 'Probar Cornetas'}</span>
+                    <Volume2 size={15} className={speakerTested ? 'animate-bounce text-black' : 'text-amber-400'} />
+                    <span>{speakerTested ? '🔔 ¡Sonando campanada!' : '🔊 Probar Cornetas (Toca para escuchar)'}</span>
                   </button>
 
-                  {/* Botón silenciar / activar micrófono */}
-                  <button
-                    type="button"
-                    onClick={toggleVoiceMute}
-                    className={`px-3 py-1.5 rounded-xl font-black text-xs flex items-center justify-center gap-1 transition active:scale-95 border shadow-sm shrink-0 ${
-                      isMicMuted
-                        ? 'bg-red-600 hover:bg-red-500 text-white border-red-400'
-                        : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400'
-                    }`}
-                  >
-                    {isMicMuted ? <MicOff size={13} /> : <Mic size={13} />}
-                    <span>{isMicMuted ? 'Activar' : 'Silenciar'}</span>
-                  </button>
+                  {/* En desktop: Botones de silenciar y ensordecer al lado de probar cornetas */}
+                  <div className="hidden sm:flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={toggleVoiceMute}
+                      className={`px-3 py-1.5 rounded-xl font-black text-xs flex items-center justify-center gap-1 transition active:scale-95 border shadow-sm ${
+                        isMicMuted
+                          ? 'bg-red-600 hover:bg-red-500 text-white border-red-400'
+                          : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400'
+                      }`}
+                    >
+                      {isMicMuted ? <MicOff size={13} /> : <Mic size={13} />}
+                      <span>{isMicMuted ? 'Activar' : 'Silenciar'}</span>
+                    </button>
 
-                  {/* Botón ensordecer audio */}
-                  <button
-                    type="button"
-                    onClick={toggleDeafenAudio}
-                    className={`p-1.5 rounded-xl text-xs transition active:scale-95 border shrink-0 ${
-                      isDeafened
-                        ? 'bg-red-950/80 border-red-500 text-red-300 hover:bg-red-900'
-                        : 'bg-stone-800 border-stone-600 text-stone-300 hover:bg-stone-700'
-                    }`}
-                    title={isDeafened ? 'Audio ensordecido (Clic para escuchar)' : 'Escuchando la sala (Clic para ensordecer)'}
-                  >
-                    {isDeafened ? <VolumeX size={15} /> : <Volume2 size={15} />}
-                  </button>
+                    <button
+                      type="button"
+                      onClick={toggleDeafenAudio}
+                      className={`p-1.5 rounded-xl text-xs transition active:scale-95 border ${
+                        isDeafened
+                          ? 'bg-red-950/80 border-red-500 text-red-300 hover:bg-red-900'
+                          : 'bg-stone-800 border-stone-600 text-stone-300 hover:bg-stone-700'
+                      }`}
+                      title={isDeafened ? 'Audio ensordecido' : 'Escuchando la sala'}
+                    >
+                      {isDeafened ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                    </button>
+                  </div>
                 </div>
               </div>
 
