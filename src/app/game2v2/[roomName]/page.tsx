@@ -188,6 +188,7 @@ export default function GameTwoVsTwo() {
   const [speakingPeers, setSpeakingPeers] = useState<Record<number, boolean>>({});
   const [voicePeerStates, setVoicePeerStates] = useState<Record<number, VoicePeerState>>({});
   const [localVolume, setLocalVolume] = useState<number>(0);
+  const [speakerTested, setSpeakerTested] = useState<boolean>(false);
 
   // Inicialización de usuario invitado persistente para evitar colisiones de asientos en enlaces compartidos
   useEffect(() => {
@@ -792,6 +793,15 @@ export default function GameTwoVsTwo() {
     voiceManagerRef.current.resumeAllAudio();
     const deaf = voiceManagerRef.current.toggleDeafen();
     setIsDeafened(deaf);
+  };
+
+  const handleTestSpeakers = async () => {
+    if (!voiceManagerRef.current) return;
+    const ok = await voiceManagerRef.current.testSpeakers();
+    if (ok) {
+      setSpeakerTested(true);
+      setTimeout(() => setSpeakerTested(false), 2500);
+    }
   };
 
   // Reglas oficiales de La Tumba y Obligado 2 vs 2 (10 segundos de análisis y confirmación)
@@ -2413,11 +2423,25 @@ export default function GameTwoVsTwo() {
                   </div>
 
                   {/* Botones de control en el lobby */}
-                  <div className="flex items-center gap-2 w-full sm:w-auto justify-end">
+                  <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto justify-end">
+                    <button
+                      type="button"
+                      onClick={handleTestSpeakers}
+                      className={`px-3 py-2 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 shadow-md ${
+                        speakerTested
+                          ? 'bg-amber-400 text-black border border-amber-200 shadow-amber-500/50 animate-pulse'
+                          : 'bg-stone-800 hover:bg-stone-700 text-stone-200 border border-stone-600'
+                      }`}
+                      title="Probar sonido y desbloquear altavoces del teléfono"
+                    >
+                      <Volume2 size={14} className={speakerTested ? 'animate-bounce text-black' : 'text-amber-400'} />
+                      <span>{speakerTested ? '🔔 ¡Altavoces Listos!' : 'Probar Altavoces'}</span>
+                    </button>
+
                     <button
                       type="button"
                       onClick={toggleVoiceMute}
-                      className={`flex-1 sm:flex-none px-3.5 py-2 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition active:scale-95 shadow-md ${
+                      className={`px-3.5 py-2 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition active:scale-95 shadow-md ${
                         isMicMuted
                           ? 'bg-red-600 hover:bg-red-500 text-white border border-red-300 shadow-red-950/50'
                           : 'bg-emerald-600 hover:bg-emerald-500 text-white border border-emerald-300 shadow-emerald-950/50'
