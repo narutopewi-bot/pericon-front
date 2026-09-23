@@ -2396,8 +2396,8 @@ export default function GameTwoVsTwo() {
                 </div>
               </div>
 
-              {/* BARRA LIMPIA Y COMPACTA DE VOZ Y CORNETAS */}
-              <div className="bg-black/60 border border-amber-500/40 rounded-2xl px-3 sm:px-4 py-2 my-2.5 shadow-md flex items-center justify-between gap-2 text-left">
+              {/* BARRA LIMPIA Y COMPACTA DE VOZ Y CORNETAS (ADAPTADA A CELULAR Y PC) */}
+              <div className="bg-black/60 border border-amber-500/40 rounded-2xl p-2.5 sm:px-4 sm:py-2 my-2.5 shadow-md flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2.5 sm:gap-3 text-left">
                 {/* Estado limpio del micrófono */}
                 <div className="flex items-center gap-2">
                   <div className={`w-8 h-8 rounded-xl flex items-center justify-center text-sm shadow shrink-0 ${
@@ -2418,13 +2418,13 @@ export default function GameTwoVsTwo() {
                   </div>
                 </div>
 
-                {/* Botones directos sin sobrecargar la pantalla */}
-                <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                {/* Botones directos y adaptables sin desbordar en celular */}
+                <div className="flex items-center gap-1.5 sm:gap-2 w-full sm:w-auto justify-between sm:justify-end shrink-0">
                   {/* Botón para probar cornetas */}
                   <button
                     type="button"
                     onClick={handleTestSpeakers}
-                    className={`px-3 py-1.5 rounded-xl font-bold text-xs flex items-center gap-1.5 transition active:scale-95 border shadow-sm ${
+                    className={`flex-1 sm:flex-initial px-2.5 sm:px-3 py-1.5 rounded-xl font-bold text-xs flex items-center justify-center gap-1.5 transition active:scale-95 border shadow-sm ${
                       speakerTested
                         ? 'bg-amber-400 text-black border-amber-200 shadow-amber-500/50 animate-pulse'
                         : 'bg-stone-800 hover:bg-stone-700 text-amber-300 border-amber-500/40'
@@ -2439,7 +2439,7 @@ export default function GameTwoVsTwo() {
                   <button
                     type="button"
                     onClick={toggleVoiceMute}
-                    className={`px-3 py-1.5 rounded-xl font-black text-xs flex items-center gap-1 transition active:scale-95 border shadow-sm ${
+                    className={`px-3 py-1.5 rounded-xl font-black text-xs flex items-center justify-center gap-1 transition active:scale-95 border shadow-sm shrink-0 ${
                       isMicMuted
                         ? 'bg-red-600 hover:bg-red-500 text-white border-red-400'
                         : 'bg-emerald-600 hover:bg-emerald-500 text-white border-emerald-400'
@@ -2453,7 +2453,7 @@ export default function GameTwoVsTwo() {
                   <button
                     type="button"
                     onClick={toggleDeafenAudio}
-                    className={`p-1.5 rounded-xl text-xs transition active:scale-95 border ${
+                    className={`p-1.5 rounded-xl text-xs transition active:scale-95 border shrink-0 ${
                       isDeafened
                         ? 'bg-red-950/80 border-red-500 text-red-300 hover:bg-red-900'
                         : 'bg-stone-800 border-stone-600 text-stone-300 hover:bg-stone-700'
