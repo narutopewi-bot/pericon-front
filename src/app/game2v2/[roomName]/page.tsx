@@ -2396,6 +2396,58 @@ export default function GameTwoVsTwo() {
                 </div>
               </div>
 
+              {/* LETRERO EXTRA GRANDE: AVISO CRÍTICO DE AUDIO PARA CELULAR Y COMPUTADORA */}
+              <div className="w-full bg-gradient-to-r from-amber-600/35 via-yellow-500/30 to-amber-600/35 border-2 border-amber-400 rounded-3xl p-4 sm:p-5 my-3 shadow-2xl text-left relative overflow-hidden">
+                <div className="flex items-start gap-3 sm:gap-4">
+                  <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-400 text-black flex items-center justify-center text-2xl sm:text-4xl shrink-0 shadow-xl border-2 border-yellow-200 animate-bounce">
+                    🔊
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                      <span className="text-xs sm:text-sm font-black uppercase text-amber-300 tracking-wider bg-amber-950/90 px-2.5 py-0.5 rounded-lg border border-amber-500/60">
+                        ⚠️ ¡AVISO IMPORTANTE DE AUDIO!
+                      </span>
+                      <span className="text-[10px] sm:text-xs text-yellow-200 font-extrabold bg-black/70 px-2.5 py-0.5 rounded-full border border-yellow-400/50">
+                        📱 CELULAR O 💻 COMPUTADORA
+                      </span>
+                    </div>
+
+                    <p className="text-xs sm:text-sm font-extrabold text-white leading-snug">
+                      Para poder escuchar la voz de tus compañeros en directo, presiona el botón amarillo aquí abajo:
+                    </p>
+
+                    <div className="mt-2.5 grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] sm:text-xs text-amber-100 font-semibold bg-black/60 p-2.5 sm:p-3 rounded-2xl border border-amber-500/40">
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">📱</span>
+                        <span><strong>Si estás en Celular:</strong> Toca para que el navegador desbloquee el sonido de los demás jugadores.</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg">💻</span>
+                        <span><strong>Si estás en Computadora:</strong> Verifica que tus cornetas o audífonos estén sonando fuerte.</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* BOTÓN EXTRA GRANDE DE ACTIVACIÓN DE ALTAVOCES */}
+                <div className="mt-3.5">
+                  <button
+                    type="button"
+                    onClick={handleTestSpeakers}
+                    className={`w-full py-3.5 px-4 rounded-2xl font-black text-sm sm:text-base flex items-center justify-center gap-2.5 transition active:scale-95 shadow-2xl cursor-pointer ${
+                      speakerTested
+                        ? 'bg-emerald-500 text-black border-2 border-emerald-200 shadow-emerald-500/60'
+                        : 'bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-yellow-300 text-black border-2 border-yellow-100 shadow-amber-500/70 ring-4 ring-amber-400/40 animate-pulse'
+                    }`}
+                  >
+                    <Volume2 size={22} className={speakerTested ? 'text-black' : 'text-neutral-900 animate-bounce'} />
+                    <span>
+                      {speakerTested ? '✅ ¡ALTAVOCES LISTOS Y DESBLOQUEADOS!' : '🔊 PROBAR ALTAVOCES (TOCA AQUÍ PARA ESCUCHAR)'}
+                    </span>
+                  </button>
+                </div>
+              </div>
+
               {/* PANEL DE CHAT DE VOZ EN VIVO (DESDE EL LOBBY) */}
               <div className="bg-gradient-to-r from-emerald-950/50 via-stone-900/70 to-emerald-950/50 border-2 border-emerald-500/50 rounded-2xl p-3 sm:p-4 my-3 shadow-xl text-left">
                 <div className="flex flex-col sm:flex-row items-center justify-between gap-3 mb-2.5">
