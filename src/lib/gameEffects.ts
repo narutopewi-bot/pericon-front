@@ -51,21 +51,55 @@ export const vibrateDevice = (type: VibrationType | number[]) => {
   }
 };
 
+import { isSoundMuted } from './soundEffects';
+
+let currentVoiceAudio: HTMLAudioElement | null = null;
+
 /**
- * Reproduce un audio MP3 personalizado si existe en /audio/${audioKey}.mp3,
+ * Detiene cualquier voz o narración activa en memoria
+ */
+export const stopVoiceAudio = () => {
+  if (typeof window === 'undefined') return;
+  if (currentVoiceAudio) {
+    try {
+      currentVoiceAudio.pause();
+      currentVoiceAudio.currentTime = 0;
+    } catch (_) {}
+    currentVoiceAudio = null;
+  }
+  if ('speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch (_) {}
+  }
+};
+
+/**
+ * Reproduce un audio MP3 personalizado grabado en /audio/${audioKey}.mp3,
  * o recurre a la voz sintética (speakPhrase) como respaldo automático.
  */
-export const playVoiceAudio = (audioKey: string, fallbackText: string) => {
+export const playVoiceAudio = (audioKey: string, fallbackText: string, volume: number = 1.0) => {
   if (typeof window === 'undefined') return;
+  if (isSoundMuted()) return;
+
+  stopVoiceAudio();
 
   try {
     const audio = new Audio(`/audio/${audioKey}.mp3`);
+    audio.volume = Math.min(1.0, Math.max(0, volume));
+    currentVoiceAudio = audio;
     let hasPlayed = false;
 
     audio.onerror = () => {
       if (!hasPlayed) {
         hasPlayed = true;
         speakPhrase(fallbackText);
+      }
+    };
+
+    audio.onended = () => {
+      if (currentVoiceAudio === audio) {
+        currentVoiceAudio = null;
       }
     };
 
@@ -92,6 +126,7 @@ export const speakPhrase = (phrase: string, rate: number = 1.05, pitch: number =
   if (typeof window === 'undefined' || !('speechSynthesis' in window)) {
     return;
   }
+  if (isSoundMuted()) return;
 
   try {
     // Si ya está hablando algo viejo, cancelamos para dar prioridad al evento actual

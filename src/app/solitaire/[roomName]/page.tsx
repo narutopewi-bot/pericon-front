@@ -312,7 +312,7 @@ export default function Duel() {
           subtitle: 'Analiza tus 3 cartas y La Vida. Tienes 10 segundos.',
           badge: 'TUMBA: 10 SEGUNDOS'
         }, 3500);
-        speakPhrase("¡Estás en tumba! Analiza tus cartas y la vida durante diez segundos.");
+        playVoiceAudio('estas_en_tumba', "¡Estás en tumba! Analiza tus cartas y la vida.");
         vibrateDevice('tumba');
         playSynthSound('tumba');
 
@@ -403,7 +403,7 @@ export default function Duel() {
                 const newOwn = Math.max(0, pointsownRef.current - 1);
                 const newOpp = pointsoppRef.current + 1;
                 updatePointsAndTumba(newOwn, newOpp);
-                speakPhrase("Pasaste en Tumba. Menos una piedra.");
+                playVoiceAudio('pasaste_en_tumba', "Pasaste en Tumba. Menos una piedra.");
                 vibrateDevice('reject');
                 playSynthSound('reject');
                 Swal.fire(AlertMessage("Pasaste en Tumba (-1 piedra para ti, +1 para el rival)").firstMessage).then(() => {
@@ -452,7 +452,7 @@ export default function Duel() {
             subtitle: '¡Mano definitiva! El que gane 2 de 3 bazas gana el juego',
             badge: 'ÚLTIMA MANO'
           }, 3500);
-          speakPhrase("¡Obligado! Quien gane esta mano gana la partida");
+          playVoiceAudio('obligado', "¡Obligado! Quien gane esta mano, gana la partida.");
           vibrateDevice('tumba');
           playSynthSound('tumba');
         } else if (oppInTumba) {
@@ -462,7 +462,7 @@ export default function Duel() {
             subtitle: 'El oponente busca cerrar la partida',
             badge: 'Tumba activa'
           }, 3200);
-          speakPhrase("¡Pericón está tumbando!");
+          playVoiceAudio('estas_en_tumba', "¡Los rivales están en tumba!");
           vibrateDevice('tumba');
           playSynthSound('tumba');
         }
@@ -609,7 +609,7 @@ export default function Duel() {
             setTableCards([currentLife]);
 
             if (isCogiaBonus === 1) {
-              speakPhrase("¡La Cogía con el As de Oro!");
+              playVoiceAudio('la_cogia_propia', "¡La Cogía! Mataron el diez con el As de oro.");
               vibrateDevice('winMatch');
               playSynthSound('win');
               triggerAnnouncement({
@@ -619,7 +619,7 @@ export default function Duel() {
                 badge: '+3 piedras automáticas'
               }, 2500);
             } else if (isCogiaBonus === 2) {
-              speakPhrase("¡La Cogía para la máquina!");
+              playVoiceAudio('la_cogia_rival', "¡La Cogía para los rivales!");
               vibrateDevice('reject');
               playSynthSound('reject');
               triggerAnnouncement({
@@ -709,12 +709,12 @@ export default function Duel() {
 
             if (isObligado) {
               if (playerWonHand) {
-                speakPhrase("¡Ganaste la partida en obligado!");
+                playVoiceAudio('ganaste_en_obligado', "¡Ganaste la partida en obligado!");
                 vibrateDevice('winMatch');
                 playSynthSound('win');
                 Swal.fire(AlertMessage("¡GANASTE LA PARTIDA EN OBLIGADO!").firstMessage).then(() => endGame(1));
               } else {
-                speakPhrase("La máquina gana en obligado");
+                playVoiceAudio('derrota_partida', "Partida terminada. Los rivales se llevaron la victoria.");
                 vibrateDevice('reject');
                 playSynthSound('reject');
                 Swal.fire(AlertMessage("¡LA MÁQUINA GANA EN OBLIGADO!").firstMessage).then(() => endGame(2));
@@ -724,28 +724,28 @@ export default function Duel() {
 
             if (playerInTumba) {
               if (playerWonHand) {
-                speakPhrase("¡Ganaste la partida! Tumba completada.");
+                playVoiceAudio('tumba_completada', "¡Ganaste la partida! Tumba completada.");
                 vibrateDevice('winMatch');
                 playSynthSound('win');
                 Swal.fire(AlertMessage("¡GANASTE LA PARTIDA! (Tumba completada)").firstMessage).then(() => endGame(1));
                 return;
               } else {
                 updatePointsAndTumba(Math.max(0, pointsownRef.current - 3), pointsoppRef.current + 3);
-                speakPhrase("Perdiste en tumba. Menos tres piedras.");
+                playVoiceAudio('caiste_en_tumba', "¡Caíste en Tumba! Menos tres piedras.");
                 vibrateDevice('reject');
                 playSynthSound('reject');
                 xcad = "Perdiste en Tumba (-3 piedras para ti, +3 para el rival)";
               }
             } else if (oppInTumba) {
               if (!playerWonHand) {
-                speakPhrase("La máquina gana la partida");
+                playVoiceAudio('derrota_partida', "Partida terminada. Los rivales se llevaron la victoria.");
                 vibrateDevice('reject');
                 playSynthSound('reject');
                 Swal.fire(AlertMessage("¡LA MÁQUINA GANA LA PARTIDA! (Tumba completada)").firstMessage).then(() => endGame(2));
                 return;
               } else {
                 updatePointsAndTumba(pointsownRef.current + 3, Math.max(0, pointsoppRef.current - 3));
-                speakPhrase("¡El rival cayó en tumba! Más tres piedras para ti.");
+                playVoiceAudio('rivales_cayeron_tumba', "¡Los rivales cayeron en Tumba! Más tres piedras.");
                 vibrateDevice('winRound');
                 playSynthSound('win');
                 xcad = "¡El rival cayó en Tumba! (+3 piedras para ti, -3 para él)";
@@ -754,7 +754,11 @@ export default function Duel() {
               const stakePoints = currentStakeRef.current;
               if (playerWonHand) {
                 updatePointsAndTumba(pointsownRef.current + stakePoints, pointsoppRef.current);
-                speakPhrase(stakePoints > 1 ? `¡Ganaste la mano! Más ${stakePoints} piedras.` : "¡Ganaste la ronda!");
+                if (stakePoints > 1) {
+                  playVoiceAudio('ganaron_la_mano', "¡Ganaron la mano! Sumamos piedras.");
+                } else {
+                  playVoiceAudio('ganaste_la_ronda', "¡Ganaste la ronda!");
+                }
                 vibrateDevice('winRound');
                 playSynthSound('win');
                 triggerAnnouncement({
@@ -766,7 +770,7 @@ export default function Duel() {
                 xcad = stakePoints > 1 ? `¡Ganaste la mano! (+${stakePoints} piedras)` : "¡Punto para ti!";
               } else {
                 updatePointsAndTumba(pointsownRef.current, pointsoppRef.current + stakePoints);
-                speakPhrase(stakePoints > 1 ? `Pericón gana la mano. Más ${stakePoints} piedras.` : "Punto para tu oponente");
+                playVoiceAudio('punto_para_rivales', "Punto para los rivales.");
                 vibrateDevice('reject');
                 playSynthSound('reject');
                 triggerAnnouncement({
@@ -1141,7 +1145,7 @@ export default function Duel() {
     const canDenyCinco = isFirstBaza && hasCincoDeOro && trumpsCount === 1;
 
     if (isOpponentLead && isLeadTrump && playerHasTrump && !canDenyCinco && !isTrumpCard(card.id, currentLifeId)) {
-      speakPhrase("¡Regla del Pelao! Debes lanzar un triunfo.");
+      playVoiceAudio('regla_del_pelao', "¡Regla del Pelao! Debes lanzar un triunfo.");
       vibrateDevice('reject');
       playSynthSound('reject');
       triggerAnnouncement({
@@ -1360,7 +1364,7 @@ export default function Duel() {
     if (hasTimedOut.current) return;
     hasTimedOut.current = true;
     console.log("[Solitaire Timeout] Se agotaron los 30s del turno.");
-    speakPhrase("Tiempo agotado");
+    playVoiceAudio('tiempo_agotado', "¡Tiempo agotado!");
     vibrateDevice('reject');
     playSynthSound('reject');
     triggerAnnouncement({

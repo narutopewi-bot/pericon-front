@@ -92,7 +92,7 @@ export default function PericonTutorialModal({
             <button
               onClick={() => {
                 setInteractiveChoice("acepto");
-                playVoiceAudio("acepto", "¡Acepto!");
+                playVoiceAudio("tutorial_reto_acepto", "¡Reto aceptado! El ganador se llevará tres piedras completas.");
                 playSynthSound("win");
               }}
               className={`flex-1 text-xs py-2 px-3 rounded-xl font-bold transition border ${
@@ -106,7 +106,7 @@ export default function PericonTutorialModal({
             <button
               onClick={() => {
                 setInteractiveChoice("rechazo");
-                playVoiceAudio("no_quiero", "¡No quiero!");
+                playVoiceAudio("tutorial_reto_rechazo", "¡Cobarde! El retador se anota una piedra gratis sin jugar.");
                 playSynthSound("reject");
               }}
               className={`flex-1 text-xs py-2 px-3 rounded-xl font-bold transition border ${
@@ -229,12 +229,32 @@ export default function PericonTutorialModal({
 
   const current = steps[currentStep];
 
-  const speakText = (text: string) => {
+  const tutorialAudioRef = useRef<HTMLAudioElement | null>(null);
+
+  const stopAllAudio = () => {
+    if (speechTimeoutRef.current) {
+      clearTimeout(speechTimeoutRef.current);
+      speechTimeoutRef.current = null;
+    }
+    if (tutorialAudioRef.current) {
+      try {
+        tutorialAudioRef.current.pause();
+        tutorialAudioRef.current.currentTime = 0;
+      } catch (_) {}
+      tutorialAudioRef.current = null;
+    }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      try {
+        window.speechSynthesis.cancel();
+      } catch (_) {}
+    }
+    setIsSpeaking(false);
+  };
+
+  const fallbackSpeech = (text: string) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     try {
       window.speechSynthesis.cancel();
-      if (speechTimeoutRef.current) clearTimeout(speechTimeoutRef.current);
-
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = "es-ES";
       utterance.rate = 1.05;
@@ -246,60 +266,90 @@ export default function PericonTutorialModal({
       );
       if (spanishVoice) utterance.voice = spanishVoice;
 
-      utterance.onstart = () => {
-        setIsSpeaking(true);
-      };
-      utterance.onend = () => {
-        setIsSpeaking(false);
-      };
-      utterance.onerror = () => {
-        setIsSpeaking(false);
-      };
+      utterance.onstart = () => setIsSpeaking(true);
+      utterance.onend = () => setIsSpeaking(false);
+      utterance.onerror = () => setIsSpeaking(false);
 
       setIsSpeaking(true);
       window.speechSynthesis.speak(utterance);
 
-      // Timeout de respaldo en caso de que el navegador no dispare onend
       const approxDurationMs = Math.max(3000, (text.split(" ").length / 2.5) * 1000);
       speechTimeoutRef.current = setTimeout(() => {
         setIsSpeaking(false);
       }, approxDurationMs);
     } catch (e) {
-      console.warn("Speech error:", e);
       setIsSpeaking(false);
     }
+  };
+
+  const speakText = (text: string, stepNumber: number = current.stepNumber) => {
+    if (typeof window === "undefined") return;
+    stopAllAudio();
+
+    // Pasos 1 al 6: voz real de estudio del Chivo de Carora
+    if (stepNumber >= 1 && stepNumber <= 6) {
+      try {
+        const audio = new Audio(`/audio/tutorial_paso_${stepNumber}.mp3`);
+        tutorialAudioRef.current = audio;
+
+        audio.onplay = () => {
+          setIsSpeaking(true);
+        };
+        audio.onended = () => {
+          setIsSpeaking(false);
+          tutorialAudioRef.current = null;
+        };
+        audio.onerror = () => {
+          fallbackSpeech(text);
+        };
+
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {
+            fallbackSpeech(text);
+          });
+        }
+        return;
+      } catch (e) {
+        fallbackSpeech(text);
+        return;
+      }
+    }
+
+    // Paso 7 (Aviso legal +18) u otros textos
+    fallbackSpeech(text);
   };
 
   // Efecto para hablar automáticamente al cambiar de paso si autoVoice está activo
   useEffect(() => {
     if (!isOpen) {
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
-      setIsSpeaking(false);
+      stopAllAudio();
       return;
     }
 
     if (autoVoice) {
       const timer = setTimeout(() => {
-        speakText(current.dialogue);
+        speakText(current.dialogue, current.stepNumber);
       }, 400);
-      return () => clearTimeout(timer);
+      return () => {
+        clearTimeout(timer);
+        stopAllAudio();
+      };
+    } else {
+      stopAllAudio();
     }
   }, [currentStep, isOpen, autoVoice]);
 
   const toggleSpeak = () => {
     if (isSpeaking) {
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
-      setIsSpeaking(false);
+      stopAllAudio();
     } else {
-      speakText(current.dialogue);
+      speakText(current.dialogue, current.stepNumber);
     }
   };
 
   const handleNext = () => {
+    stopAllAudio();
     setInteractiveChoice(null);
     if (currentStep < steps.length - 1) {
       setCurrentStep((prev) => prev + 1);
@@ -310,6 +360,7 @@ export default function PericonTutorialModal({
   };
 
   const handlePrev = () => {
+    stopAllAudio();
     setInteractiveChoice(null);
     if (currentStep > 0) {
       setCurrentStep((prev) => prev - 1);
@@ -318,6 +369,7 @@ export default function PericonTutorialModal({
   };
 
   const handleFinish = () => {
+    stopAllAudio();
     if (typeof window !== "undefined") {
       if ("speechSynthesis" in window) window.speechSynthesis.cancel();
       localStorage.setItem("pericon_tutorial_seen", "true");

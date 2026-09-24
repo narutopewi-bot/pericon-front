@@ -10,7 +10,7 @@ import { useSignalRContext } from '@/lib/signalrcontext';
 import { Baraja } from '@/lib/library';
 import Stone from '@/components/stone-meter';
 import { GameAnnouncement, AnnouncementData } from '@/components/game-announcement';
-import { playCardSound, playSwooshSound, vibrateDevice, playSynthSound, speakPhrase } from '@/lib/gameEffects';
+import { playCardSound, playSwooshSound, vibrateDevice, playSynthSound, speakPhrase, playVoiceAudio } from '@/lib/gameEffects';
 import { playCardDealSound, playCardDropSound, playCoinWinSound, playCantoSound, playChatPopSound } from '@/lib/soundEffects';
 import GameTurnTimer from '@/components/game-turn-timer';
 import { reportAppError } from '@/lib/errorLogger';
@@ -578,7 +578,7 @@ export default function GameTwoVsTwo() {
       const didMyTeamPass = data.passingTeam === myTeam;
 
       if (didMyTeamPass) {
-        speakPhrase("Pasaron en Tumba. Menos una piedra.");
+        playVoiceAudio('pasaste_en_tumba', "Pasaron en Tumba. Menos una piedra.");
         triggerAnnouncement({
           type: 'tumba',
           title: 'PASARON EN TUMBA',
@@ -586,7 +586,7 @@ export default function GameTwoVsTwo() {
           badge: 'REPARTO NUEVA MANO'
         }, 3000);
       } else {
-        speakPhrase("¡Los rivales pasaron en Tumba! Más una piedra para ustedes.");
+        playVoiceAudio('rivales_pasaron_tumba', "¡Los rivales pasaron en Tumba! Más una piedra para ustedes.");
         triggerAnnouncement({
           type: 'tumba',
           title: '¡LOS RIVALES PASARON EN TUMBA!',
@@ -633,7 +633,7 @@ export default function GameTwoVsTwo() {
             subtitle: '-3 piedras para tu equipo, +3 piedras para el rival',
             badge: `MARCADOR: ${data.pointsTeam1} a ${data.pointsTeam2}`
           }, 3800);
-          speakPhrase("¡Caíste en tumba! Menos tres piedras.");
+          playVoiceAudio('caiste_en_tumba', "¡Caíste en Tumba! Menos tres piedras.");
         } else {
           triggerAnnouncement({
             type: 'tumba',
@@ -641,7 +641,7 @@ export default function GameTwoVsTwo() {
             subtitle: '-3 piedras para ellos, +3 piedras para tu equipo',
             badge: `MARCADOR: ${data.pointsTeam1} a ${data.pointsTeam2}`
           }, 3800);
-          speakPhrase("¡Los rivales cayeron en tumba! Más tres piedras para ustedes.");
+          playVoiceAudio('rivales_cayeron_tumba', "¡Los rivales cayeron en Tumba! Más tres piedras para ustedes.");
         }
       }
 
@@ -679,7 +679,7 @@ export default function GameTwoVsTwo() {
         subtitle: 'La mano de Tumba está en juego. ¡A jugar!',
         badge: 'TUMBA EN JUEGO'
       }, 2500);
-      speakPhrase("¡Aceptaron jugar la mano de Tumba!");
+      playVoiceAudio('mano_tumba_aceptada', "¡Aceptaron jugar la mano de Tumba!");
     });
 
     return () => {
@@ -826,7 +826,7 @@ export default function GameTwoVsTwo() {
         subtitle: '¡Mano definitiva! Quien gane 2 de 3 bazas gana el juego',
         badge: 'ÚLTIMA MANO'
       }, 3500);
-      speakPhrase("¡Obligado! Quien gane esta mano gana la partida");
+      playVoiceAudio('obligado', "¡Obligado! Quien gane esta mano gana la partida");
       vibrateDevice('tumba');
       playSynthSound('tumba');
     } else if (myTeamInTumba) {
@@ -840,7 +840,7 @@ export default function GameTwoVsTwo() {
         subtitle: 'Analiza tus 3 cartas y La Vida. Tienes 10 segundos.',
         badge: 'TUMBA: 10 SEGUNDOS'
       }, 3500);
-      speakPhrase("¡Estás en tumba! Analiza tus cartas y la vida durante diez segundos.");
+      playVoiceAudio('estas_en_tumba', "¡Estás en tumba! Analiza tus cartas y la vida.");
       vibrateDevice('tumba');
       playSynthSound('tumba');
 
@@ -914,7 +914,7 @@ export default function GameTwoVsTwo() {
               isProcessingMoveRef.current = false;
               setIsProcessingMove(false);
               setIsWaitingOppTumba(false);
-              speakPhrase("Pasaron en Tumba. Menos una piedra.");
+              playVoiceAudio('pasaste_en_tumba', "Pasaron en Tumba. Menos una piedra.");
               vibrateDevice('reject');
               playSynthSound('reject');
               if (connection) {
@@ -935,7 +935,7 @@ export default function GameTwoVsTwo() {
         subtitle: 'Tus contrincantes están analizando sus cartas (10s)...',
         badge: 'Rivales en Tumba'
       }, 3500);
-      speakPhrase("¡Los rivales están en tumba!");
+      playVoiceAudio('estas_en_tumba', "¡Los rivales están en tumba!");
       vibrateDevice('tumba');
       playSynthSound('tumba');
       setIsWaitingOppTumba(true);
@@ -1254,7 +1254,7 @@ export default function GameTwoVsTwo() {
       const canDenyCinco = isFirstBaza && hasCincoDeOro && trumpsCount === 1;
 
       if (isLeadTrump && playerHasTrump && !canDenyCinco && !isSelectedTrump) {
-        speakPhrase("¡Regla del Pelao! Debes lanzar un triunfo.");
+        playVoiceAudio('regla_del_pelao', "¡Regla del Pelao! Debes lanzar un triunfo.");
         vibrateDevice('reject');
         playSynthSound('reject');
         Swal.fire({
@@ -1430,11 +1430,11 @@ export default function GameTwoVsTwo() {
           const newT1 = pointsTeam1Ref.current + 3;
           updatePoints(newT1, pointsTeam2Ref.current);
           if (isMyTeamCogia) {
-            speakPhrase("¡La Cogía con el As de Oro!");
+            playVoiceAudio('la_cogia_propia', "¡La Cogía con el As de Oro!");
             vibrateDevice('winMatch');
             playSynthSound('win');
           } else {
-            speakPhrase("¡La Cogía para los rivales!");
+            playVoiceAudio('la_cogia_rival', "¡La Cogía para los rivales!");
           }
           triggerAnnouncement({
             type: 'la_cogia',
@@ -1446,11 +1446,11 @@ export default function GameTwoVsTwo() {
           const newT2 = pointsTeam2Ref.current + 3;
           updatePoints(pointsTeam1Ref.current, newT2);
           if (isMyTeamCogia) {
-            speakPhrase("¡La Cogía con el As de Oro!");
+            playVoiceAudio('la_cogia_propia', "¡La Cogía con el As de Oro!");
             vibrateDevice('winMatch');
             playSynthSound('win');
           } else {
-            speakPhrase("¡La Cogía para los rivales!");
+            playVoiceAudio('la_cogia_rival', "¡La Cogía para los rivales!");
           }
           triggerAnnouncement({
             type: 'la_cogia',
@@ -1534,7 +1534,7 @@ export default function GameTwoVsTwo() {
           subtitle: `Tu equipo suma +${addedStones} piedra(s)`,
           badge: 'MANO FINALIZADA'
         }, 3000);
-        speakPhrase(`¡Ganan la mano! Suman ${addedStones} piedras.`);
+        playVoiceAudio('ganaron_la_mano', `¡Ganan la mano! Suman ${addedStones} piedras.`);
       } else {
         triggerAnnouncement({
           type: 'opp_win_round',
@@ -1542,6 +1542,7 @@ export default function GameTwoVsTwo() {
           subtitle: `Los rivales suman +${addedStones} piedra(s)`,
           badge: 'MANO FINALIZADA'
         }, 3000);
+        playVoiceAudio('punto_para_rivales', `Punto para los rivales.`);
       }
     }
   };
@@ -1607,7 +1608,7 @@ export default function GameTwoVsTwo() {
       if (isPlayerTeamWinner) {
         vibrateDevice('winMatch');
         playSynthSound('win');
-        speakPhrase('¡Felicidades! Tu equipo ha ganado la partida amistosa.');
+        playVoiceAudio('victoria_partida', '¡Felicidades! Tu equipo ha ganado la partida.');
 
         setTimeout(() => {
           Swal.fire({
@@ -1652,7 +1653,7 @@ export default function GameTwoVsTwo() {
           });
         }, 3200);
       } else {
-        speakPhrase('Partida amistosa finalizada.');
+        playVoiceAudio('derrota_partida', 'Partida terminada. Los rivales se llevaron la victoria.');
         setTimeout(() => {
           Swal.fire({
             title: 'PARTIDA AMISTOSA FINALIZADA',
@@ -1753,7 +1754,7 @@ export default function GameTwoVsTwo() {
       vibrateDevice('winMatch');
       playSynthSound('win');
       playCoinWinSound();
-      speakPhrase('¡Felicidades! Tu equipo ha ganado la partida de dos contra dos.');
+      playVoiceAudio('victoria_partida', '¡Felicidades! Tu equipo ha ganado la partida.');
 
       Swal.fire({
         title: '🏆 ¡VICTORIA EN EQUIPO!',
@@ -1800,7 +1801,7 @@ export default function GameTwoVsTwo() {
         router.push('/desk');
       });
     } else {
-      speakPhrase('Partida terminada. Los rivales se llevaron la victoria.');
+      playVoiceAudio('derrota_partida', 'Partida terminada. Los rivales se llevaron la victoria.');
       Swal.fire({
         title: '💔 PARTIDA FINALIZADA',
         html: `
@@ -1840,7 +1841,7 @@ export default function GameTwoVsTwo() {
     const isTumba = (pointsTeam1Ref.current >= 9 || (isTumbaDeParaAtrasT1Ref.current && pointsTeam1Ref.current === 8)) ||
                     (pointsTeam2Ref.current >= 9 || (isTumbaDeParaAtrasT2Ref.current && pointsTeam2Ref.current === 8));
     if (isTumba) {
-      speakPhrase("En tumba no se puede pedir.");
+      playVoiceAudio('en_tumba_no_se_pide', "En tumba no se puede pedir.");
       vibrateDevice('reject');
       Swal.fire({
         title: "¡ESTADO DE TUMBA!",
@@ -1860,7 +1861,7 @@ export default function GameTwoVsTwo() {
 
     const myTeam = (mySeatIndexRef.current === 0 || mySeatIndexRef.current === 2) ? 1 : 2;
     if (lastStakeAskedByRef.current === myTeam && current > 1) {
-      speakPhrase("Tu equipo cantó el último aumento.");
+      playVoiceAudio('ultimo_aumento_tuyo', "Tu equipo cantó el último aumento.");
       Swal.fire({
         title: "¡TURNO DEL RIVAL!",
         text: "Tu equipo cantó el último aumento. Deben esperar a que los rivales propongan el siguiente cante.",
@@ -1918,12 +1919,16 @@ export default function GameTwoVsTwo() {
         subtitle: 'Esperando respuesta de los rivales...',
         badge: `CANTE POR ${nextStake}`
       }, 2500);
-      speakPhrase(`¡Pedimos ${nextStake}! Esperando respuesta de los rivales.`);
+      const audioKey = nextStake === 3 ? 'pedimos_tres' : (nextStake === 6 ? 'pedimos_seis' : 'pedimos_nueve');
+      const phrase = nextStake === 3 ? "¡Pedimos tres!" : (nextStake === 6 ? "¡Pedimos seis!" : "¡Pedimos nueve!");
+      playVoiceAudio(audioKey, phrase);
     } else {
       // Los rivales pidieron: Mostrar modal interactivo para responder
       Swal.close();
       playSynthSound('canto');
-      speakPhrase(`¡Los rivales piden ${nextStake}! ¿Quieren o no quieren?`);
+      const audioKey = nextStake === 3 ? 'dame_tres' : (nextStake === 6 ? 'quiero_seis' : 'van_nueve');
+      const phrase = nextStake === 3 ? "¡Dame tres!" : (nextStake === 6 ? "¡Quiero seis!" : "¡Van nueve!");
+      playVoiceAudio(audioKey, phrase);
       Swal.fire({
         title: `¡${askerName.toUpperCase()} PIDE ${nextStake}!`,
         text: `El equipo rival propone jugar por ${nextStake} piedras. ¿Aceptan?`,
@@ -1940,6 +1945,7 @@ export default function GameTwoVsTwo() {
       }).then((res) => {
         if (connection && isStakePendingRef.current) {
           if (res.isConfirmed) {
+            playVoiceAudio('acepto', "¡Acepto!");
             connection.invoke('AnswerStake2v2', roomName, mySeatIndexRef.current, true).catch(err => {
               console.error(err);
               reportAppError({
@@ -1951,6 +1957,7 @@ export default function GameTwoVsTwo() {
               });
             });
           } else if (res.dismiss === Swal.DismissReason.cancel) {
+            playVoiceAudio('no_quiero', "¡No quiero!");
             connection.invoke('AnswerStake2v2', roomName, mySeatIndexRef.current, false).catch(err => {
               console.error(err);
               reportAppError({
@@ -1986,7 +1993,7 @@ export default function GameTwoVsTwo() {
         subtitle: `Ahora se juega por ${current} piedras`,
         badge: `APUESTA: ${current} PIEDRAS`
       }, 2500);
-      speakPhrase(`¡Dijeron quiero! Jugamos por ${current} piedras.`);
+      playVoiceAudio('dijeron_quiero', `¡Dijeron quiero! Jugamos por ${current} piedras.`);
       playSynthSound('canto');
     } else {
       const challengerTeam = Number(data.challengerTeam || lastStakeAskedByRef.current || 1);
@@ -2005,7 +2012,11 @@ export default function GameTwoVsTwo() {
           : `Tu equipo no quiso. Los rivales suman +${reward} piedra(s)`,
         badge: `+${reward} PIEDRAS`
       }, 3000);
-      speakPhrase(challengerTeam === myTeam ? `¡No quisieron! Sumamos ${reward} piedras.` : "No quisimos. Piedra para los rivales.");
+      if (challengerTeam === myTeam) {
+        playVoiceAudio('no_quisieron', `¡No quisieron! Sumamos ${reward} piedras.`);
+      } else {
+        playVoiceAudio('no_quisimos', "No quisimos. Piedra para los rivales.");
+      }
 
       // Bloquear cualquier jugada de cartas hasta que se reparta la nueva mano
       isProcessingMoveRef.current = true;

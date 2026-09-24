@@ -685,7 +685,11 @@ export default function Duel1vs1() {
         }
       }
 
-      speakPhrase(data.passedByMe ? "Pasaste en Tumba. Menos una piedra." : "¡El rival pasó en Tumba! Más una piedra para ti.");
+      if (data.passedByMe) {
+        playVoiceAudio('pasaste_en_tumba', "Pasaste en Tumba. Menos una piedra.");
+      } else {
+        playVoiceAudio('rivales_pasaron_tumba', "¡Los rivales pasaron en Tumba! Más una piedra.");
+      }
       triggerAnnouncement({
         type: 'tumba',
         title: data.passedByMe ? 'PASASTE EN TUMBA' : '¡EL RIVAL PASÓ EN TUMBA!',
@@ -707,7 +711,7 @@ export default function Duel1vs1() {
         subtitle: 'La mano de Tumba está en juego. ¡A jugar!',
         badge: 'MANO EN JUEGO'
       }, 2500);
-      speakPhrase("¡El rival aceptó jugar en Tumba!");
+      playVoiceAudio('mano_tumba_aceptada', "¡Aceptaron jugar la mano de Tumba!");
     });
 
     return () => {
@@ -810,7 +814,7 @@ export default function Duel1vs1() {
         subtitle: '¡Mano definitiva! Quien gane 2 de 3 bazas gana el juego',
         badge: 'ÚLTIMA MANO'
       }, 3500);
-      speakPhrase("¡Obligado! Quien gane esta mano gana la partida");
+      playVoiceAudio('obligado', "¡Obligado! Quien gane esta mano, gana la partida.");
       vibrateDevice('tumba');
       playSynthSound('tumba');
     } else if (playerInTumba) {
@@ -824,7 +828,7 @@ export default function Duel1vs1() {
         subtitle: 'Analiza tus 3 cartas y La Vida. Tienes 10 segundos.',
         badge: 'TUMBA: 10 SEGUNDOS'
       }, 3500);
-      speakPhrase("¡Estás en tumba! Analiza tus cartas y la vida durante diez segundos.");
+      playVoiceAudio('estas_en_tumba', "¡Estás en tumba! Analiza tus cartas y la vida.");
       vibrateDevice('tumba');
       playSynthSound('tumba');
 
@@ -905,7 +909,7 @@ export default function Duel1vs1() {
               isProcessingRef.current = false;
               setIsProcessingMove(false);
               setIsWaitingOppTumba(false);
-              speakPhrase("Pasaste en Tumba. Menos una piedra.");
+              playVoiceAudio('pasaste_en_tumba', "Pasaste en Tumba. Menos una piedra.");
               vibrateDevice('reject');
               playSynthSound('reject');
               if (connection) {
@@ -930,7 +934,7 @@ export default function Duel1vs1() {
         subtitle: 'Tu contrincante está analizando sus cartas (10s)...',
         badge: 'Rival en Tumba'
       }, 3500);
-      speakPhrase("¡Tu rival está en tumba!");
+      playVoiceAudio('estas_en_tumba', "¡Los rivales están en tumba!");
       vibrateDevice('tumba');
       playSynthSound('tumba');
       setIsWaitingOppTumba(true);
@@ -997,7 +1001,7 @@ export default function Duel1vs1() {
         const canDenyCinco = isFirstBaza && hasCincoDeOro && trumpsCount === 1;
 
         if (isOppTrump && playerHasTrump && !canDenyCinco && !isTrumpCard(cardZero.id, currentLifeId)) {
-          speakPhrase("¡Regla del Pelao! Debes lanzar un triunfo.");
+          playVoiceAudio('regla_del_pelao', "¡Regla del Pelao! Debes lanzar un triunfo.");
           vibrateDevice('reject');
           playSynthSound('reject');
           Swal.fire({
@@ -1055,7 +1059,7 @@ export default function Duel1vs1() {
     const isTumba = (visiblePoints.own >= 9 || (partownRef.current === 1 && visiblePoints.own === 8)) ||
                     (visiblePoints.opp >= 9 || (partoppRef.current === 1 && visiblePoints.opp === 8));
     if (isTumba) {
-      speakPhrase("En tumba no se puede pedir.");
+      playVoiceAudio('en_tumba_no_se_pide', "En tumba no se puede pedir.");
       vibrateDevice('reject');
       Swal.fire({
         title: "¡ESTADO DE TUMBA!",
@@ -1335,7 +1339,7 @@ export default function Duel1vs1() {
         if (isCogiaInTrick) {
           const playerDidCogia = (cpownRef.current.id === 0);
           if (playerDidCogia) {
-            speakPhrase("¡La Cogía con el As de Oro!");
+            playVoiceAudio('la_cogia_propia', "¡La Cogía! Mataron el diez con el As de oro.");
             vibrateDevice('winMatch');
             playSynthSound('win');
             triggerAnnouncement({
@@ -1345,7 +1349,7 @@ export default function Duel1vs1() {
               badge: '+3 piedras automáticas'
             }, 2600);
           } else {
-            speakPhrase("¡La Cogía para el rival!");
+            playVoiceAudio('la_cogia_rival', "¡La Cogía para los rivales!");
             vibrateDevice('reject');
             playSynthSound('reject');
             triggerAnnouncement({
@@ -1409,7 +1413,7 @@ export default function Duel1vs1() {
 
                 const oppWasInTumba = (pointsopp.current >= 9 || (partoppRef.current === 1 && pointsopp.current === 8));
                 if (oppWasInTumba) {
-                  speakPhrase("¡El rival cayó en tumba! Más tres piedras para ti.");
+                  playVoiceAudio('rivales_cayeron_tumba', "¡Los rivales cayeron en Tumba! Más tres piedras.");
                   vibrateDevice('winRound');
                   playSynthSound('win');
                   triggerAnnouncement({
@@ -1419,7 +1423,11 @@ export default function Duel1vs1() {
                     badge: `Marcador: ${pointsown.current} - ${pointsopp.current}`
                   }, 2600);
                 } else {
-                  speakPhrase(stakePts > 1 ? `¡Ganaste la mano! Más ${stakePts} piedras.` : "¡Ganaste la ronda!");
+                  if (stakePts > 1) {
+                    playVoiceAudio('ganaron_la_mano', "¡Ganaron la mano! Sumamos piedras.");
+                  } else {
+                    playVoiceAudio('ganaste_la_ronda', "¡Ganaste la ronda!");
+                  }
                   vibrateDevice('winRound');
                   playSynthSound('win');
                   triggerAnnouncement({
@@ -1458,7 +1466,7 @@ export default function Duel1vs1() {
                 setIsMyTurn(false);
                 // Mantener las cartas sobre el tapete para que el jugador vea claramente la jugada final
                 setTableCards([cpEightRef.current, cpownRef.current, cardZero]);
-                speakPhrase("¡Felicidades, ganaste la partida! Tumba completada.");
+                playVoiceAudio('tumba_completada', "¡Ganaste la partida! Tumba completada.");
                 vibrateDevice('winMatch');
                 playSynthSound('win');
                 triggerAnnouncement({
@@ -1512,7 +1520,7 @@ export default function Duel1vs1() {
 
                 const playerWasInTumba = (pointsown.current >= 9 || (partownRef.current === 1 && pointsown.current === 8));
                 if (playerWasInTumba) {
-                  speakPhrase("Perdiste en tumba. Menos tres piedras.");
+                  playVoiceAudio('caiste_en_tumba', "¡Caíste en Tumba! Menos tres piedras.");
                   vibrateDevice('reject');
                   playSynthSound('reject');
                   triggerAnnouncement({
@@ -1522,7 +1530,7 @@ export default function Duel1vs1() {
                     badge: `Marcador: ${pointsown.current} - ${pointsopp.current}`
                   }, 2600);
                 } else {
-                  speakPhrase(stakePts > 1 ? `${rivalName} gana la mano. Más ${stakePts} piedras.` : "Punto para tu rival");
+                  playVoiceAudio('punto_para_rivales', "Punto para los rivales.");
                   vibrateDevice('reject');
                   playSynthSound('reject');
                   triggerAnnouncement({
@@ -1537,7 +1545,7 @@ export default function Duel1vs1() {
                 setIsMyTurn(false);
                 // Mantener las cartas sobre el tapete para que el jugador vea claramente la jugada final
                 setTableCards([cpEightRef.current, cpownRef.current, cardZero]);
-                speakPhrase("Tu rival ha completado la tumba y gana la partida.");
+                playVoiceAudio('derrota_partida', "Partida terminada. Los rivales se llevaron la victoria.");
                 vibrateDevice('reject');
                 playSynthSound('reject');
                 triggerAnnouncement({
@@ -1586,7 +1594,7 @@ export default function Duel1vs1() {
       if (isCogiaInTrick) {
         const playerDidCogia = (cpownRef.current.id === 0);
         if (playerDidCogia) {
-          speakPhrase("¡La Cogía con el As de Oro!");
+          playVoiceAudio('la_cogia_propia', "¡La Cogía! Mataron el diez con el As de oro.");
           vibrateDevice('winMatch');
           playSynthSound('win');
           triggerAnnouncement({
@@ -1596,7 +1604,7 @@ export default function Duel1vs1() {
             badge: '+3 piedras automáticas'
           }, 2600);
         } else {
-          speakPhrase("¡La Cogía para el rival!");
+          playVoiceAudio('la_cogia_rival', "¡La Cogía para los rivales!");
           vibrateDevice('reject');
           playSynthSound('reject');
           triggerAnnouncement({
@@ -1660,7 +1668,7 @@ export default function Duel1vs1() {
 
               const oppWasInTumba = (pointsopp.current >= 9 || (partoppRef.current === 1 && pointsopp.current === 8));
               if (oppWasInTumba) {
-                speakPhrase("¡El rival cayó en tumba! Más tres piedras para ti.");
+                playVoiceAudio('rivales_cayeron_tumba', "¡Los rivales cayeron en Tumba! Más tres piedras.");
                 vibrateDevice('winRound');
                 playSynthSound('win');
                 triggerAnnouncement({
@@ -1670,7 +1678,11 @@ export default function Duel1vs1() {
                   badge: `Marcador: ${pointsown.current} - ${pointsopp.current}`
                 }, 2600);
               } else {
-                speakPhrase(stakePts > 1 ? `¡Ganaste la mano! Más ${stakePts} piedras.` : "¡Ganaste la ronda!");
+                if (stakePts > 1) {
+                  playVoiceAudio('ganaron_la_mano', "¡Ganaron la mano! Sumamos piedras.");
+                } else {
+                  playVoiceAudio('ganaste_la_ronda', "¡Ganaste la ronda!");
+                }
                 vibrateDevice('winRound');
                 playSynthSound('win');
                 triggerAnnouncement({
@@ -1709,7 +1721,7 @@ export default function Duel1vs1() {
               setIsMyTurn(false);
               // Mantener las cartas sobre el tapete
               setTableCards([cpEightRef.current, cpoppRef.current, cpownRef.current]);
-              speakPhrase("¡Felicidades, ganaste la partida! Tumba completada.");
+              playVoiceAudio('tumba_completada', "¡Ganaste la partida! Tumba completada.");
               vibrateDevice('winMatch');
               playSynthSound('win');
               triggerAnnouncement({
@@ -1763,7 +1775,7 @@ export default function Duel1vs1() {
 
               const playerWasInTumba = (pointsown.current >= 9 || (partownRef.current === 1 && pointsown.current === 8));
               if (playerWasInTumba) {
-                speakPhrase("Perdiste en tumba. Menos tres piedras.");
+                playVoiceAudio('caiste_en_tumba', "¡Caíste en Tumba! Menos tres piedras.");
                 vibrateDevice('reject');
                 playSynthSound('reject');
                 triggerAnnouncement({
@@ -1773,7 +1785,7 @@ export default function Duel1vs1() {
                   badge: `Marcador: ${pointsown.current} - ${pointsopp.current}`
                 }, 2600);
               } else {
-                speakPhrase(stakePts > 1 ? `${rivalName} gana la mano. Más ${stakePts} piedras.` : "Punto para tu rival");
+                playVoiceAudio('punto_para_rivales', "Punto para los rivales.");
                 vibrateDevice('reject');
                 playSynthSound('reject');
                 triggerAnnouncement({
@@ -1788,7 +1800,7 @@ export default function Duel1vs1() {
               setIsMyTurn(false);
               // Mantener las cartas sobre el tapete
               setTableCards([cpEightRef.current, cpoppRef.current, cpownRef.current]);
-              speakPhrase("Tu rival ha completado la tumba y gana la partida.");
+              playVoiceAudio('derrota_partida', "Partida terminada. Los rivales se llevaron la victoria.");
               vibrateDevice('reject');
               playSynthSound('reject');
               triggerAnnouncement({
