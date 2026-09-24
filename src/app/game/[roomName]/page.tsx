@@ -337,6 +337,41 @@ export default function Duel1vs1() {
     });
   };
 
+  const handleRequestRevancha1vs1 = async () => {
+    if (!connection) return;
+    const myName = user?.name && user.name !== 'nulo' ? user.name : 'Un jugador';
+    try {
+      Swal.fire({
+        title: "🔄 Solicitando Revancha...",
+        text: "Esperando respuesta de tu contrincante...",
+        icon: "info",
+        showConfirmButton: false,
+        allowOutsideClick: false,
+        customClass: {
+          title: styles.customtitle,
+          popup: styles.custompopup
+        },
+        didOpen: () => {
+          Swal.showLoading(null);
+        }
+      });
+      await connection.invoke("RequestRevancha1vs1", idGame.current, myName);
+    } catch (e) {
+      console.error("Error al solicitar revancha 1vs1:", e);
+      Swal.fire({
+        title: "Error",
+        text: "No se pudo enviar la solicitud de revancha.",
+        icon: "error",
+        confirmButtonColor: "#d97706",
+        confirmButtonText: "Aceptar",
+        customClass: {
+          title: styles.customtitle,
+          popup: styles.custompopup
+        }
+      });
+    }
+  };
+
   const handleAnswerPedir = async (action: 'accept' | 'deny' | 'doblar') => {
     if (!pedirChallenge || !connection) return;
     const targetStake = pedirChallenge.targetStake;
@@ -1486,8 +1521,18 @@ export default function Duel1vs1() {
                     text: "¡Felicidades, completaste la tumba y eres el vencedor de la partida!",
                     icon: "success",
                     confirmButtonText: "Ir al Lobby",
-                    confirmButtonColor: "#d97706"
-                  }).then(() => router.push("/desk"));
+                    confirmButtonColor: "#d97706",
+                    showDenyButton: true,
+                    denyButtonText: "🔄 Pedir Revancha",
+                    denyButtonColor: "#16a34a",
+                    allowOutsideClick: false,
+                  }).then((result) => {
+                    if (result.isDenied) {
+                      handleRequestRevancha1vs1();
+                    } else {
+                      router.push("/desk");
+                    }
+                  });
                 }, 3500);
               }
             } else {
@@ -1565,8 +1610,18 @@ export default function Duel1vs1() {
                     text: "Tu rival ha ganado la partida.",
                     icon: "error",
                     confirmButtonText: "Ir al Lobby",
-                    confirmButtonColor: "#d97706"
-                  }).then(() => router.push("/desk"));
+                    confirmButtonColor: "#d97706",
+                    showDenyButton: true,
+                    denyButtonText: "🔄 Pedir Revancha",
+                    denyButtonColor: "#16a34a",
+                    allowOutsideClick: false,
+                  }).then((result) => {
+                    if (result.isDenied) {
+                      handleRequestRevancha1vs1();
+                    } else {
+                      router.push("/desk");
+                    }
+                  });
                 }, 3500);
               }
             }
@@ -1742,8 +1797,18 @@ export default function Duel1vs1() {
                   text: "¡Felicidades, completaste la tumba y eres el vencedor de la partida!",
                   icon: "success",
                   confirmButtonText: "Ir al Lobby",
-                  confirmButtonColor: "#d97706"
-                }).then(() => router.push("/desk"));
+                  confirmButtonColor: "#d97706",
+                  showDenyButton: true,
+                  denyButtonText: "🔄 Pedir Revancha",
+                  denyButtonColor: "#16a34a",
+                  allowOutsideClick: false,
+                }).then((result) => {
+                  if (result.isDenied) {
+                    handleRequestRevancha1vs1();
+                  } else {
+                    router.push("/desk");
+                  }
+                });
               }, 3500);
             }
           } else {
@@ -1821,8 +1886,18 @@ export default function Duel1vs1() {
                   text: "Tu rival ha ganado la partida.",
                   icon: "error",
                   confirmButtonText: "Ir al Lobby",
-                  confirmButtonColor: "#d97706"
-                }).then(() => router.push("/desk"));
+                  confirmButtonColor: "#d97706",
+                  showDenyButton: true,
+                  denyButtonText: "🔄 Pedir Revancha",
+                  denyButtonColor: "#16a34a",
+                  allowOutsideClick: false,
+                }).then((result) => {
+                  if (result.isDenied) {
+                    handleRequestRevancha1vs1();
+                  } else {
+                    router.push("/desk");
+                  }
+                });
               }, 3500);
             }
           }
@@ -1923,12 +1998,20 @@ export default function Duel1vs1() {
             icon: data.won ? 'success' : 'error',
             confirmButtonColor: '#d97706',
             confirmButtonText: 'Ir al Lobby',
+            showDenyButton: true,
+            denyButtonText: "🔄 Pedir Revancha",
+            denyButtonColor: "#16a34a",
+            allowOutsideClick: false,
             customClass: {
               title: styles.customtitle,
               popup: styles.custompopup
             }
-          }).then(() => {
-            router.push("/desk");
+          }).then((result) => {
+            if (result.isDenied) {
+              handleRequestRevancha1vs1();
+            } else {
+              router.push("/desk");
+            }
           });
         }
       });
@@ -2042,6 +2125,105 @@ export default function Duel1vs1() {
         icon: data.isWinner ? 'success' : 'info',
         confirmButtonText: 'Continuar al Lobby',
         confirmButtonColor: data.isWinner ? '#16a34a' : '#4b5563',
+        showDenyButton: true,
+        denyButtonText: '🔄 Pedir Revancha',
+        denyButtonColor: '#2563eb',
+        allowOutsideClick: false,
+        customClass: {
+          title: styles.customtitle,
+          popup: styles.custompopup
+        }
+      }).then((result) => {
+        if (result.isDenied) {
+          handleRequestRevancha1vs1();
+        } else {
+          router.push("/desk");
+        }
+      });
+    });
+
+    return () => {
+      connection.off('MatchFinishedPayout');
+    };
+  }, [connection, router]);
+
+  // Listeners para Revancha 1 vs 1
+  useEffect(() => {
+    if (!connection) return;
+
+    connection.on('RevanchaRequested1vs1', (data: { requesterName: string; gameId: number }) => {
+      console.log("[RevanchaRequested1vs1] Solicitud de revancha recibida:", data);
+      const reqName = data.requesterName || "Tu rival";
+      playSynthSound?.('accept');
+      Swal.fire({
+        title: "⚔️ ¡PETICIÓN DE REVANCHA!",
+        text: `${reqName} te ha solicitado una revancha. ¿Aceptas volver a jugar?`,
+        icon: "question",
+        showCancelButton: true,
+        confirmButtonText: "¡Acepto la Revancha! ⚔️",
+        confirmButtonColor: "#16a34a",
+        cancelButtonText: "Rechazar ❌",
+        cancelButtonColor: "#dc2626",
+        timer: 20000,
+        timerProgressBar: true,
+        allowOutsideClick: false,
+        customClass: {
+          title: styles.customtitle,
+          popup: styles.custompopup
+        }
+      }).then(async (res) => {
+        const myName = user?.name && user.name !== 'nulo' ? user.name : 'Un jugador';
+        if (res.isConfirmed) {
+          try {
+            await connection.invoke("AnswerRevancha1vs1", idGame.current, true, myName);
+          } catch (e) {
+            console.error("Error al aceptar revancha 1vs1:", e);
+          }
+        } else {
+          try {
+            await connection.invoke("AnswerRevancha1vs1", idGame.current, false, myName);
+          } catch (e) {
+            console.error("Error al rechazar revancha 1vs1:", e);
+          }
+          router.push("/desk");
+        }
+      });
+    });
+
+    connection.on('RevanchaAccepted1vs1', (data: { responderName: string; gameId: number }) => {
+      console.log("[RevanchaAccepted1vs1] Revancha aceptada:", data);
+      Swal.close();
+      updatePointsAndTumba(0, 0);
+      pointOne.current = 0;
+      pointTwo.current = 0;
+      setCurrentStake(1);
+      currentStakeRef.current = 1;
+      setLastStakeAskedBy(null);
+      setTableCards([cpEightRef.current]);
+      setPlayerCards([]);
+      setIsWaitingHandChange1v1(false);
+      hasTimedOut.current = false;
+      setTimeLeft(30);
+
+      vibrateDevice?.('winRound');
+      playSynthSound?.('accept');
+      triggerAnnouncement({
+        type: 'acepto',
+        title: '¡REVANCHA INICIADA!',
+        subtitle: 'Comienza una nueva partida de revancha.',
+        badge: 'REVANCHA'
+      }, 3500);
+    });
+
+    connection.on('RevanchaRejected1vs1', (data: { responderName: string }) => {
+      console.log("[RevanchaRejected1vs1] Revancha rechazada:", data);
+      const respName = data.responderName || "Tu contrincante";
+      Swal.fire({
+        title: "Revancha rechazada",
+        text: `${respName} ha rechazado la revancha o no respondió a tiempo.`,
+        icon: "info",
+        confirmButtonColor: "#d97706",
+        confirmButtonText: "Volver al Lobby",
         allowOutsideClick: false,
         customClass: {
           title: styles.customtitle,
@@ -2053,9 +2235,11 @@ export default function Duel1vs1() {
     });
 
     return () => {
-      connection.off('MatchFinishedPayout');
+      connection.off('RevanchaRequested1vs1');
+      connection.off('RevanchaAccepted1vs1');
+      connection.off('RevanchaRejected1vs1');
     };
-  }, [connection, router]);
+  }, [connection, router, user]);
 
   useEffect(() => {
     if (cardEffect) {

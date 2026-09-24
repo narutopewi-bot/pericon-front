@@ -686,6 +686,77 @@ export default function GameTwoVsTwo() {
       playVoiceAudio('mano_tumba_aceptada', "¡Aceptaron jugar la mano de Tumba!");
     });
 
+    // Eventos de Revancha 2 vs 2
+    connection.on('RevanchaRequested2v2', (data: { requesterSeat: number; requesterName: string; requesterTeam: number }) => {
+      console.log('[RevanchaRequested2v2 recibido]', data);
+      const myTeam = (mySeatIndexRef.current === 0 || mySeatIndexRef.current === 2) ? 1 : 2;
+      if (myTeam === data.requesterTeam) {
+        return;
+      }
+      const reqName = data.requesterName || "Los rivales";
+      playSynthSound?.('accept');
+      Swal.fire({
+        title: '⚔️ ¡PETICIÓN DE REVANCHA!',
+        text: `${reqName} solicitan una revancha. ¿Aceptan volver a jugar?`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: '¡Acepto la Revancha! ⚔️',
+        confirmButtonColor: '#16a34a',
+        cancelButtonText: 'Rechazar ❌',
+        cancelButtonColor: '#dc2626',
+        timer: 20000,
+        timerProgressBar: true,
+        allowOutsideClick: false,
+        background: '#1a0e06',
+        color: '#fff',
+      }).then(async (res) => {
+        const myName = user?.name && user.name !== 'nulo' ? user.name : `Jugador ${mySeatIndexRef.current + 1}`;
+        if (res.isConfirmed) {
+          try {
+            await connection.invoke("AnswerRevancha2v2", roomName, mySeatIndexRef.current, myName, true);
+          } catch (e) {
+            console.error("Error al aceptar revancha 2v2:", e);
+          }
+        } else {
+          try {
+            await connection.invoke("AnswerRevancha2v2", roomName, mySeatIndexRef.current, myName, false);
+          } catch (e) {
+            console.error("Error al rechazar revancha 2v2:", e);
+          }
+          router.push('/desk');
+        }
+      });
+    });
+
+    connection.on('RevanchaAccepted2v2', (data: { responderSeat: number; responderName: string }) => {
+      console.log('[RevanchaAccepted2v2 recibido]', data);
+      Swal.close();
+      playSynthSound?.('accept');
+      triggerAnnouncement({
+        type: 'acepto',
+        title: '¡REVANCHA INICIADA!',
+        subtitle: `Revancha aceptada por ${data.responderName || 'los rivales'}. ¡A jugar!`,
+        badge: 'REVANCHA'
+      }, 3500);
+    });
+
+    connection.on('RevanchaRejected2v2', (data: { responderSeat: number; responderName: string }) => {
+      console.log('[RevanchaRejected2v2 recibido]', data);
+      const respName = data.responderName || "El equipo rival";
+      Swal.fire({
+        title: "Revancha rechazada",
+        text: `${respName} ha rechazado la revancha o no respondió a tiempo.`,
+        icon: "info",
+        confirmButtonColor: "#d97706",
+        confirmButtonText: "Volver al Lobby",
+        allowOutsideClick: false,
+        background: '#1a0e06',
+        color: '#fff',
+      }).then(() => {
+        router.push('/desk');
+      });
+    });
+
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleVisibilityChange);
@@ -703,6 +774,9 @@ export default function GameTwoVsTwo() {
       connection.off('ReceiveQuickPhrase');
       connection.off('TumbaPassedNotice2v2');
       connection.off('TumbaAcceptedNotice2v2');
+      connection.off('RevanchaRequested2v2');
+      connection.off('RevanchaAccepted2v2');
+      connection.off('RevanchaRejected2v2');
       if (tumbaCountdownTimerRef.current) clearInterval(tumbaCountdownTimerRef.current);
     };
   }, [connection, roomName]);
@@ -1551,6 +1625,37 @@ export default function GameTwoVsTwo() {
     }
   };
 
+  const handleRequestRevancha2v2 = async () => {
+    if (!connection) return;
+    const myName = user?.name && user.name !== 'nulo' ? user.name : `Jugador ${mySeatIndex + 1}`;
+    try {
+      Swal.fire({
+        title: "🔄 Solicitando Revancha...",
+        text: "Esperando respuesta del equipo rival...",
+        icon: "info",
+        showConfirmButton: false,
+        allowOutsideClick: false,
+        background: '#1a0e06',
+        color: '#fff',
+        didOpen: () => {
+          Swal.showLoading(null);
+        }
+      });
+      await connection.invoke("RequestRevancha2v2", roomName, mySeatIndexRef.current, myName);
+    } catch (e) {
+      console.error("Error al solicitar revancha 2v2:", e);
+      Swal.fire({
+        title: "Error",
+        text: "No se pudo enviar la solicitud de revancha.",
+        icon: "error",
+        confirmButtonColor: "#d97706",
+        confirmButtonText: "Aceptar",
+        background: '#1a0e06',
+        color: '#fff',
+      });
+    }
+  };
+
   // Fin de la partida
   const handleGameOver = (isPlayerTeamWinner: boolean) => {
     // 1. CASO SALA AMISTOSA CREADA:
@@ -1650,10 +1755,17 @@ export default function GameTwoVsTwo() {
             icon: 'success',
             confirmButtonText: 'Volver al Menú',
             confirmButtonColor: '#22c55e',
+            showDenyButton: true,
+            denyButtonText: '🔄 Pedir Revancha',
+            denyButtonColor: '#3b82f6',
             background: '#1a0e06',
             color: '#fff',
-          }).then(() => {
-            router.push('/desk');
+          }).then((result) => {
+            if (result.isDenied) {
+              handleRequestRevancha2v2();
+            } else {
+              router.push('/desk');
+            }
           });
         }, 3200);
       } else {
@@ -1682,10 +1794,17 @@ export default function GameTwoVsTwo() {
             icon: 'info',
             confirmButtonText: 'Volver al Menú',
             confirmButtonColor: '#d97706',
+            showDenyButton: true,
+            denyButtonText: '🔄 Pedir Revancha',
+            denyButtonColor: '#22c55e',
             background: '#1a0e06',
             color: '#fff',
-          }).then(() => {
-            router.push('/desk');
+          }).then((result) => {
+            if (result.isDenied) {
+              handleRequestRevancha2v2();
+            } else {
+              router.push('/desk');
+            }
           });
         }, 3200);
       }
@@ -1799,10 +1918,17 @@ export default function GameTwoVsTwo() {
         icon: 'success',
         confirmButtonText: 'Volver al Menú',
         confirmButtonColor: '#22c55e',
+        showDenyButton: true,
+        denyButtonText: '🔄 Pedir Revancha',
+        denyButtonColor: '#3b82f6',
         background: '#1a0e06',
         color: '#fff',
-      }).then(() => {
-        router.push('/desk');
+      }).then((result) => {
+        if (result.isDenied) {
+          handleRequestRevancha2v2();
+        } else {
+          router.push('/desk');
+        }
       });
     } else {
       playVoiceAudio('derrota_partida', 'Partida terminada. Los rivales se llevaron la victoria.');
@@ -1829,10 +1955,17 @@ export default function GameTwoVsTwo() {
         icon: 'error',
         confirmButtonText: 'Volver al Menú',
         confirmButtonColor: '#d97706',
+        showDenyButton: true,
+        denyButtonText: '🔄 Pedir Revancha',
+        denyButtonColor: '#22c55e',
         background: '#1a0e06',
         color: '#fff',
-      }).then(() => {
-        router.push('/desk');
+      }).then((result) => {
+        if (result.isDenied) {
+          handleRequestRevancha2v2();
+        } else {
+          router.push('/desk');
+        }
       });
     }
   };
