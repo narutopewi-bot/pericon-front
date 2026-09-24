@@ -7,6 +7,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { setGamePlayer } from "@/store/slices/gameplayerSlice";
 import { RootState } from "@/store/store";
 import { playCoinWinSound } from "@/lib/soundEffects";
+import MoneyTutorialModal from "@/components/money-tutorial-modal";
 
 interface WalletModalProps {
   isOpen: boolean;
@@ -73,6 +74,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
   const [loading, setLoading] = useState(false);
   const [bonusMessage, setBonusMessage] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+  const [showMoneyTutorial, setShowMoneyTutorial] = useState<boolean>(false);
 
   // Cupones Promocionales
   const [promoCodeInput, setPromoCodeInput] = useState<string>("");
@@ -706,6 +708,21 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
           </div>
         )}
 
+        {/* Botón para Abrir la Guía Interactiva de Dinero y Billetera */}
+        <button
+          type="button"
+          onClick={() => setShowMoneyTutorial(true)}
+          className="w-full mb-3 py-2 px-3 bg-gradient-to-r from-amber-600/30 via-yellow-500/20 to-amber-600/30 hover:from-amber-600/50 hover:to-yellow-500/40 border border-amber-400/50 rounded-xl text-amber-200 text-xs font-black flex items-center justify-between transition cursor-pointer shadow"
+        >
+          <span className="flex items-center gap-1.5">
+            <span>💡</span>
+            <span>¿Dudas sobre cómo recargar o retirar?</span>
+          </span>
+          <span className="bg-amber-400 text-neutral-950 px-2 py-0.5 rounded-lg text-[10px] font-black uppercase tracking-wider">
+            Ver Tutorial ➔
+          </span>
+        </button>
+
         {/* Pestañas Principales: Recargar / Retirar / Cupón / Mis Solicitudes */}
         <div className="grid grid-cols-4 gap-1 w-full bg-black/50 p-1 rounded-xl border border-amber-500/30 mb-3 text-xs">
           <button
@@ -1336,6 +1353,11 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
           Cerrar
         </button>
       </div>
+
+      <MoneyTutorialModal
+        isOpen={showMoneyTutorial}
+        onClose={() => setShowMoneyTutorial(false)}
+      />
     </div>
   );
 }

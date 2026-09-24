@@ -18,6 +18,7 @@ import ProfileModal from "@/components/profile-modal";
 import WalletModal from "@/components/wallet-modal";
 import PericonTutorialModal from "@/components/pericon-tutorial-modal";
 import LeaderboardModal from "@/components/leaderboard-modal";
+import MoneyTutorialModal from "@/components/money-tutorial-modal";
 import { playChatPopSound } from "@/lib/soundEffects";
 import Swal from "sweetalert2";
 
@@ -139,6 +140,7 @@ export default function Desk() {
   const [walletOpen, setWalletOpen] = useState(false);
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
+  const [moneyTutorialOpen, setMoneyTutorialOpen] = useState(false);
 
   interface AnnouncementPayload {
     id?: number;
@@ -604,6 +606,13 @@ export default function Desk() {
                 <span>Top 10</span>
               </button>
               <button
+                onClick={() => setMoneyTutorialOpen(true)}
+                className="text-emerald-400 hover:text-emerald-300 font-extrabold flex items-center gap-1 bg-emerald-500/15 border border-emerald-500/40 px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs transition shadow-sm hover:scale-105 cursor-pointer"
+              >
+                <span>💰</span>
+                <span>Recargas y Retiros</span>
+              </button>
+              <button
                 onClick={() => setTutorialOpen(true)}
                 className="text-amber-400 hover:text-amber-300 font-extrabold underline flex items-center gap-1"
               >
@@ -654,6 +663,12 @@ export default function Desk() {
         isOpen={tutorialOpen}
         onClose={() => setTutorialOpen(false)}
         animationStyle="float"
+      />
+
+      {/* Modal de Guía de Dinero, Recargas, Retiros y Juego Responsable */}
+      <MoneyTutorialModal
+        isOpen={moneyTutorialOpen}
+        onClose={() => setMoneyTutorialOpen(false)}
       />
     </React.Fragment>
   )
