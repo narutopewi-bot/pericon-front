@@ -1476,6 +1476,7 @@ export default function Duel1vs1() {
                   badge: 'VICTORIA'
                 }, 4000);
                 setTimeout(() => {
+                  playVoiceAudio('victoria_partida', "¡Felicidades, ganaste la partida!");
                   Swal.fire({
                     title: "¡GANASTE EL JUEGO!",
                     text: "¡Felicidades, completaste la tumba y eres el vencedor de la partida!",
@@ -1731,6 +1732,7 @@ export default function Duel1vs1() {
                 badge: 'VICTORIA'
               }, 4000);
               setTimeout(() => {
+                playVoiceAudio('victoria_partida', "¡Felicidades, ganaste la partida!");
                 Swal.fire({
                   title: "¡GANASTE EL JUEGO!",
                   text: "¡Felicidades, completaste la tumba y eres el vencedor de la partida!",
@@ -1910,6 +1912,7 @@ export default function Duel1vs1() {
             console.error("Error al cambiar juego tras timeout:", err);
           }
         } else if (data.gameOver) {
+          playVoiceAudio(data.won ? 'victoria_partida' : 'derrota_partida', data.won ? '¡Felicidades, ganaste la partida!' : 'Has perdido la partida.');
           Swal.fire({
             title: data.won ? '¡VICTORIA DEL JUEGO!' : 'JUEGO TERMINADO',
             text: data.won ? '¡Felicidades, ganaste la partida!' : 'Has perdido la partida.',
@@ -1937,6 +1940,7 @@ export default function Duel1vs1() {
     if (!connection) return;
     connection.on('OpponentSurrendered', (data: any) => {
       console.log("[OpponentSurrendered] Rival se rindió:", data);
+      playVoiceAudio('victoria_partida', "¡Felicidades, ganaste la partida!");
       playSynthSound?.('win');
       Swal.fire({
         title: '¡VICTORIA POR RETIRADA!',

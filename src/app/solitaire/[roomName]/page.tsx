@@ -1274,6 +1274,7 @@ export default function Duel() {
 
     if (isWinner) {
       playCoinWinSound();
+      playVoiceAudio('victoria_partida', "¡Felicidades, ganaste la partida!");
       Swal.fire({
         title: '🏆 ¡VICTORIA CONTRA LA MÁQUINA!',
         html: `
@@ -1303,6 +1304,7 @@ export default function Duel() {
         router.push("/desk");
       });
     } else {
+      playVoiceAudio('derrota_partida', "Partida terminada. La máquina se llevó la victoria.");
       Swal.fire({
         title: '💔 PARTIDA PERDIDA',
         html: `

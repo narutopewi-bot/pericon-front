@@ -78,20 +78,24 @@ export const stopVoiceAudio = () => {
  * Reproduce un audio MP3 personalizado grabado en /audio/${audioKey}.mp3,
  * o recurre a la voz sintética (speakPhrase) como respaldo automático.
  */
-export const playVoiceAudio = (audioKey: string, fallbackText: string, volume: number = 1.0) => {
+export const playVoiceAudio = (audioKey: string, fallbackText?: string, volume: number = 1.0) => {
   if (typeof window === 'undefined') return;
   if (isSoundMuted()) return;
 
   stopVoiceAudio();
 
   try {
-    const audio = new Audio(`/audio/${audioKey}.mp3`);
+    const cleanKey = audioKey.replace(/\.mp3$/, '');
+    const audioUrl = `/audio/${cleanKey}.mp3`;
+    const audio = new Audio(audioUrl);
+    audio.preload = 'auto';
     audio.volume = Math.min(1.0, Math.max(0, volume));
     currentVoiceAudio = audio;
     let hasPlayed = false;
 
-    audio.onerror = () => {
-      if (!hasPlayed) {
+    audio.onerror = (e) => {
+      console.warn(`[playVoiceAudio] Error al cargar ${audioUrl}:`, e);
+      if (!hasPlayed && fallbackText) {
         hasPlayed = true;
         speakPhrase(fallbackText);
       }
@@ -107,15 +111,17 @@ export const playVoiceAudio = (audioKey: string, fallbackText: string, volume: n
     if (playPromise !== undefined) {
       playPromise.then(() => {
         hasPlayed = true;
-      }).catch(() => {
-        if (!hasPlayed) {
+        console.log(`[playVoiceAudio] Reproduciendo con éxito: ${audioUrl}`);
+      }).catch((err) => {
+        console.warn(`[playVoiceAudio] Play bloqueado o pendiente en ${audioUrl}:`, err);
+        if (!hasPlayed && fallbackText) {
           hasPlayed = true;
           speakPhrase(fallbackText);
         }
       });
     }
   } catch (e) {
-    speakPhrase(fallbackText);
+    if (fallbackText) speakPhrase(fallbackText);
   }
 };
 
