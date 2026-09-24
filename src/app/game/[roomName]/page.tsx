@@ -16,7 +16,7 @@ import Link from 'next/link';
 
 import Swal from 'sweetalert2';
 import 'sweetalert2/src/sweetalert2.scss';
-import { playCardSound, playSwooshSound, vibrateDevice, playSynthSound, speakPhrase, playVoiceAudio } from '@/lib/gameEffects';
+import { playCardSound, playSwooshSound, vibrateDevice, playSynthSound, speakPhrase, playVoiceAudio, preloadVoiceAudios } from '@/lib/gameEffects';
 import { playCardDealSound, playCardDropSound, playCoinWinSound, playCantoSound } from '@/lib/soundEffects';
 import GameTurnTimer from '@/components/game-turn-timer';
 import { GameAnnouncement, AnnouncementData, AnnouncementType } from '@/components/game-announcement';
@@ -365,6 +365,10 @@ export default function Duel1vs1() {
       console.error("Error al enviar Answer369Game:", err);
     }
   };
+
+  useEffect(() => {
+    preloadVoiceAudios();
+  }, []);
 
   // Cuenta regresiva de 30 segundos por turno (se pausa durante análisis y decisión de Tumba)
   useEffect(() => {

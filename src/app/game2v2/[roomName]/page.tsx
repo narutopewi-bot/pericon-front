@@ -10,7 +10,7 @@ import { useSignalRContext } from '@/lib/signalrcontext';
 import { Baraja } from '@/lib/library';
 import Stone from '@/components/stone-meter';
 import { GameAnnouncement, AnnouncementData } from '@/components/game-announcement';
-import { playCardSound, playSwooshSound, vibrateDevice, playSynthSound, speakPhrase, playVoiceAudio } from '@/lib/gameEffects';
+import { playCardSound, playSwooshSound, vibrateDevice, playSynthSound, speakPhrase, playVoiceAudio, preloadVoiceAudios } from '@/lib/gameEffects';
 import { playCardDealSound, playCardDropSound, playCoinWinSound, playCantoSound, playChatPopSound } from '@/lib/soundEffects';
 import GameTurnTimer from '@/components/game-turn-timer';
 import { reportAppError } from '@/lib/errorLogger';
@@ -290,6 +290,10 @@ export default function GameTwoVsTwo() {
   const [timeLeft, setTimeLeft] = useState<number>(30);
   const timeLeftRef = useRef<number>(30);
   const handleTurnTimeoutRef = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    preloadVoiceAudios();
+  }, []);
 
   useEffect(() => {
     setTimeLeft(30);

@@ -74,32 +74,78 @@ export const stopVoiceAudio = () => {
   }
 };
 
+// Cache en memoria para reproducción instantánea sin latencia de red
+const voiceAudioCache: Map<string, HTMLAudioElement> = new Map();
+
+// Catálogo de los 42 audios oficiales del locutor
+export const ALL_VOICE_KEYS = [
+  'dame_tres', 'quiero_seis', 'van_nueve', 'acepto', 'no_quiero',
+  'dijeron_quiero', 'no_quisieron', 'no_quisimos', 'pedimos_tres',
+  'pedimos_seis', 'pedimos_nueve', 'estas_en_tumba', 'obligado',
+  'mano_tumba_aceptada', 'pasaste_en_tumba', 'rivales_pasaron_tumba',
+  'caiste_en_tumba', 'rivales_cayeron_tumba', 'en_tumba_no_se_pide',
+  'tumba_completada', 'ganaste_en_obligado', 'la_cogia', 'la_cogia_propia',
+  'la_cogia_rival', 'regla_del_pelao', 'ultimo_aumento_tuyo',
+  'tiempo_agotado', 'punto_para_ti', 'punto_para_rivales',
+  'ganaste_la_ronda', 'ganaron_la_mano', 'victoria_partida',
+  'victoria_partida_alt', 'derrota_partida', 'tutorial_paso_1',
+  'tutorial_paso_2', 'tutorial_paso_3', 'tutorial_paso_4',
+  'tutorial_paso_5', 'tutorial_paso_6', 'tutorial_reto_acepto',
+  'tutorial_reto_rechazo'
+];
+
 /**
- * Reproduce un audio MP3 personalizado grabado en /audio/${audioKey}.mp3,
- * o recurre a la voz sintética (speakPhrase) como respaldo automático.
+ * Precarga todos los audios en la memoria del navegador para que no dependan
+ * de la velocidad de la conexión durante las jugadas.
  */
-export const playVoiceAudio = (audioKey: string, fallbackText?: string, volume: number = 1.0) => {
+export const preloadVoiceAudios = () => {
+  if (typeof window === 'undefined') return;
+  ALL_VOICE_KEYS.forEach(key => {
+    if (!voiceAudioCache.has(key)) {
+      try {
+        const audio = new Audio(`/audio/${key}.mp3`);
+        audio.preload = 'auto';
+        audio.load();
+        voiceAudioCache.set(key, audio);
+      } catch (_) {}
+    }
+  });
+};
+
+/**
+ * Reproduce un audio MP3 grabado por el locutor desde la memoria local.
+ * Ya no recurre a la voz sintética para evitar que se escuchen voces robóticas en fallos o pausas.
+ */
+export const playVoiceAudio = (audioKey: string, _legacyFallbackText?: string, volume: number = 1.0) => {
   if (typeof window === 'undefined') return;
   if (isSoundMuted()) return;
 
   stopVoiceAudio();
 
+  const cleanKey = audioKey.replace(/\.mp3$/, '');
+  const audioUrl = `/audio/${cleanKey}.mp3`;
+
+  // Autoprecargar catálogo en el primer uso si aún no se ha hecho
+  if (voiceAudioCache.size === 0) {
+    preloadVoiceAudios();
+  }
+
+  let audio = voiceAudioCache.get(cleanKey);
+  if (!audio) {
+    try {
+      audio = new Audio(audioUrl);
+      audio.preload = 'auto';
+      voiceAudioCache.set(cleanKey, audio);
+    } catch (e) {
+      console.warn(`[playVoiceAudio] No se pudo instanciar audio ${audioUrl}:`, e);
+      return;
+    }
+  }
+
   try {
-    const cleanKey = audioKey.replace(/\.mp3$/, '');
-    const audioUrl = `/audio/${cleanKey}.mp3`;
-    const audio = new Audio(audioUrl);
-    audio.preload = 'auto';
+    audio.currentTime = 0;
     audio.volume = Math.min(1.0, Math.max(0, volume));
     currentVoiceAudio = audio;
-    let hasPlayed = false;
-
-    audio.onerror = (e) => {
-      console.warn(`[playVoiceAudio] Error al cargar ${audioUrl}:`, e);
-      if (!hasPlayed && fallbackText) {
-        hasPlayed = true;
-        speakPhrase(fallbackText);
-      }
-    };
 
     audio.onended = () => {
       if (currentVoiceAudio === audio) {
@@ -109,19 +155,21 @@ export const playVoiceAudio = (audioKey: string, fallbackText?: string, volume: 
 
     const playPromise = audio.play();
     if (playPromise !== undefined) {
-      playPromise.then(() => {
-        hasPlayed = true;
-        console.log(`[playVoiceAudio] Reproduciendo con éxito: ${audioUrl}`);
-      }).catch((err) => {
-        console.warn(`[playVoiceAudio] Play bloqueado o pendiente en ${audioUrl}:`, err);
-        if (!hasPlayed && fallbackText) {
-          hasPlayed = true;
-          speakPhrase(fallbackText);
-        }
-      });
+      playPromise
+        .then(() => {
+          // Reproduciendo normalmente
+        })
+        .catch((err: any) => {
+          // AbortError ocurre legítimamente cuando otra acción pausa el audio anterior.
+          // En NINGÚN caso activamos la voz robótica aquí.
+          if (err && err.name === 'AbortError') {
+            return;
+          }
+          console.warn(`[playVoiceAudio] Reproducción bloqueada o postergada para ${audioUrl}:`, err);
+        });
     }
   } catch (e) {
-    if (fallbackText) speakPhrase(fallbackText);
+    console.warn(`[playVoiceAudio] Error en audio ${audioUrl}:`, e);
   }
 };
 

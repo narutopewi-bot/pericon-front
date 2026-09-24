@@ -18,7 +18,7 @@ import Link from 'next/link'
 import Swal from 'sweetalert2';
 import 'sweetalert2/src/sweetalert2.scss'
 import styles from './page.module.css';
-import { vibrateDevice, speakPhrase, playSynthSound, playVoiceAudio, playCardSound, playSwooshSound } from '@/lib/gameEffects';
+import { vibrateDevice, speakPhrase, playSynthSound, playVoiceAudio, preloadVoiceAudios, playCardSound, playSwooshSound } from '@/lib/gameEffects';
 import { GameAnnouncement, AnnouncementData, AnnouncementType } from '@/components/game-announcement';
 
 
@@ -234,6 +234,7 @@ export default function Duel() {
   // Start of the Game on solitaire mode
 
   useEffect(() => {
+    preloadVoiceAudios();
     if (gameplayer.name?.startsWith("Invitado_") || gameplayer.id?.startsWith("guest_")) {
       Swal.fire({
         title: "SOLO PARTIDAS AMISTOSAS",
@@ -952,7 +953,7 @@ export default function Duel() {
             setIsProcessingMove(false);
           }
         });
-      }, 700);
+      }, 1600);
     } else {
       // Pericón rechaza: el jugador se lleva las piedras previas y la mano finaliza
       setTimeout(() => {
@@ -985,7 +986,7 @@ export default function Duel() {
             shuffleCards();
           });
         });
-      }, 700);
+      }, 1600);
     }
   };
 
@@ -1053,7 +1054,7 @@ export default function Duel() {
             subtitle: `Mano en juego por ${newStake} piedras`,
             badge: 'Revire aceptado'
           }, 2000);
-        }, 800);
+        }, 1600);
       } else {
         setTimeout(() => {
           playVoiceAudio('no_quiero', "¡No quiero!");
@@ -1069,7 +1070,7 @@ export default function Duel() {
           setTimeout(() => {
             shuffleCards();
           }, 1500);
-        }, 800);
+        }, 1600);
       }
     }
   };
