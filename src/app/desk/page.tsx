@@ -290,7 +290,14 @@ export default function Desk() {
 
             // Sincronizar estadísticas desde la API
             const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
-            fetch(`${apiUrl}/api/user/${playerObj.id}/profile`)
+            const lookupKey = (u.id && u.id !== "1" && !isNaN(Number(u.id)))
+              ? u.id
+              : (u.email || u.username || u.id || "1");
+            const qParams = new URLSearchParams();
+            if (u.email) qParams.append("email", u.email);
+            if (u.username) qParams.append("username", u.username);
+
+            fetch(`${apiUrl}/api/user/${encodeURIComponent(lookupKey)}/profile?${qParams.toString()}`)
               .then((res) => (res.ok ? res.json() : null))
               .then((data) => {
                 if (data) {

@@ -112,10 +112,14 @@ export default function SignUp() {
       } else {
         dispatch(
           setGamePlayer({
-            id: result.id.toString(),
+            id: result.id?.toString(),
             name: result.username,
             email: result.email,
             coins: result.coins,
+            wins: 0,
+            losses: 0,
+            level: result.level || "Peón de Casona",
+            avatarUrl: result.avatarUrl || "",
             active: true,
           })
         );

@@ -57,10 +57,14 @@ export default function GoogleButton({ onLoading }: GoogleButtonProps) {
       } else {
         dispatch(
           setGamePlayer({
-            id: result.id.toString(),
+            id: result.id?.toString(),
             name: result.username,
             email: result.email,
             coins: result.coins,
+            wins: result.wins ?? 0,
+            losses: result.losses ?? 0,
+            level: result.level || "Novato",
+            avatarUrl: result.avatarUrl || "",
             active: true,
           })
         );

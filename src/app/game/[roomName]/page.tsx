@@ -2070,18 +2070,28 @@ export default function Duel1vs1() {
     connection.on('MatchFinishedPayout', (data: any) => {
       console.log("[MatchFinishedPayout] Resumen de liquidación de monedas:", data);
 
-      // Actualizar inmediatamente el saldo en localStorage del usuario
+      // Actualizar inmediatamente saldo y estadísticas en localStorage y Redux del usuario
       try {
         const stored = localStorage.getItem("pericon_user");
         if (stored) {
           const userObj = JSON.parse(stored);
           if (data.newBalance !== undefined && data.newBalance !== null) {
             userObj.coins = data.newBalance;
-            localStorage.setItem("pericon_user", JSON.stringify(userObj));
           }
+          if (data.newWins !== undefined && data.newWins !== null) {
+            userObj.wins = data.newWins;
+          }
+          if (data.newLosses !== undefined && data.newLosses !== null) {
+            userObj.losses = data.newLosses;
+          }
+          if (data.level) {
+            userObj.level = data.level;
+          }
+          localStorage.setItem("pericon_user", JSON.stringify(userObj));
+          dispatch(setGamePlayer(userObj));
         }
       } catch (e) {
-        console.error("Error al actualizar saldo en localStorage:", e);
+        console.error("Error al actualizar saldo y estadísticas en localStorage:", e);
       }
 
       const title = data.isWinner ? "🏆 ¡VICTORIA CONFIRMADA!" : "💔 PARTIDA FINALIZADA";

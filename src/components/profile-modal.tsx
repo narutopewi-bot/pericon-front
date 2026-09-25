@@ -48,24 +48,94 @@ export default function ProfileModal({ isOpen, onClose, player, onProfileUpdated
   const [selectedAvatar, setSelectedAvatar] = useState("");
   const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
+  const [liveWins, setLiveWins] = useState<number>(player.wins ?? 0);
+  const [liveLosses, setLiveLosses] = useState<number>(player.losses ?? 0);
+  const [liveCoins, setLiveCoins] = useState<number>(player.coins ?? 0);
+  const [liveLevel, setLiveLevel] = useState<string>("");
+  const [resolvedId, setResolvedId] = useState<string>(player.id || "");
+  const [isLoadingStats, setIsLoadingStats] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  // Sincronizar estado inicial al abrir
+  // Sincronizar estado y cargar estadísticas en vivo al abrir
   useEffect(() => {
     if (isOpen) {
       setIsEditing(false);
       setNewUsername(player.name || "Jugador");
       setSelectedAvatar(player.avatarUrl || "/avatar.png");
       setErrorMsg("");
+      setLiveWins(player.wins ?? 0);
+      setLiveLosses(player.losses ?? 0);
+      setLiveCoins(player.coins ?? 0);
+      setResolvedId(player.id || "");
+
+      // Cargar estadísticas en vivo del jugador desde el servidor
+      const fetchLiveStats = async () => {
+        try {
+          setIsLoadingStats(true);
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
+          const lookup = (player.id && player.id !== "1" && !isNaN(Number(player.id)))
+            ? player.id
+            : (player.email || player.name || player.id || "1");
+
+          const qParams = new URLSearchParams();
+          if (player.email) qParams.append("email", player.email);
+          if (player.name) qParams.append("username", player.name);
+
+          const res = await fetch(`${apiUrl}/api/user/${encodeURIComponent(lookup)}/profile?${qParams.toString()}`);
+          if (res.ok) {
+            const data = await res.json();
+            if (data) {
+              const realId = data.id?.toString() || player.id;
+              setResolvedId(realId);
+              setLiveWins(data.wins ?? 0);
+              setLiveLosses(data.losses ?? 0);
+              setLiveCoins(data.coins ?? player.coins);
+              setLiveLevel(data.level || "");
+
+              if (typeof window !== "undefined") {
+                try {
+                  const raw = localStorage.getItem("pericon_user");
+                  const prev = raw ? JSON.parse(raw) : {};
+                  const merged = {
+                    ...prev,
+                    id: realId,
+                    username: data.username || prev.username || player.name,
+                    email: data.email || prev.email || player.email,
+                    coins: data.coins ?? prev.coins ?? player.coins,
+                    wins: data.wins ?? 0,
+                    losses: data.losses ?? 0,
+                    level: data.level || prev.level,
+                    avatarUrl: data.avatarUrl || prev.avatarUrl || player.avatarUrl,
+                  };
+                  localStorage.setItem("pericon_user", JSON.stringify(merged));
+                  dispatch(setGamePlayer(merged));
+                  if (onProfileUpdated) {
+                    onProfileUpdated(merged);
+                  }
+                } catch (e) {
+                  console.error("Error al persistir stats en localStorage:", e);
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Error al obtener estadísticas en vivo:", err);
+        } finally {
+          setIsLoadingStats(false);
+        }
+      };
+
+      fetchLiveStats();
     }
-  }, [isOpen, player.name, player.avatarUrl]);
+  }, [isOpen, player.id, player.name, player.email, player.avatarUrl, player.wins, player.losses, player.coins]);
 
   if (!isOpen) return null;
 
-  const isGuest = !player.id || isNaN(Number(player.id)) || Number(player.id) <= 0;
-  const wins = player.wins ?? 0;
-  const losses = player.losses ?? 0;
+  const isGuest = (!resolvedId || isNaN(Number(resolvedId)) || Number(resolvedId) <= 0) &&
+                  (!player.id || isNaN(Number(player.id)) || Number(player.id) <= 0);
+  const wins = liveWins;
+  const losses = liveLosses;
   const totalMatches = wins + losses;
   const winRate = totalMatches > 0 ? Math.round((wins / totalMatches) * 100) : 0;
   const levelInfo = getPlayerLevelInfo(wins);
@@ -150,7 +220,7 @@ export default function ProfileModal({ isOpen, onClose, player, onProfileUpdated
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: parseInt(player.id, 10),
+          userId: parseInt(resolvedId || player.id, 10),
           newUsername: cleanName,
           newAvatarUrl: selectedAvatar,
         }),
@@ -502,7 +572,7 @@ export default function ProfileModal({ isOpen, onClose, player, onProfileUpdated
                     Saldo Disponible
                   </span>
                   <span className="text-xs font-black text-amber-200">
-                    {player.coins.toLocaleString()} Monedas
+                    {(liveCoins ?? player.coins ?? 0).toLocaleString()} Monedas
                   </span>
                 </div>
               </div>
