@@ -11,7 +11,7 @@ import { Baraja } from '@/lib/library';
 import Stone from '@/components/stone-meter';
 import { GameAnnouncement, AnnouncementData } from '@/components/game-announcement';
 import { playCardSound, playSwooshSound, vibrateDevice, playSynthSound, speakPhrase, playVoiceAudio, preloadVoiceAudios } from '@/lib/gameEffects';
-import { playCardDealSound, playCardDropSound, playCoinWinSound, playCantoSound, playChatPopSound } from '@/lib/soundEffects';
+import { playCardDealSound, playCardDropSound, playCoinWinSound, playCantoSound, playChatPopSound, isSoundMuted, setSoundMuted, unlockAudioEngine } from '@/lib/soundEffects';
 import GameTurnTimer from '@/components/game-turn-timer';
 import { reportAppError } from '@/lib/errorLogger';
 import { WebRTCVoiceManager, VoicePeerState } from '@/lib/webrtcVoiceManager';
@@ -240,6 +240,18 @@ export default function GameTwoVsTwo() {
   const [disconnectedNotice, setDisconnectedNotice] = useState<string | null>(null);
   const [playedCards, setPlayedCards] = useState<PlayedCard[]>([]);
   const playedCardsRef = useRef<PlayedCard[]>([]);
+
+  // Control de sonido en vivo del juego y desbloqueo
+  const [isSoundMutedState, setIsSoundMutedState] = useState<boolean>(() => isSoundMuted());
+  const handleToggleGameSound = () => {
+    const next = !isSoundMutedState;
+    setSoundMuted(next);
+    setIsSoundMutedState(next);
+    if (!next) {
+      unlockAudioEngine();
+      playSynthSound?.('accept');
+    }
+  };
 
   // Puntuación de Piedras (Equipo 1 vs Equipo 2)
   const [pointsTeam1, setPointsTeam1] = useState<number>(0);
@@ -2362,6 +2374,20 @@ export default function GameTwoVsTwo() {
 
         {/* Derecha: Controles de Voz, Pote, Compartir y Salir */}
         <div className="flex items-center gap-1 sm:gap-2 shrink-0">
+          {/* Botón de Sonido de Locución y Efectos */}
+          <button
+            type='button'
+            onClick={handleToggleGameSound}
+            className={`w-7 h-7 sm:w-8 sm:h-8 rounded-md sm:rounded-lg border shadow flex items-center justify-center transition active:scale-95 cursor-pointer ${
+              isSoundMutedState 
+                ? 'bg-stone-800/90 hover:bg-stone-700 border-stone-600 text-stone-400' 
+                : 'bg-amber-950/80 hover:bg-amber-900 border-amber-600/60 text-amber-300'
+            }`}
+            title={isSoundMutedState ? 'Sonido y voces desactivados (Clic para activar)' : 'Sonido y voces activos (Clic para silenciar)'}
+          >
+            <span className="text-xs sm:text-sm">{isSoundMutedState ? '🔇' : '🔊'}</span>
+          </button>
+
           {/* Controles de Voz WebRTC P2P */}
           {isVoiceSupported && (
             <div className="flex items-center gap-1 bg-black/60 border border-amber-500/40 p-0.5 sm:p-1 rounded-lg sm:rounded-xl shadow-inner">

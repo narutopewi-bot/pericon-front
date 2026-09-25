@@ -43,14 +43,16 @@ export function unlockAudioEngine(): void {
   } catch (_) {}
 }
 
-// Auto-desbloqueo inmediato con el primer toque en cualquier parte de la pantalla
+// Auto-desbloqueo inmediato con el primer toque o interacción en cualquier parte de la pantalla (Desktop y Móvil)
 if (typeof window !== "undefined") {
   const onUserInteraction = () => {
     unlockAudioEngine();
   };
-  ["touchstart", "touchend", "pointerdown", "click", "keydown"].forEach((evt) => {
+  ["touchstart", "touchend", "pointerdown", "mousedown", "mouseup", "click", "keydown"].forEach((evt) => {
     window.addEventListener(evt, onUserInteraction, { passive: true });
   });
+
+  window.addEventListener("focus", onUserInteraction);
 
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "visible") {

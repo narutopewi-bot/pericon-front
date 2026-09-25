@@ -19,7 +19,7 @@ import Link from 'next/link';
 import Swal from 'sweetalert2';
 import 'sweetalert2/src/sweetalert2.scss';
 import { playCardSound, playSwooshSound, vibrateDevice, playSynthSound, speakPhrase, playVoiceAudio, preloadVoiceAudios } from '@/lib/gameEffects';
-import { playCardDealSound, playCardDropSound, playCoinWinSound, playCantoSound } from '@/lib/soundEffects';
+import { playCardDealSound, playCardDropSound, playCoinWinSound, playCantoSound, isSoundMuted, setSoundMuted, unlockAudioEngine } from '@/lib/soundEffects';
 import GameTurnTimer from '@/components/game-turn-timer';
 import { GameAnnouncement, AnnouncementData, AnnouncementType } from '@/components/game-announcement';
 import { reportAppError } from '@/lib/errorLogger';
@@ -219,6 +219,19 @@ export default function Duel1vs1() {
   const isWaitingHandChange1v1Ref = useRef<boolean>(false);
   useEffect(() => { isWaitingHandChange1v1Ref.current = isWaitingHandChange1v1; }, [isWaitingHandChange1v1]);
   const handWatchdogTimerRef = useRef<any>(null);
+
+  // Control de sonido en vivo y auto-desbloqueo
+  const [isSoundMutedState, setIsSoundMutedState] = useState<boolean>(() => isSoundMuted());
+
+  const handleToggleSound = () => {
+    const next = !isSoundMutedState;
+    setSoundMuted(next);
+    setIsSoundMutedState(next);
+    if (!next) {
+      unlockAudioEngine();
+      playSynthSound?.('accept');
+    }
+  };
 
   // Captura global de excepciones y telemetría automática hacia Railway
   useEffect(() => {
@@ -2403,15 +2416,32 @@ export default function Duel1vs1() {
               />
             </div>
 
-            {/* Botón Salir (Abandonar y rendirse) */}
-            <button
-              onClick={handleSurrenderClick}
-              className='bg-red-700/90 hover:bg-red-600 active:scale-95 text-white text-xs sm:text-sm font-bold py-1.5 px-2.5 sm:px-4 rounded-xl border border-red-500/50 shadow-lg flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer'
-              title='Abandonar partida'
-            >
-              <span>🚪</span>
-              <span className='hidden sm:inline font-black uppercase tracking-wider text-[11px] sm:text-xs'>Salir</span>
-            </button>
+            {/* Controles de la derecha: Sonido y Salir */}
+            <div className='flex items-center gap-1.5 sm:gap-2'>
+              {/* Botón de Sonido del Juego y Desbloqueador de Audio */}
+              <button
+                type='button'
+                onClick={handleToggleSound}
+                className={`text-xs sm:text-sm font-bold py-1.5 px-2.5 sm:px-3 rounded-xl border shadow-lg flex items-center gap-1 transition-all cursor-pointer ${
+                  isSoundMutedState 
+                    ? 'bg-stone-800/90 hover:bg-stone-700 border-stone-600 text-stone-400' 
+                    : 'bg-amber-950/80 hover:bg-amber-900 border-amber-600/60 text-amber-300'
+                }`}
+                title={isSoundMutedState ? 'Sonido desactivado (Clic para activar)' : 'Sonido activo (Clic para silenciar)'}
+              >
+                <span>{isSoundMutedState ? '🔇' : '🔊'}</span>
+              </button>
+
+              {/* Botón Salir (Abandonar y rendirse) */}
+              <button
+                onClick={handleSurrenderClick}
+                className='bg-red-700/90 hover:bg-red-600 active:scale-95 text-white text-xs sm:text-sm font-bold py-1.5 px-2.5 sm:px-4 rounded-xl border border-red-500/50 shadow-lg flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer'
+                title='Abandonar partida'
+              >
+                <span>🚪</span>
+                <span className='hidden sm:inline font-black uppercase tracking-wider text-[11px] sm:text-xs'>Salir</span>
+              </button>
+            </div>
           </div>
           {/* Dynamic content */}
           <div className='flex items-center justify-center h-full'>
