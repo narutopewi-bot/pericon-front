@@ -1088,7 +1088,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
                     value={withdrawIdCard}
                     onChange={(e) => setWithdrawIdCard(e.target.value)}
                     className="w-full bg-black/70 border border-emerald-500/40 rounded-xl px-3 py-2 text-xs text-white font-medium focus:outline-none focus:border-emerald-400"
-                    placeholder="Ej. 26554121"
+                    placeholder="Cédula de identidad"
                     required
                   />
                 </div>
