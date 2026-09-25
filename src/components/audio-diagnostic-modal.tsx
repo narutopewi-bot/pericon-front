@@ -129,6 +129,7 @@ export default function AudioDiagnosticModal({ isOpen, onClose, voiceManager }: 
     { key: 'la_cogia_propia', label: '¡La Cogía!' },
     { key: 'ganaste_la_ronda', label: '¡Ganaste la Ronda!' },
     { key: 'victoria_partida', label: '¡Victoria de Partida!' },
+    { key: 'mas_18', label: '🔞 Aviso +18 (Chivo de Carora)' },
   ];
 
   return (

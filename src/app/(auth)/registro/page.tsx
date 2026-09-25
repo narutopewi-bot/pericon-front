@@ -18,6 +18,7 @@ import { useRouter } from "next/navigation";
 import { useAppDispatch } from "@/store/store"
 import { setGamePlayer } from "@/store/slices/gameplayerSlice"
 import TermsModal from "@/components/terms-modal";
+import { playVoiceAudio } from "@/lib/gameEffects";
 
 type FormMessageProps = {
   error?: FieldError;
@@ -242,7 +243,21 @@ export default function SignUp() {
                           className="mt-0.5 w-4 h-4 rounded border-amber-500 text-amber-500 focus:ring-amber-400 bg-slate-900 accent-amber-500 cursor-pointer flex-shrink-0"
                         />
                         <label htmlFor="terms-checkbox" className="text-xs text-slate-300 leading-snug cursor-pointer select-none">
-                          <strong className="text-red-400 font-bold">Declaro ser mayor de 18 años</strong> y acepto los{" "}
+                          <strong className="text-red-400 font-bold">Declaro ser mayor de 18 años</strong>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              playVoiceAudio('mas_18');
+                            }}
+                            className="ml-1.5 inline-flex items-center gap-1 text-[10px] text-amber-300 hover:text-amber-200 bg-amber-950/70 border border-amber-500/50 px-2 py-0.5 rounded-full transition active:scale-95 shadow"
+                            title="Escuchar advertencia oficial de El Chivo (+18)"
+                          >
+                            <span>🔊</span>
+                            <span>Escuchar aviso (+18)</span>
+                          </button>{" "}
+                          y acepto los{" "}
                           <button
                             type="button"
                             onClick={() => setTermsModalOpen(true)}

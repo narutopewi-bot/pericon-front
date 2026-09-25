@@ -4,7 +4,8 @@ import React from "react";
 import Link from "next/link";
 import Image from "next/image";
 import * as fonts from "@/components/fonts";
-import { ArrowLeft, Scale, ShieldCheck, Cpu, AlertTriangle, FileText } from "lucide-react";
+import { ArrowLeft, Scale, ShieldCheck, Cpu, AlertTriangle, FileText, Volume2 } from "lucide-react";
+import { playVoiceAudio } from "@/lib/gameEffects";
 
 export default function TerminosPage() {
   return (
@@ -52,10 +53,21 @@ export default function TerminosPage() {
           </div>
 
           {/* 1. Mayores de 18 Años */}
-          <section className="space-y-2 p-4 rounded-2xl bg-red-950/20 border border-red-500/30">
-            <h2 className="text-base sm:text-lg font-extrabold text-red-400 flex items-center gap-2">
-              🔞 1. Restricción Absoluta de Mayoría de Edad (+18)
-            </h2>
+          <section className="space-y-3 p-4 rounded-2xl bg-red-950/20 border border-red-500/30">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <h2 className="text-base sm:text-lg font-extrabold text-red-400 flex items-center gap-2">
+                🔞 1. Restricción Absoluta de Mayoría de Edad (+18)
+              </h2>
+              <button
+                type="button"
+                onClick={() => playVoiceAudio('mas_18')}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 border border-amber-500/50 text-amber-300 font-bold text-xs transition active:scale-95 shadow w-fit"
+                title="Escuchar locución oficial del Chivo de Carora (+18)"
+              >
+                <Volume2 size={15} />
+                <span>Escuchar Aviso del Chivo (+18)</span>
+              </button>
+            </div>
             <p className="text-slate-200 font-medium">
               Pericón Online está diseñado, operado y destinado **exclusivamente para personas mayores de dieciocho (18) años de edad**.
             </p>
