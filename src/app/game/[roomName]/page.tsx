@@ -4,6 +4,8 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useMediaQuery } from '@/components/use-media-query';
 import { RootState, useAppSelector } from '@/store/store';
+import { useDispatch } from 'react-redux';
+import { setGamePlayer } from '@/store/slices/gameplayerSlice';
 import { useParams } from 'next/navigation';
 
 import { useSignalRContext } from '@/lib/signalrcontext';
@@ -63,6 +65,7 @@ export default function Duel1vs1() {
 
   const searchParams = useSearchParams();
   const router = useRouter();
+  const dispatch = useDispatch();
   const gameplayer = useAppSelector((state: RootState) => state.gameplayer);
 
   const datos = useRef<DataDuel>({
