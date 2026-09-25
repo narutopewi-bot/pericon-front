@@ -5,7 +5,7 @@
 
 let audioCtx: AudioContext | null = null;
 
-function getAudioContext(): AudioContext | null {
+export function getSharedAudioContext(): AudioContext | null {
   if (typeof window === "undefined") return null;
   if (!audioCtx) {
     const AudioContextClass = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
@@ -14,9 +14,49 @@ function getAudioContext(): AudioContext | null {
     }
   }
   if (audioCtx && audioCtx.state === "suspended") {
-    audioCtx.resume();
+    audioCtx.resume().catch(() => {});
   }
   return audioCtx;
+}
+
+function getAudioContext(): AudioContext | null {
+  return getSharedAudioContext();
+}
+
+/**
+ * Desbloquea de forma permanente el motor de audio en celulares (iOS Safari / Android Chrome)
+ * reproduciendo un micro-pulso inaudible en la primera interacción.
+ */
+export function unlockAudioEngine(): void {
+  if (typeof window === "undefined") return;
+  const ctx = getSharedAudioContext();
+  if (!ctx) return;
+  if (ctx.state === "suspended") {
+    ctx.resume().catch(() => {});
+  }
+  try {
+    const buffer = ctx.createBuffer(1, 1, 22050);
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(ctx.destination);
+    source.start(0);
+  } catch (_) {}
+}
+
+// Auto-desbloqueo inmediato con el primer toque en cualquier parte de la pantalla
+if (typeof window !== "undefined") {
+  const onUserInteraction = () => {
+    unlockAudioEngine();
+  };
+  ["touchstart", "touchend", "pointerdown", "click", "keydown"].forEach((evt) => {
+    window.addEventListener(evt, onUserInteraction, { passive: true });
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") {
+      unlockAudioEngine();
+    }
+  });
 }
 
 export function isSoundMuted(): boolean {

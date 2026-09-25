@@ -51,8 +51,9 @@ export const vibrateDevice = (type: VibrationType | number[]) => {
   }
 };
 
-import { isSoundMuted } from './soundEffects';
+import { isSoundMuted, getSharedAudioContext, unlockAudioEngine } from './soundEffects';
 
+let currentBufferSource: AudioBufferSourceNode | null = null;
 let currentVoiceAudio: HTMLAudioElement | null = null;
 
 /**
@@ -60,6 +61,13 @@ let currentVoiceAudio: HTMLAudioElement | null = null;
  */
 export const stopVoiceAudio = () => {
   if (typeof window === 'undefined') return;
+  if (currentBufferSource) {
+    try {
+      currentBufferSource.stop();
+      currentBufferSource.disconnect();
+    } catch (_) {}
+    currentBufferSource = null;
+  }
   if (currentVoiceAudio) {
     try {
       currentVoiceAudio.pause();
@@ -74,8 +82,9 @@ export const stopVoiceAudio = () => {
   }
 };
 
-// Cache en memoria para reproducción instantánea sin latencia de red
-const voiceAudioCache: Map<string, HTMLAudioElement> = new Map();
+// Cache de AudioBuffers en memoria (Web Audio API) para reproducción instantánea (0ms) y sin restricciones en móviles
+const audioBufferCache: Map<string, AudioBuffer> = new Map();
+const pendingLoads: Map<string, Promise<AudioBuffer | null>> = new Map();
 
 // Catálogo de los 42 audios oficiales del locutor
 export const ALL_VOICE_KEYS = [
@@ -95,82 +104,153 @@ export const ALL_VOICE_KEYS = [
 ];
 
 /**
- * Precarga todos los audios en la memoria del navegador para que no dependan
- * de la velocidad de la conexión durante las jugadas.
+ * Carga y decodifica un archivo de audio MP3 en memoria como AudioBuffer
  */
-export const preloadVoiceAudios = () => {
-  if (typeof window === 'undefined') return;
-  ALL_VOICE_KEYS.forEach(key => {
-    if (!voiceAudioCache.has(key)) {
-      try {
-        const audio = new Audio(`/audio/${key}.mp3`);
-        audio.preload = 'auto';
-        audio.load();
-        voiceAudioCache.set(key, audio);
-      } catch (_) {}
+export const loadAudioBuffer = async (audioKey: string): Promise<AudioBuffer | null> => {
+  if (typeof window === 'undefined') return null;
+  const cleanKey = audioKey.replace(/\.mp3$/, '');
+
+  if (audioBufferCache.has(cleanKey)) {
+    return audioBufferCache.get(cleanKey)!;
+  }
+
+  if (pendingLoads.has(cleanKey)) {
+    return pendingLoads.get(cleanKey)!;
+  }
+
+  const loadPromise = (async () => {
+    try {
+      const ctx = getSharedAudioContext();
+      if (!ctx) return null;
+
+      const res = await fetch(`/audio/${cleanKey}.mp3`);
+      if (!res.ok) {
+        return null;
+      }
+      const arrayBuffer = await res.arrayBuffer();
+      const decoded = await ctx.decodeAudioData(arrayBuffer);
+      audioBufferCache.set(cleanKey, decoded);
+      return decoded;
+    } catch (e) {
+      console.warn(`[loadAudioBuffer] No se pudo decodificar /audio/${cleanKey}.mp3:`, e);
+      return null;
+    } finally {
+      pendingLoads.delete(cleanKey);
     }
-  });
+  })();
+
+  pendingLoads.set(cleanKey, loadPromise);
+  return loadPromise;
 };
 
 /**
- * Reproduce un audio MP3 grabado por el locutor desde la memoria local.
- * Ya no recurre a la voz sintética para evitar que se escuchen voces robóticas en fallos o pausas.
+ * Precarga los audios en la memoria del navegador como AudioBuffers decodificados
+ */
+export const preloadVoiceAudios = () => {
+  if (typeof window === 'undefined') return;
+  unlockAudioEngine();
+
+  // Precargar primero los cantes más urgentes de la partida
+  const priorityKeys = [
+    'dame_tres', 'quiero_seis', 'van_nueve', 'acepto', 'no_quiero',
+    'estas_en_tumba', 'caiste_en_tumba', 'la_cogia_propia', 'la_cogia_rival',
+    'ganaste_la_ronda', 'ganaron_la_mano', 'victoria_partida', 'derrota_partida'
+  ];
+
+  priorityKeys.forEach(k => loadAudioBuffer(k));
+
+  // En segundo plano, precargar el resto del catálogo
+  const remainingKeys = ALL_VOICE_KEYS.filter(k => !priorityKeys.includes(k));
+  if ('requestIdleCallback' in window) {
+    (window as any).requestIdleCallback(() => {
+      remainingKeys.forEach(k => loadAudioBuffer(k));
+    });
+  } else {
+    setTimeout(() => {
+      remainingKeys.forEach(k => loadAudioBuffer(k));
+    }, 1200);
+  }
+};
+
+function fallbackHtmlAudio(cleanKey: string, volume: number) {
+  const audioUrl = `/audio/${cleanKey}.mp3`;
+  try {
+    const audio = new Audio(audioUrl);
+    audio.volume = Math.min(1.0, Math.max(0, volume));
+    currentVoiceAudio = audio;
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+      playPromise.catch((err: any) => {
+        if (err && err.name === 'AbortError') return;
+        console.warn(`[playVoiceAudio-fallback] Error en audio ${audioUrl}:`, err);
+      });
+    }
+  } catch (e) {
+    console.warn(`[playVoiceAudio-fallback] Error instanciando audio:`, e);
+  }
+}
+
+/**
+ * Reproduce una locución con Web Audio API (AudioBuffer) garantizando reproducción
+ * instantánea y permanente en celulares incluso ante mensajes WebSocket de la red.
  */
 export const playVoiceAudio = (audioKey: string, _legacyFallbackText?: string, volume: number = 1.0) => {
   if (typeof window === 'undefined') return;
   if (isSoundMuted()) return;
 
   stopVoiceAudio();
+  unlockAudioEngine();
 
   const cleanKey = audioKey.replace(/\.mp3$/, '');
-  const audioUrl = `/audio/${cleanKey}.mp3`;
+  const ctx = getSharedAudioContext();
 
-  // Autoprecargar catálogo en el primer uso si aún no se ha hecho
-  if (voiceAudioCache.size === 0) {
-    preloadVoiceAudios();
-  }
-
-  let audio = voiceAudioCache.get(cleanKey);
-  if (!audio) {
-    try {
-      audio = new Audio(audioUrl);
-      audio.preload = 'auto';
-      voiceAudioCache.set(cleanKey, audio);
-    } catch (e) {
-      console.warn(`[playVoiceAudio] No se pudo instanciar audio ${audioUrl}:`, e);
-      return;
+  if (ctx) {
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
     }
-  }
 
-  try {
-    audio.currentTime = 0;
-    audio.volume = Math.min(1.0, Math.max(0, volume));
-    currentVoiceAudio = audio;
+    const playFromBuffer = (buffer: AudioBuffer) => {
+      try {
+        const source = ctx.createBufferSource();
+        const gainNode = ctx.createGain();
+        source.buffer = buffer;
+        gainNode.gain.setValueAtTime(Math.min(1.0, Math.max(0, volume)), ctx.currentTime);
+        source.connect(gainNode);
+        gainNode.connect(ctx.destination);
+        currentBufferSource = source;
 
-    audio.onended = () => {
-      if (currentVoiceAudio === audio) {
-        currentVoiceAudio = null;
+        source.onended = () => {
+          if (currentBufferSource === source) {
+            currentBufferSource = null;
+          }
+        };
+
+        source.start(0);
+        return true;
+      } catch (err) {
+        console.warn(`[playVoiceAudio] Error reproduciendo buffer ${cleanKey}:`, err);
+        return false;
       }
     };
 
-    const playPromise = audio.play();
-    if (playPromise !== undefined) {
-      playPromise
-        .then(() => {
-          // Reproduciendo normalmente
-        })
-        .catch((err: any) => {
-          // AbortError ocurre legítimamente cuando otra acción pausa el audio anterior.
-          // En NINGÚN caso activamos la voz robótica aquí.
-          if (err && err.name === 'AbortError') {
-            return;
-          }
-          console.warn(`[playVoiceAudio] Reproducción bloqueada o postergada para ${audioUrl}:`, err);
-        });
+    if (audioBufferCache.has(cleanKey)) {
+      playFromBuffer(audioBufferCache.get(cleanKey)!);
+      return;
     }
-  } catch (e) {
-    console.warn(`[playVoiceAudio] Error en audio ${audioUrl}:`, e);
+
+    // Si aún no está en cache, cargarlo de inmediato y reproducirlo al terminar
+    loadAudioBuffer(cleanKey).then(buffer => {
+      if (buffer) {
+        playFromBuffer(buffer);
+      } else {
+        fallbackHtmlAudio(cleanKey, volume);
+      }
+    });
+    return;
   }
+
+  // Fallback si Web Audio API no estuviera disponible
+  fallbackHtmlAudio(cleanKey, volume);
 };
 
 /**
@@ -210,11 +290,10 @@ export const speakPhrase = (phrase: string, rate: number = 1.05, pitch: number =
  */
 export const playSynthSound = (type: 'canto' | 'accept' | 'reject' | 'tumba' | 'win') => {
   if (typeof window === 'undefined') return;
-  const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-  if (!AudioCtx) return;
+  const ctx = getSharedAudioContext();
+  if (!ctx) return;
 
   try {
-    const ctx = new AudioCtx();
     const now = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -280,9 +359,8 @@ export const playSynthSound = (type: 'canto' | 'accept' | 'reject' | 'tumba' | '
 export const playCardSound = () => {
   if (typeof window === 'undefined') return;
   try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
+    const ctx = getSharedAudioContext();
+    if (!ctx) return;
     const now = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -304,9 +382,8 @@ export const playCardSound = () => {
 export const playSwooshSound = () => {
   if (typeof window === 'undefined') return;
   try {
-    const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
-    if (!AudioCtx) return;
-    const ctx = new AudioCtx();
+    const ctx = getSharedAudioContext();
+    if (!ctx) return;
     const now = ctx.currentTime;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
