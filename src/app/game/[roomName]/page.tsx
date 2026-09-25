@@ -23,6 +23,7 @@ import { playCardDealSound, playCardDropSound, playCoinWinSound, playCantoSound,
 import GameTurnTimer from '@/components/game-turn-timer';
 import { GameAnnouncement, AnnouncementData, AnnouncementType } from '@/components/game-announcement';
 import { reportAppError } from '@/lib/errorLogger';
+import { safeSignalRInvoke } from '@/lib/safeSignalR';
 import AudioDiagnosticModal from '@/components/audio-diagnostic-modal';
 import styles from './page.module.css';
 
@@ -250,9 +251,23 @@ export default function Duel1vs1() {
     };
 
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      const reasonMsg = event.reason?.message || String(event.reason || "");
+      // Filtrar excepciones benignas de hardware/navegador que no representan errores del código
+      if (
+        reasonMsg.includes("Failed to start the audio device") ||
+        reasonMsg.includes("The play() request was interrupted") ||
+        reasonMsg.includes("interrupted by a new load request") ||
+        reasonMsg.includes("user aborted a request") ||
+        reasonMsg.includes("ResizeObserver loop") ||
+        reasonMsg.includes("Permission denied")
+      ) {
+        console.warn("[Game1v1 UnhandledRejection Ignorado]", reasonMsg);
+        return;
+      }
+
       reportAppError({
         source: 'Game1v1',
-        errorMessage: `Unhandled Promise: ${event.reason?.message || event.reason}`,
+        errorMessage: `Unhandled Promise: ${reasonMsg}`,
         roomName: typeof roomName === 'string' ? roomName : undefined,
         username: user?.name,
         userId: user?.id,
@@ -414,7 +429,7 @@ export default function Duel1vs1() {
     const dato = { game: idGame.current, order: 0, content: dataTurn + charTurn };
     try {
       console.log("Enviando respuesta Answer369Game:", dato);
-      await connection.invoke("Answer369Game", dato);
+      await safeSignalRInvoke(connection, "Answer369Game", dato);
     } catch (err) {
       console.error("Error al enviar Answer369Game:", err);
     }
@@ -1088,13 +1103,19 @@ export default function Duel1vs1() {
         return;
       }
 
+      const previousCards = [...playerCards];
       setPlayerCards(prevCards => prevCards.filter(card => card.id != cardZero.id));
       console.log("handleCardClick: roundturn a final:", roundturn.current);
       try {
         console.log("Enviando objeto al servidor:", dato);
-        await connection.invoke("RequestCard1vs1", dato);
+        await safeSignalRInvoke(connection, "RequestCard1vs1", dato);
       } catch (error: any) {
-        console.error("Error al enviar objeto al servidor:", error);
+        console.error("Error al enviar objeto al servidor tras reintentos:", error);
+        // Rollback defensivo: devuelve la carta a la mano del jugador para que no la pierda ante microcortes
+        setPlayerCards(previousCards);
+        setIsMyTurn(true);
+        switchturn.current = true;
+
         reportAppError({
           source: 'Game1v1',
           errorMessage: `Error al enviar carta (orden ${numOrder}): ${error?.message || error}`,
@@ -1102,6 +1123,16 @@ export default function Duel1vs1() {
           username: user?.name,
           userId: user?.id,
           extraData: { dato }
+        });
+
+        Swal.fire({
+          title: "Microcorte de Red",
+          text: "Hubo una interrupción breve de conexión al enviar tu jugada. La carta regresó a tu mano; por favor intenta lanzarla nuevamente.",
+          icon: "warning",
+          toast: true,
+          position: "top-end",
+          timer: 4000,
+          showConfirmButton: false
         });
       };
     };
@@ -1156,7 +1187,7 @@ export default function Duel1vs1() {
     playCantoSound();
     triggerAnnouncement({
       type: annType,
-      title: phrase.toUpperCase(),
+      title: (phrase || '').toUpperCase(),
       subtitle: `Retando al rival por ${nextStake} piedras`
     }, 2500);
 
@@ -1164,7 +1195,7 @@ export default function Duel1vs1() {
     let dato: Message = { game: idGame.current, order: numOrder, content: dataTurn };
     try {
       console.log("Enviando Pedir al servidor:", dato);
-      await connection.invoke("Ask369Game", dato);
+      await safeSignalRInvoke(connection, "Ask369Game", dato);
     } catch (error) {
       console.error("Error al enviar Pedir:", error);
     }
@@ -1604,7 +1635,7 @@ export default function Duel1vs1() {
                   playSynthSound('reject');
                   triggerAnnouncement({
                     type: 'opp_win_round',
-                    title: `${rivalName.toUpperCase()} GANA LA RONDA`,
+                    title: `${(rivalName || 'El rival').toUpperCase()} GANA LA RONDA`,
                     subtitle: stakePts > 1 ? `El rival suma ${stakePts} piedras` : 'El rival suma 1 piedra',
                     badge: `Marcador: ${pointsown.current} - ${pointsopp.current}`
                   }, 2600);
@@ -1880,7 +1911,7 @@ export default function Duel1vs1() {
                 playSynthSound('reject');
                 triggerAnnouncement({
                   type: 'opp_win_round',
-                  title: `${rivalName.toUpperCase()} GANA LA RONDA`,
+                  title: `${(rivalName || 'El rival').toUpperCase()} GANA LA RONDA`,
                   subtitle: stakePts > 1 ? `El rival suma ${stakePts} piedras` : 'El rival suma 1 piedra',
                   badge: `Marcador: ${pointsown.current} - ${pointsopp.current}`
                 }, 2600);
@@ -2327,7 +2358,7 @@ export default function Duel1vs1() {
             <div className="text-4xl mb-2 animate-bounce">⚔️</div>
 
             <h2 className="text-xl sm:text-2xl font-black text-yellow-300 uppercase tracking-wide drop-shadow">
-              ¡{pedirChallenge.challengerName.toUpperCase()} PIDE POR {pedirChallenge.targetStake}!
+              ¡{(pedirChallenge?.challengerName || 'Tu rival').toUpperCase()} PIDE POR {pedirChallenge.targetStake}!
             </h2>
 
             <p className="text-stone-200 text-xs sm:text-sm mt-2 font-medium leading-relaxed">

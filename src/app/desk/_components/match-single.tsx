@@ -29,8 +29,8 @@ const MatchSingle: React.FC<MatchSingleProps> = ({ player, onDismiss, mode = "1 
     return `${mins < 10 ? "0" : ""}${mins}:${secs < 10 ? "0" : ""}${secs}s`;
   };
 
-  const playerName = player?.name || player?.username || "Jugador";
-  const initials = playerName.slice(0, 2).toUpperCase();
+  const playerName = (player?.name || player?.username || "Jugador").toString();
+  const initials = (playerName ? playerName.slice(0, 2) : "JG").toUpperCase();
   const playerLevel = player?.level || "Novato";
   const is2v2 = mode === "2 vs 2";
 

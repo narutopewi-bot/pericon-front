@@ -2065,7 +2065,7 @@ export default function AdminPage() {
                       <div className="flex-1 min-w-0 pr-28">
                         <div className="flex items-center gap-2">
                           <span className="px-2 py-0.5 rounded text-[10px] font-extrabold uppercase bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                            {active.type.toUpperCase()}
+                            {(active.type || 'AVISO').toUpperCase()}
                           </span>
                           <span className="text-[11px] text-amber-200/50">
                             Publicado el {new Date(active.createdAt).toLocaleString()}

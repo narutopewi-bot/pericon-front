@@ -913,7 +913,7 @@ export default function Duel() {
     playSynthSound('canto');
     triggerAnnouncement({
       type: annType,
-      title: phrase.toUpperCase(),
+      title: (phrase || '').toUpperCase(),
       subtitle: `Retando al oponente por ${nextStake} piedras`
     }, 2000);
 
@@ -1038,7 +1038,7 @@ export default function Duel() {
       playSynthSound('canto');
       triggerAnnouncement({
         type: newStake === 6 ? 'quiero_seis' : 'van_nueve',
-        title: phrase.toUpperCase(),
+        title: (phrase || '').toUpperCase(),
         subtitle: `Reviraste a Pericón por ${newStake} piedras`
       }, 2000);
 
@@ -1449,7 +1449,7 @@ export default function Duel() {
             <div className="text-4xl mb-2 animate-bounce">⚔️</div>
 
             <h2 className="text-xl sm:text-2xl font-black text-yellow-300 uppercase tracking-wide drop-shadow">
-              ¡{pedirChallenge.challengerName.toUpperCase()} PIDE POR {pedirChallenge.targetStake}!
+              ¡{(pedirChallenge?.challengerName || 'Computadora').toUpperCase()} PIDE POR {pedirChallenge.targetStake}!
             </h2>
 
             <p className="text-stone-200 text-xs sm:text-sm mt-2 font-medium leading-relaxed">

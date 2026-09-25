@@ -14,6 +14,7 @@ import { playCardSound, playSwooshSound, vibrateDevice, playSynthSound, speakPhr
 import { playCardDealSound, playCardDropSound, playCoinWinSound, playCantoSound, playChatPopSound, isSoundMuted, setSoundMuted, unlockAudioEngine } from '@/lib/soundEffects';
 import GameTurnTimer from '@/components/game-turn-timer';
 import { reportAppError } from '@/lib/errorLogger';
+import { safeSignalRInvoke } from '@/lib/safeSignalR';
 import { WebRTCVoiceManager, VoicePeerState } from '@/lib/webrtcVoiceManager';
 import AudioDiagnosticModal from '@/components/audio-diagnostic-modal';
 
@@ -1367,10 +1368,18 @@ export default function GameTwoVsTwo() {
     playCardDropSound();
 
     if (connection) {
-      connection.invoke('PlayCard2v2', roomName, mySeatIndexRef.current, card.id).catch((err) => {
-        console.error('Error al enviar carta:', err);
+      safeSignalRInvoke(connection, 'PlayCard2v2', roomName, mySeatIndexRef.current, card.id).catch((err) => {
+        console.error('Error al enviar carta tras reintentos:', err);
         isProcessingMoveRef.current = false;
         setIsProcessingMove(false);
+        reportAppError({
+          source: 'Game2v2',
+          errorMessage: `Error al enviar carta en 2v2: ${err?.message || err}`,
+          roomName: typeof roomName === 'string' ? roomName : undefined,
+          username: user?.name,
+          userId: user?.id,
+          extraData: { seat: mySeatIndexRef.current, cardId: card.id }
+        });
       });
     }
   };
@@ -2037,8 +2046,8 @@ export default function GameTwoVsTwo() {
       color: '#fff',
     }).then((result) => {
       if (result.isConfirmed && connection && !isStakePendingRef.current) {
-        connection.invoke('PedirStake2v2', roomName, mySeatIndexRef.current, nextStake).catch(err => {
-          console.error('Error al pedir cante:', err);
+        safeSignalRInvoke(connection, 'PedirStake2v2', roomName, mySeatIndexRef.current, nextStake).catch(err => {
+          console.error('Error al pedir cante tras reintentos:', err);
           reportAppError({
             source: 'Game2v2',
             errorMessage: `Error al pedir aumento (${nextStake}): ${err?.message || err}`,
@@ -2081,7 +2090,7 @@ export default function GameTwoVsTwo() {
       const phrase = nextStake === 3 ? "¡Dame tres!" : (nextStake === 6 ? "¡Quiero seis!" : "¡Van nueve!");
       playVoiceAudio(audioKey, phrase);
       Swal.fire({
-        title: `¡${askerName.toUpperCase()} PIDE ${nextStake}!`,
+        title: `¡${(askerName || 'Un rival').toUpperCase()} PIDE ${nextStake}!`,
         text: `El equipo rival propone jugar por ${nextStake} piedras. ¿Aceptan?`,
         icon: 'warning',
         showCancelButton: true,
@@ -2097,8 +2106,8 @@ export default function GameTwoVsTwo() {
         if (connection && isStakePendingRef.current) {
           if (res.isConfirmed) {
             playVoiceAudio('acepto', "¡Acepto!");
-            connection.invoke('AnswerStake2v2', roomName, mySeatIndexRef.current, true).catch(err => {
-              console.error(err);
+            safeSignalRInvoke(connection, 'AnswerStake2v2', roomName, mySeatIndexRef.current, true).catch(err => {
+              console.error('Error al responder cante tras reintentos:', err);
               reportAppError({
                 source: 'Game2v2',
                 errorMessage: `Error al responder cante (Aceptar): ${err?.message || err}`,
@@ -2109,8 +2118,8 @@ export default function GameTwoVsTwo() {
             });
           } else if (res.dismiss === Swal.DismissReason.cancel) {
             playVoiceAudio('no_quiero', "¡No quiero!");
-            connection.invoke('AnswerStake2v2', roomName, mySeatIndexRef.current, false).catch(err => {
-              console.error(err);
+            safeSignalRInvoke(connection, 'AnswerStake2v2', roomName, mySeatIndexRef.current, false).catch(err => {
+              console.error('Error al responder cante tras reintentos:', err);
               reportAppError({
                 source: 'Game2v2',
                 errorMessage: `Error al responder cante (Rechazar): ${err?.message || err}`,
@@ -2957,7 +2966,7 @@ export default function GameTwoVsTwo() {
                 onClick={() => {
                   if (lifeCard.id >= 0) {
                     Swal.fire({
-                      title: `LA VIDA: ${getCardFaceName(lifeCard.id).toUpperCase()}`,
+                      title: `LA VIDA: ${(getCardFaceName(lifeCard.id) || '').toUpperCase()}`,
                       html: `
                         <div style="display:flex; flex-direction:column; align-items:center; gap:12px;">
                           <div style="width:110px; height:160px; border-radius:12px; overflow:hidden; border:3px solid #eab308; box-shadow:0 0 25px rgba(234,179,8,0.5); background:#fff;">

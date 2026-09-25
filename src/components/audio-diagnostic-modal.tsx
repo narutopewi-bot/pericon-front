@@ -71,38 +71,54 @@ export default function AudioDiagnosticModal({ isOpen, onClose, voiceManager }: 
   }, [isOpen, voiceManager]);
 
   const handleTestVoice = async (key: string, label: string) => {
-    setIsTestingAudio(true);
-    unlockAudioEngine();
-    const res = await testVoiceAudio(key);
-    setLastTestResult({ key: label, ...res });
-    const ctx = getSharedAudioContext();
-    if (ctx) setAudioContextState(ctx.state);
-    setIsTestingAudio(false);
+    try {
+      setIsTestingAudio(true);
+      unlockAudioEngine();
+      const res = await testVoiceAudio(key);
+      setLastTestResult({ key: label, ...res });
+      const ctx = getSharedAudioContext();
+      if (ctx) setAudioContextState(ctx.state);
+    } catch (e: any) {
+      console.warn("Fallo al probar audio:", e);
+    } finally {
+      setIsTestingAudio(false);
+    }
   };
 
   const handleStartMicTest = async () => {
-    const activeVM = voiceManager || localVoiceManagerRef.current;
-    if (!activeVM) return;
+    try {
+      const activeVM = voiceManager || localVoiceManagerRef.current;
+      if (!activeVM) return;
 
-    unlockAudioEngine();
-    const granted = await activeVM.requestMicrophone();
-    setMicPermissionGranted(granted);
-    setIsMicTesting(granted);
+      unlockAudioEngine();
+      const granted = await activeVM.requestMicrophone();
+      setMicPermissionGranted(granted);
+      setIsMicTesting(granted);
+    } catch (e: any) {
+      console.warn("Fallo al iniciar prueba de micrófono:", e);
+      setMicPermissionGranted(false);
+      setIsMicTesting(false);
+    }
   };
 
   const handleToggleEcho = async () => {
-    const activeVM = voiceManager || localVoiceManagerRef.current;
-    if (!activeVM) return;
+    try {
+      const activeVM = voiceManager || localVoiceManagerRef.current;
+      if (!activeVM) return;
 
-    if (!isEchoActive) {
-      unlockAudioEngine();
-      const started = await activeVM.startEchoTest();
-      if (started) {
-        setIsEchoActive(true);
-        setIsMicTesting(true);
+      if (!isEchoActive) {
+        unlockAudioEngine();
+        const started = await activeVM.startEchoTest();
+        if (started) {
+          setIsEchoActive(true);
+          setIsMicTesting(true);
+        }
+      } else {
+        activeVM.stopEchoTest();
+        setIsEchoActive(false);
       }
-    } else {
-      activeVM.stopEchoTest();
+    } catch (e: any) {
+      console.warn("Fallo en prueba de eco:", e);
       setIsEchoActive(false);
     }
   };

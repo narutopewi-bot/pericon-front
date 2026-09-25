@@ -212,7 +212,18 @@ export class WebRTCVoiceManager {
             autoGainControl: true,
           },
           video: false,
+        }).catch((err) => {
+          console.warn('[WebRTCVoice] Dispositivo de audio no disponible o bloqueado:', err?.message || err);
+          return null;
         });
+
+        if (!stream) {
+          this.hasMicPermission = false;
+          this.isMuted = true;
+          this.isRequestingMic = false;
+          this.notifyState();
+          return false;
+        }
 
         this.localStream = stream;
         this.hasMicPermission = true;
