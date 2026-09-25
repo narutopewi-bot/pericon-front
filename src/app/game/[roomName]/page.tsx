@@ -23,6 +23,7 @@ import { playCardDealSound, playCardDropSound, playCoinWinSound, playCantoSound,
 import GameTurnTimer from '@/components/game-turn-timer';
 import { GameAnnouncement, AnnouncementData, AnnouncementType } from '@/components/game-announcement';
 import { reportAppError } from '@/lib/errorLogger';
+import AudioDiagnosticModal from '@/components/audio-diagnostic-modal';
 import styles from './page.module.css';
 
 
@@ -232,6 +233,8 @@ export default function Duel1vs1() {
       playSynthSound?.('accept');
     }
   };
+
+  const [showAudioDiagnostic, setShowAudioDiagnostic] = useState(false);
 
   // Captura global de excepciones y telemetría automática hacia Railway
   useEffect(() => {
@@ -2314,6 +2317,7 @@ export default function Duel1vs1() {
   return (
     <main className='grid h-screen overflow-auto space-y-0'>
       <GameAnnouncement announcement={announcement} />
+      <AudioDiagnosticModal isOpen={showAudioDiagnostic} onClose={() => setShowAudioDiagnostic(false)} />
 
       {/* Modal interactivo de Reto 3-6-9 (Pedir) para Móvil y Desktop */}
       {pedirChallenge && (
@@ -2430,6 +2434,16 @@ export default function Duel1vs1() {
                 title={isSoundMutedState ? 'Sonido desactivado (Clic para activar)' : 'Sonido activo (Clic para silenciar)'}
               >
                 <span>{isSoundMutedState ? '🔇' : '🔊'}</span>
+              </button>
+
+              {/* Botón de Diagnóstico y Prueba de Audio y Micrófono */}
+              <button
+                type='button'
+                onClick={() => setShowAudioDiagnostic(true)}
+                className='text-xs sm:text-sm font-bold py-1.5 px-2.5 sm:px-3 rounded-xl border border-amber-500/50 bg-stone-900/90 hover:bg-amber-950 text-amber-300 shadow-lg flex items-center gap-1 transition-all cursor-pointer'
+                title='Probar y diagnosticar voces y micrófono en vivo'
+              >
+                <span>🎧</span>
               </button>
 
               {/* Botón Salir (Abandonar y rendirse) */}

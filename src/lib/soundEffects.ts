@@ -23,24 +23,41 @@ function getAudioContext(): AudioContext | null {
   return getSharedAudioContext();
 }
 
+let htmlAudioUnlocked = false;
+
 /**
  * Desbloquea de forma permanente el motor de audio en celulares (iOS Safari / Android Chrome)
- * reproduciendo un micro-pulso inaudible en la primera interacción.
+ * tanto para Web Audio API como para elementos HTML5 Audio.
  */
 export function unlockAudioEngine(): void {
   if (typeof window === "undefined") return;
   const ctx = getSharedAudioContext();
-  if (!ctx) return;
-  if (ctx.state === "suspended") {
+  if (ctx && ctx.state === "suspended") {
     ctx.resume().catch(() => {});
   }
-  try {
-    const buffer = ctx.createBuffer(1, 1, 22050);
-    const source = ctx.createBufferSource();
-    source.buffer = buffer;
-    source.connect(ctx.destination);
-    source.start(0);
-  } catch (_) {}
+  if (ctx) {
+    try {
+      const buffer = ctx.createBuffer(1, 1, 22050);
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(ctx.destination);
+      source.start(0);
+    } catch (_) {}
+  }
+
+  if (!htmlAudioUnlocked) {
+    try {
+      const silentAudio = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBIAAAABAAEARKwAAIhYAQACABAAAABkYXRhAgAAAAEA');
+      silentAudio.volume = 0.01;
+      const p = silentAudio.play();
+      if (p !== undefined) {
+        p.then(() => {
+          silentAudio.pause();
+          htmlAudioUnlocked = true;
+        }).catch(() => {});
+      }
+    } catch (_) {}
+  }
 }
 
 // Auto-desbloqueo inmediato con el primer toque o interacción en cualquier parte de la pantalla (Desktop y Móvil)

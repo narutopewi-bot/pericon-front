@@ -15,6 +15,7 @@ import { playCardDealSound, playCardDropSound, playCoinWinSound, playCantoSound,
 import GameTurnTimer from '@/components/game-turn-timer';
 import { reportAppError } from '@/lib/errorLogger';
 import { WebRTCVoiceManager, VoicePeerState } from '@/lib/webrtcVoiceManager';
+import AudioDiagnosticModal from '@/components/audio-diagnostic-modal';
 
 import * as fonts from '@/components/fonts';
 import { Copy, Check, Share2, Users, Clock, Sparkles, Mic, MicOff, Volume2, VolumeX } from 'lucide-react';
@@ -189,6 +190,7 @@ export default function GameTwoVsTwo() {
   const [voicePeerStates, setVoicePeerStates] = useState<Record<number, VoicePeerState>>({});
   const [localVolume, setLocalVolume] = useState<number>(0);
   const [speakerTested, setSpeakerTested] = useState<boolean>(false);
+  const [showAudioDiagnostic, setShowAudioDiagnostic] = useState<boolean>(false);
 
   // Inicialización de usuario invitado persistente para evitar colisiones de asientos en enlaces compartidos
   useEffect(() => {
@@ -2291,6 +2293,7 @@ export default function GameTwoVsTwo() {
 
   return (
     <main className="h-[100dvh] max-h-[100dvh] w-full bg-gradient-to-b from-[#140a04] via-[#0b0502] to-[#040201] text-white flex flex-col relative overflow-hidden select-none">
+      <AudioDiagnosticModal isOpen={showAudioDiagnostic} onClose={() => setShowAudioDiagnostic(false)} voiceManager={voiceManagerRef.current} />
       
       {/* 1. BARRA SUPERIOR (HEADER GAMER) */}
       <header className="w-full bg-black/80 backdrop-blur-md border-b border-amber-500/30 px-2 py-1.5 sm:px-6 sm:py-2 flex items-center justify-between z-30 shadow-lg shrink-0">
@@ -2386,6 +2389,19 @@ export default function GameTwoVsTwo() {
             title={isSoundMutedState ? 'Sonido y voces desactivados (Clic para activar)' : 'Sonido y voces activos (Clic para silenciar)'}
           >
             <span className="text-xs sm:text-sm">{isSoundMutedState ? '🔇' : '🔊'}</span>
+          </button>
+
+          {/* Botón de Diagnóstico y Prueba de Audio y Micrófono */}
+          <button
+            type='button'
+            onClick={() => {
+              unlockAudioEngine();
+              setShowAudioDiagnostic(true);
+            }}
+            className='w-7 h-7 sm:w-8 sm:h-8 rounded-md sm:rounded-lg border border-amber-500/50 bg-amber-950/80 hover:bg-amber-800 text-amber-300 shadow flex items-center justify-center transition active:scale-95 cursor-pointer'
+            title='Probar y diagnosticar voces y micrófono en vivo'
+          >
+            <span className='text-xs sm:text-sm'>🎧</span>
           </button>
 
           {/* Controles de Voz WebRTC P2P */}

@@ -172,85 +172,115 @@ export const preloadVoiceAudios = () => {
   }
 };
 
-function fallbackHtmlAudio(cleanKey: string, volume: number) {
-  const audioUrl = `/audio/${cleanKey}.mp3`;
+// Pool de elementos HTMLAudioElement precargados como respaldo infalible
+const htmlAudioPool: Map<string, HTMLAudioElement> = new Map();
+
+function getOrCreateHtmlAudio(cleanKey: string): HTMLAudioElement {
+  let audio = htmlAudioPool.get(cleanKey);
+  if (!audio) {
+    audio = new Audio(`/audio/${cleanKey}.mp3`);
+    audio.preload = 'auto';
+    htmlAudioPool.set(cleanKey, audio);
+  }
+  return audio;
+}
+
+function fallbackHtmlAudio(cleanKey: string, volume: number): boolean {
   try {
-    const audio = new Audio(audioUrl);
+    const audio = getOrCreateHtmlAudio(cleanKey);
+    audio.currentTime = 0;
     audio.volume = Math.min(1.0, Math.max(0, volume));
     currentVoiceAudio = audio;
     const playPromise = audio.play();
     if (playPromise !== undefined) {
       playPromise.catch((err: any) => {
         if (err && err.name === 'AbortError') return;
-        console.warn(`[playVoiceAudio-fallback] Error en audio ${audioUrl}:`, err);
+        console.warn(`[playVoiceAudio-fallback] Error en audio /audio/${cleanKey}.mp3:`, err);
       });
     }
+    return true;
   } catch (e) {
     console.warn(`[playVoiceAudio-fallback] Error instanciando audio:`, e);
+    return false;
   }
 }
 
 /**
- * Reproduce una locución con Web Audio API (AudioBuffer) garantizando reproducción
- * instantánea y permanente en celulares incluso ante mensajes WebSocket de la red.
+ * Reproduce una locución con arquitectura dual infalible:
+ * 1. Intenta Web Audio API (AudioBuffer decodificado) para cero latencia.
+ * 2. Si el AudioContext no está activo ('running') o el buffer no está listo,
+ *    se dispara de inmediato el HTMLAudioElement nativo sin silencios ni esperas.
  */
-export const playVoiceAudio = (audioKey: string, _legacyFallbackText?: string, volume: number = 1.0) => {
-  if (typeof window === 'undefined') return;
-  if (isSoundMuted()) return;
+export const playVoiceAudio = (audioKey: string, _legacyFallbackText?: string, volume: number = 1.0): boolean => {
+  if (typeof window === 'undefined') return false;
+  if (isSoundMuted()) return false;
 
   stopVoiceAudio();
   unlockAudioEngine();
 
   const cleanKey = audioKey.replace(/\.mp3$/, '');
   const ctx = getSharedAudioContext();
+  const vol = Math.min(1.0, Math.max(0, volume));
 
-  if (ctx) {
-    if (ctx.state === 'suspended') {
-      ctx.resume().catch(() => {});
-    }
-
-    const playFromBuffer = (buffer: AudioBuffer) => {
-      try {
-        const source = ctx.createBufferSource();
-        const gainNode = ctx.createGain();
-        source.buffer = buffer;
-        gainNode.gain.setValueAtTime(Math.min(1.0, Math.max(0, volume)), ctx.currentTime);
-        source.connect(gainNode);
-        gainNode.connect(ctx.destination);
-        currentBufferSource = source;
-
-        source.onended = () => {
-          if (currentBufferSource === source) {
-            currentBufferSource = null;
-          }
-        };
-
-        source.start(0);
-        return true;
-      } catch (err) {
-        console.warn(`[playVoiceAudio] Error reproduciendo buffer ${cleanKey}:`, err);
-        return false;
+  // Estrategia 1: Web Audio API con AudioBuffer decodificado en memoria
+  if (ctx && audioBufferCache.has(cleanKey)) {
+    try {
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
       }
-    };
+      const source = ctx.createBufferSource();
+      const gainNode = ctx.createGain();
+      source.buffer = audioBufferCache.get(cleanKey)!;
+      gainNode.gain.setValueAtTime(vol, ctx.currentTime);
+      source.connect(gainNode);
+      gainNode.connect(ctx.destination);
+      currentBufferSource = source;
 
-    if (audioBufferCache.has(cleanKey)) {
-      playFromBuffer(audioBufferCache.get(cleanKey)!);
-      return;
+      source.onended = () => {
+        if (currentBufferSource === source) {
+          currentBufferSource = null;
+        }
+      };
+
+      source.start(0);
+      return true;
+    } catch (err) {
+      console.warn(`[playVoiceAudio] Error en Web Audio Buffer, usando fallback HTML5:`, err);
     }
-
-    // Si aún no está en cache, cargarlo de inmediato y reproducirlo al terminar
-    loadAudioBuffer(cleanKey).then(buffer => {
-      if (buffer) {
-        playFromBuffer(buffer);
-      } else {
-        fallbackHtmlAudio(cleanKey, volume);
-      }
-    });
-    return;
   }
 
-  // Fallback si Web Audio API no estuviera disponible
-  fallbackHtmlAudio(cleanKey, volume);
+  // Si aún no está en cache, cargar en segundo plano para futuros cantos
+  if (!audioBufferCache.has(cleanKey)) {
+    loadAudioBuffer(cleanKey).catch(() => {});
+  }
+
+  // Estrategia 2: Fallback instantáneo a elemento HTML5 Audio
+  return fallbackHtmlAudio(cleanKey, vol);
+};
+
+/**
+ * Función de diagnóstico y prueba interactiva en vivo
+ */
+export const testVoiceAudio = async (audioKey: string): Promise<{ success: boolean; engine: string; error?: string }> => {
+  if (typeof window === 'undefined') return { success: false, engine: 'none', error: 'Sin navegador' };
+  unlockAudioEngine();
+
+  const cleanKey = audioKey.replace(/\.mp3$/, '');
+  const ctx = getSharedAudioContext();
+
+  if (ctx && ctx.state === 'running') {
+    if (audioBufferCache.has(cleanKey)) {
+      playVoiceAudio(cleanKey);
+      return { success: true, engine: 'Web Audio API (AudioBuffer en memoria)' };
+    }
+  }
+
+  const ok = fallbackHtmlAudio(cleanKey, 1.0);
+  if (ok) {
+    return { success: true, engine: 'HTML5 Audio (Elemento nativo directo)' };
+  } else {
+    return { success: false, engine: 'HTML5 Audio', error: 'Fallo al iniciar reproducción' };
+  }
 };
 
 /**

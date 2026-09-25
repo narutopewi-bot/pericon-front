@@ -19,7 +19,7 @@ interface VoiceSignalPayload {
   candidate?: RTCIceCandidateInit;
 }
 
-// Servidores STUN públicos de ultra baja latencia y alta disponibilidad
+// Servidores STUN y TURN de alta disponibilidad (Soporte universal para operadoras móviles CGNAT / NAT Simétrico)
 const ICE_SERVERS: RTCConfiguration = {
   iceServers: [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -27,8 +27,22 @@ const ICE_SERVERS: RTCConfiguration = {
     { urls: 'stun:stun2.l.google.com:19302' },
     { urls: 'stun:stun3.l.google.com:19302' },
     { urls: 'stun:stun4.l.google.com:19302' },
-    { urls: 'stun:stun.cloudflare.com:3478' },
-    { urls: 'stun:global.stun.twilio.com:3478' },
+    { urls: 'stun:staticauth.openrelay.metered.ca:80' },
+    {
+      urls: 'turn:staticauth.openrelay.metered.ca:80',
+      username: 'openrelayproject',
+      credential: 'openrelayprojectsecret',
+    },
+    {
+      urls: 'turn:staticauth.openrelay.metered.ca:443',
+      username: 'openrelayproject',
+      credential: 'openrelayprojectsecret',
+    },
+    {
+      urls: 'turn:staticauth.openrelay.metered.ca:443?transport=tcp',
+      username: 'openrelayproject',
+      credential: 'openrelayprojectsecret',
+    },
   ],
   iceCandidatePoolSize: 10,
 };
@@ -44,9 +58,10 @@ export class WebRTCVoiceManager {
   private remoteAudioElements: Map<number, HTMLAudioElement> = new Map();
   private candidateQueues: Map<number, RTCIceCandidateInit[]> = new Map();
 
-  // Puente de audio por SignalR (Red a prueba de operadoras móviles CGNAT / NAT Simétrico)
-  private mediaRecorder: MediaRecorder | null = null;
-  private recorderMimeType: string = '';
+  // Puente de audio PCM ultraligero por SignalR (Red a prueba de operadoras móviles CGNAT / NAT Simétrico)
+  private pcmProcessor: ScriptProcessorNode | null = null;
+  private pcmSource: MediaStreamAudioSourceNode | null = null;
+  private pcmSilenceGain: GainNode | null = null;
   private nextChunkPlayTimes: Map<number, number> = new Map();
 
   private isMuted: boolean = false;
@@ -235,8 +250,8 @@ export class WebRTCVoiceManager {
         // Inicializar analizador de audio (Vúmetro)
         this.setupAudioAnalysis();
 
-        // Inicializar puente de fragmentos de voz por SignalR
-        this.setupMediaRecorder();
+        // Inicializar puente de voz PCM ultraligero por SignalR
+        this.setupPcmBridge();
 
         this.resumeAllAudio();
         this.notifyState();
@@ -272,41 +287,59 @@ export class WebRTCVoiceManager {
     } catch (e) {}
   }
 
-  private setupMediaRecorder() {
-    if (!this.localStream || typeof MediaRecorder === 'undefined') return;
+  private setupPcmBridge() {
+    if (!this.localStream) return;
 
     try {
-      let mimeType = '';
-      if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) {
-        mimeType = 'audio/webm;codecs=opus';
-      } else if (MediaRecorder.isTypeSupported('audio/mp4')) {
-        mimeType = 'audio/mp4';
-      } else if (MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')) {
-        mimeType = 'audio/ogg;codecs=opus';
+      const audioCtx = this.getAudioContext();
+      if (!audioCtx) return;
+
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
       }
 
-      this.recorderMimeType = mimeType;
-      this.mediaRecorder = new MediaRecorder(this.localStream, mimeType ? { mimeType } : undefined);
+      if (this.pcmProcessor) {
+        try {
+          this.pcmProcessor.disconnect();
+          this.pcmSource?.disconnect();
+          this.pcmSilenceGain?.disconnect();
+        } catch (_) {}
+      }
 
-      this.mediaRecorder.ondataavailable = async (e: BlobEvent) => {
-        if (e.data && e.data.size > 0 && !this.isMuted && this.connection && this.roomName) {
-          try {
-            const reader = new FileReader();
-            reader.onloadend = () => {
-              const res = reader.result as string;
-              if (res && res.includes(',')) {
-                const base64Data = res.split(',')[1];
-                if (base64Data && this.connection) {
-                  this.connection.invoke('SendVoiceChunk2v2', this.roomName, this.mySeatIndex, -1, base64Data).catch(() => {});
-                }
-              }
-            };
-            reader.readAsDataURL(e.data);
-          } catch (err) {}
+      this.pcmSource = audioCtx.createMediaStreamSource(this.localStream);
+      // Fragmentos de 2048 muestras (~43ms de latencia, 4KB por fragmento)
+      this.pcmProcessor = audioCtx.createScriptProcessor(2048, 1, 1);
+
+      this.pcmProcessor.onaudioprocess = (e) => {
+        if (this.isMuted || !this.isSpeaking || !this.connection || !this.roomName) return;
+
+        const input = e.inputBuffer.getChannelData(0);
+        const len = input.length;
+        const int16 = new Int16Array(len);
+        for (let i = 0; i < len; i++) {
+          const s = Math.max(-1, Math.min(1, input[i]));
+          int16[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
         }
+
+        const uint8 = new Uint8Array(int16.buffer);
+        let binary = '';
+        const chunkSize = 8192;
+        for (let i = 0; i < uint8.length; i += chunkSize) {
+          const sub = uint8.subarray(i, i + chunkSize);
+          binary += String.fromCharCode.apply(null, sub as any);
+        }
+        const base64 = btoa(binary);
+
+        this.connection.invoke('SendVoiceChunk2v2', this.roomName, this.mySeatIndex, -1, base64).catch(() => {});
       };
+
+      this.pcmSource.connect(this.pcmProcessor);
+      this.pcmSilenceGain = audioCtx.createGain();
+      this.pcmSilenceGain.gain.value = 0;
+      this.pcmProcessor.connect(this.pcmSilenceGain);
+      this.pcmSilenceGain.connect(audioCtx.destination);
     } catch (err) {
-      console.warn('[WebRTCVoice] MediaRecorder no inicializado:', err);
+      console.warn('[WebRTCVoice] PCM bridge no inicializado:', err);
     }
   }
 
@@ -369,15 +402,15 @@ export class WebRTCVoiceManager {
   }
 
   /**
-   * Reproduce un fragmento de audio recibido por el puente de SignalR
+   * Reproduce un fragmento de audio PCM recibido por el puente de SignalR
    */
-  private async playAudioChunk(fromSeat: number, base64Data: string) {
+  private playAudioChunk(fromSeat: number, base64Data: string) {
     try {
       const audioCtx = this.getAudioContext();
       if (!audioCtx || audioCtx.state === 'closed') return;
 
       if (audioCtx.state === 'suspended') {
-        await audioCtx.resume().catch(() => {});
+        audioCtx.resume().catch(() => {});
       }
 
       const binaryStr = atob(base64Data);
@@ -387,33 +420,29 @@ export class WebRTCVoiceManager {
         bytes[i] = binaryStr.charCodeAt(i);
       }
 
-      audioCtx.decodeAudioData(
-        bytes.buffer.slice(0),
-        (audioBuffer) => {
-          const source = audioCtx.createBufferSource();
-          source.buffer = audioBuffer;
+      const int16 = new Int16Array(bytes.buffer);
+      const sampleCount = int16.length;
+      const float32 = new Float32Array(sampleCount);
+      for (let i = 0; i < sampleCount; i++) {
+        float32[i] = int16[i] / 32768.0;
+      }
 
-          const gain = audioCtx.createGain();
-          gain.gain.value = 1.0;
-          source.connect(gain);
-          gain.connect(audioCtx.destination);
+      const audioBuffer = audioCtx.createBuffer(1, sampleCount, audioCtx.sampleRate);
+      audioBuffer.getChannelData(0).set(float32);
 
-          // Programación continua de fragmentos para voz fluida sin cortes
-          const now = audioCtx.currentTime;
-          const nextTime = this.nextChunkPlayTimes.get(fromSeat) || now;
-          const startTime = Math.max(now, nextTime);
-          source.start(startTime);
-          this.nextChunkPlayTimes.set(fromSeat, startTime + audioBuffer.duration);
-        },
-        () => {
-          // Fallback con elemento Audio si la decodificación por buffer falla
-          try {
-            const fallbackAudio = new Audio('data:audio/webm;base64,' + base64Data);
-            fallbackAudio.volume = 1.0;
-            fallbackAudio.play().catch(() => {});
-          } catch (e) {}
-        }
-      );
+      const source = audioCtx.createBufferSource();
+      source.buffer = audioBuffer;
+
+      const gain = audioCtx.createGain();
+      gain.gain.value = 1.0;
+      source.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      const now = audioCtx.currentTime;
+      const nextTime = this.nextChunkPlayTimes.get(fromSeat) || now;
+      const startTime = Math.max(now, nextTime);
+      source.start(startTime);
+      this.nextChunkPlayTimes.set(fromSeat, startTime + audioBuffer.duration);
     } catch (err) {}
   }
 
@@ -516,25 +545,10 @@ export class WebRTCVoiceManager {
       }
     };
 
-    // Manejo de recepción de audio del peer: Web Audio API Directa + Elemento Audio Dual
+    // Manejo de recepción de audio del peer directo
     pc.ontrack = (event) => {
       const stream = event.streams && event.streams[0] ? event.streams[0] : new MediaStream([event.track]);
 
-      // 1. Conexión directa a Web Audio API (evita suspensiones de segundo plano en iOS/Android)
-      try {
-        const audioCtx = this.getAudioContext();
-        if (audioCtx) {
-          const source = audioCtx.createMediaStreamSource(stream);
-          const gain = audioCtx.createGain();
-          gain.gain.value = this.isDeafened ? 0 : 1.0;
-          source.connect(gain);
-          gain.connect(audioCtx.destination);
-        }
-      } catch (err) {
-        console.warn('[WebRTCVoice] Error enrutando Web Audio stream:', err);
-      }
-
-      // 2. Elemento Audio como respaldo
       let audioEl = this.remoteAudioElements.get(targetSeatIndex);
       if (!audioEl) {
         audioEl = document.createElement('audio');
@@ -553,7 +567,21 @@ export class WebRTCVoiceManager {
 
       audioEl.srcObject = stream;
       audioEl.muted = this.isDeafened;
-      audioEl.play().catch(() => {});
+      audioEl.volume = 1.0;
+
+      const playPromise = audioEl.play();
+      if (playPromise !== undefined) {
+        playPromise.catch((err) => {
+          console.warn(`[WebRTCVoice] Reproducción remota bloqueada por navegador para peer ${targetSeatIndex}. Reintentando con interacción...`, err);
+          const retryOnInteraction = () => {
+            audioEl?.play().catch(() => {});
+            window.removeEventListener('click', retryOnInteraction);
+            window.removeEventListener('touchstart', retryOnInteraction);
+          };
+          window.addEventListener('click', retryOnInteraction, { once: true });
+          window.addEventListener('touchstart', retryOnInteraction, { once: true });
+        });
+      }
     };
 
     // Cambios de estado de conexión P2P
@@ -717,21 +745,6 @@ export class WebRTCVoiceManager {
     if (this.isSpeaking === speaking) return;
     this.isSpeaking = speaking;
 
-    // Si comienza a hablar y el grabador está inactivo, iniciar recolección en rebanadas de 250ms
-    if (speaking && !this.isMuted && this.mediaRecorder) {
-      if (this.mediaRecorder.state === 'inactive') {
-        try {
-          this.mediaRecorder.start(250);
-        } catch (e) {}
-      }
-    } else if (!speaking && this.mediaRecorder) {
-      if (this.mediaRecorder.state === 'recording') {
-        try {
-          this.mediaRecorder.stop();
-        } catch (e) {}
-      }
-    }
-
     if (this.peerStates[this.mySeatIndex]) {
       this.peerStates[this.mySeatIndex].isSpeaking = speaking;
     }
@@ -767,12 +780,6 @@ export class WebRTCVoiceManager {
     this.localStream.getAudioTracks().forEach((track) => {
       track.enabled = !this.isMuted;
     });
-
-    if (this.isMuted && this.mediaRecorder && this.mediaRecorder.state === 'recording') {
-      try {
-        this.mediaRecorder.stop();
-      } catch (e) {}
-    }
 
     if (this.peerStates[this.mySeatIndex]) {
       this.peerStates[this.mySeatIndex].isMuted = this.isMuted;
@@ -834,6 +841,48 @@ export class WebRTCVoiceManager {
     }
   }
 
+  private echoAudioEl: HTMLAudioElement | null = null;
+
+  /**
+   * Prueba interactiva de micrófono:
+   * Captura el micrófono y reproduce la propia voz en vivo en los altavoces
+   * para verificar que hardware, permisos y volumen funcionan al 100%.
+   */
+  public async startEchoTest(): Promise<boolean> {
+    const granted = await this.requestMicrophone();
+    if (!granted || !this.localStream) return false;
+
+    if (!this.echoAudioEl) {
+      this.echoAudioEl = document.createElement('audio');
+      this.echoAudioEl.autoplay = true;
+      (this.echoAudioEl as any).playsInline = true;
+      this.echoAudioEl.setAttribute('playsinline', 'true');
+      this.echoAudioEl.style.position = 'fixed';
+      this.echoAudioEl.style.top = '-9999px';
+      document.body.appendChild(this.echoAudioEl);
+    }
+
+    this.echoAudioEl.srcObject = this.localStream;
+    this.echoAudioEl.muted = false;
+    this.echoAudioEl.volume = 1.0;
+    try {
+      await this.echoAudioEl.play();
+      return true;
+    } catch (e) {
+      console.warn('[WebRTCVoice] Error en eco de prueba:', e);
+      return false;
+    }
+  }
+
+  public stopEchoTest() {
+    if (this.echoAudioEl) {
+      this.echoAudioEl.pause();
+      this.echoAudioEl.srcObject = null;
+      try { this.echoAudioEl.remove(); } catch (_) {}
+      this.echoAudioEl = null;
+    }
+  }
+
   public destroy() {
     if (typeof window !== 'undefined') {
       window.removeEventListener('click', this.boundInteractionHandler);
@@ -848,11 +897,15 @@ export class WebRTCVoiceManager {
       clearTimeout(this.speakingTimeout);
     }
 
-    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+    if (this.pcmProcessor) {
       try {
-        this.mediaRecorder.stop();
-      } catch (e) {}
-      this.mediaRecorder = null;
+        this.pcmProcessor.disconnect();
+        this.pcmSource?.disconnect();
+        this.pcmSilenceGain?.disconnect();
+      } catch (_) {}
+      this.pcmProcessor = null;
+      this.pcmSource = null;
+      this.pcmSilenceGain = null;
     }
 
     if (this.localStream) {
