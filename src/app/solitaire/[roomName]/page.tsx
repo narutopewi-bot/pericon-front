@@ -479,12 +479,19 @@ export default function Duel() {
           playSynthSound('tumba');
         }
 
-        // Iniciativa proactiva de la Casa: Si el Bot tiene mano dominante en Baza 1 y no hay tumba,
-        // reta al usuario a "¡Dame tres!" para maximizar ganancias o llevarse 1 piedra inmediata
+        // Iniciativa proactiva de la Casa según el nivel del rival:
+        const userLevel = user?.level || "";
+        const isBeginner = userLevel.includes("Peón") || userLevel.includes("Novato") || (user?.wins !== undefined && user.wins <= 10);
+
         if (!playerInTumba && !oppInTumba && !isObligado && currentStakeRef.current === 1 && !hasAiAskedThisHand.current) {
           setTimeout(() => {
             if (!hasAiAskedThisHand.current && currentStakeRef.current === 1 && aiCardsRef.current.length === 3) {
-              if (evaluateAiAcceptance(3) && Math.random() < 0.75) {
+              const challengeProb = isBeginner ? 0.30 : 0.75;
+              const minStakeScore = isBeginner ? 28 : 20; // Para novatos solo reta con cartas supremas (Gollero, Perica, Perico)
+              const currentLife = cpEightRef.current.id !== -1 ? cpEightRef.current : cpEight;
+              const hasMonsterTrump = aiCardsRef.current.some(c => getAiCardPower(c.id, currentLife.id) >= minStakeScore);
+
+              if (evaluateAiAcceptance(3) && hasMonsterTrump && Math.random() < challengeProb) {
                 hasAiAskedThisHand.current = true;
                 triggerAiPedir();
               }
@@ -541,11 +548,26 @@ export default function Duel() {
 
     const runStart = async () => {
       try {
-        console.log("Invocando InitGameSol al servidor...");
-        await connection.invoke("InitGameSol");
-        hasConnected.current = true;
+        const userLevel = user?.level || (user?.wins !== undefined ? (
+          user.wins <= 10 ? "Peón de Casona" :
+          user.wins <= 30 ? "Arriero de Chivos" :
+          user.wins <= 60 ? "Catador de Cocuy" :
+          user.wins <= 100 ? "Tocador de Cuatro" :
+          user.wins <= 200 ? "Patrón de Hacienda" : "Leyenda de Carora"
+        ) : "Peón de Casona");
+        const userId = user?.id || "";
+
+        console.log(`Invocando InitGameSolWithParams (Nivel: ${userLevel}, ID: ${userId})...`);
+        try {
+          await connection.invoke("InitGameSolWithParams", userId, userLevel);
+          hasConnected.current = true;
+        } catch (callError) {
+          console.warn("Fallo InitGameSolWithParams, usando fallback InitGameSol:", callError);
+          await connection.invoke("InitGameSol");
+          hasConnected.current = true;
+        }
       } catch (error) {
-        console.error("Error al iniciar el juego:", error);
+        console.error("Error al iniciar el juego en Solitario:", error);
       }
     };
     runStart();
@@ -1672,6 +1694,13 @@ export default function Duel() {
                       </div>
                       <div className='text-center text-white font-bold text-xs sm:text-sm truncate max-w-[100px]'>
                         @{oponent.username}
+                      </div>
+                      <div className='text-center mt-0.5'>
+                        <span className='inline-block text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-950/80 text-amber-300 border border-amber-600/40 shadow-xs'>
+                          {user?.wins !== undefined && user.wins <= 10 ? "🌱 Fácil" :
+                           user?.wins !== undefined && user.wins <= 30 ? "⚖️ Normal" :
+                           user?.wins !== undefined && user.wins <= 100 ? "🔥 Experto" : "👑 Maestro"}
+                        </span>
                       </div>
                     </div>
                     {!isUserTurn && (
