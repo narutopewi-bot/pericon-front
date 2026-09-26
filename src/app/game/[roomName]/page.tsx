@@ -24,7 +24,9 @@ import GameTurnTimer from '@/components/game-turn-timer';
 import { GameAnnouncement, AnnouncementData, AnnouncementType } from '@/components/game-announcement';
 import { reportAppError } from '@/lib/errorLogger';
 import { safeSignalRInvoke } from '@/lib/safeSignalR';
+import { WebRTCVoiceManager, VoicePeerState } from '@/lib/webrtcVoiceManager';
 import AudioDiagnosticModal from '@/components/audio-diagnostic-modal';
+import { Mic, MicOff, Volume2, VolumeX, Copy, Check, Share2, Users } from 'lucide-react';
 import styles from './page.module.css';
 
 
@@ -521,6 +523,54 @@ export default function Duel1vs1() {
 
   const idGame = React.useRef<number>(0);
 
+  // Estados de Chat de Voz WebRTC P2P en 1 vs 1
+  const voiceManagerRef = useRef<WebRTCVoiceManager | null>(null);
+  const [isVoiceSupported, setIsVoiceSupported] = useState<boolean>(true);
+  const [isMicMuted, setIsMicMuted] = useState<boolean>(false);
+  const [isDeafened, setIsDeafened] = useState<boolean>(false);
+  const [speakingPeers, setSpeakingPeers] = useState<Record<number, boolean>>({});
+  const [voicePeerStates, setVoicePeerStates] = useState<Record<number, VoicePeerState>>({});
+  const [localVolume, setLocalVolume] = useState<number>(0);
+
+  // Estados de Sala Privada Amistosa 1 vs 1
+  const isFriendlyRoom = typeof roomName === 'string' && roomName.startsWith('sala-');
+  const [friendlyRoomState, setFriendlyRoomState] = useState<{
+    roomName: string;
+    bet: number;
+    seats: any[];
+    isFull: boolean;
+    gameStarted: boolean;
+  } | null>(null);
+  const [copiedLink, setCopiedLink] = useState<boolean>(false);
+
+  const toggleVoiceMute = async () => {
+    if (!voiceManagerRef.current) return;
+    voiceManagerRef.current.resumeAllAudio();
+    const muted = await voiceManagerRef.current.toggleMute();
+    setIsMicMuted(muted);
+  };
+
+  const toggleDeafenAudio = () => {
+    if (!voiceManagerRef.current) return;
+    voiceManagerRef.current.resumeAllAudio();
+    const deaf = voiceManagerRef.current.toggleDeafen();
+    setIsDeafened(deaf);
+  };
+
+  const handleCopyFriendlyLink = () => {
+    if (typeof window === 'undefined') return;
+    navigator.clipboard.writeText(window.location.href);
+    setCopiedLink(true);
+    setTimeout(() => setCopiedLink(false), 2500);
+  };
+
+  const handleShareWhatsApp = () => {
+    if (typeof window === 'undefined') return;
+    const url = encodeURIComponent(window.location.href);
+    const text = encodeURIComponent(`🎴 ¡Te desafío a una partida Mano a Mano (1 vs 1) en Pericón con micrófono en vivo! Únete aquí: `);
+    window.open(`https://api.whatsapp.com/send?text=${text}${url}`, '_blank');
+  };
+
   // Start of the Game on solitaire mode
 
   useEffect(() => {
@@ -655,6 +705,116 @@ export default function Duel1vs1() {
     runStart();
   }, [searchParams, connection]);
 
+  // Inicialización y ciclo de vida del Chat de Voz WebRTC en 1 vs 1
+  useEffect(() => {
+    if (!connection) return;
+
+    let isSubscribed = true;
+    let vm = voiceManagerRef.current;
+
+    const mySeat = datos.current.flag ? 0 : 1;
+    const myName = user?.name && user.name !== 'nulo'
+      ? user.name
+      : (datos.current.flag ? datos.current.nameone : datos.current.nametwo) || 'Jugador';
+
+    const activeVoiceRoom = idGame.current > 0
+      ? `game1vs1_${idGame.current}`
+      : (typeof roomName === 'string' ? roomName : 'game1vs1');
+
+    if (!vm) {
+      vm = new WebRTCVoiceManager();
+      voiceManagerRef.current = vm;
+
+      vm.onSpeakingChange = (seatIdx, isSpeaking) => {
+        if (!isSubscribed) return;
+        setSpeakingPeers(prev => ({ ...prev, [seatIdx]: isSpeaking }));
+      };
+
+      vm.onLocalVolumeChange = (vol) => {
+        if (!isSubscribed) return;
+        setLocalVolume(vol);
+      };
+
+      vm.onLocalMuteChange = (muted) => {
+        if (!isSubscribed) return;
+        setIsMicMuted(muted);
+        if (muted) setLocalVolume(0);
+      };
+
+      vm.onStateChange = (states) => {
+        if (!isSubscribed) return;
+        setVoicePeerStates({ ...states });
+      };
+
+      vm.init(activeVoiceRoom, mySeat, myName, connection).then((hasMic) => {
+        if (!isSubscribed) return;
+        setIsMicMuted(!hasMic);
+      });
+    } else {
+      vm.updateSession(activeVoiceRoom, mySeat, myName, connection);
+    }
+
+    if (idGame.current > 0) {
+      connection.invoke('JoinVoice1vs1', idGame.current, mySeat).catch(() => {});
+      const rivalSeat = mySeat === 0 ? 1 : 0;
+      const rivalName = datos.current.flag ? datos.current.nametwo : datos.current.nameone;
+      vm.connectToPeer(rivalSeat, rivalName || 'Rival');
+    }
+
+    return () => {
+      isSubscribed = false;
+    };
+  }, [connection, idGame.current, datos.current.flag, roomName]);
+
+  useEffect(() => {
+    return () => {
+      if (voiceManagerRef.current) {
+        voiceManagerRef.current.destroy();
+        voiceManagerRef.current = null;
+      }
+    };
+  }, []);
+
+  // Sincronización de Sala Privada Amistosa 1 vs 1 (Lobby de espera)
+  useEffect(() => {
+    if (!connection || !isFriendlyRoom) return;
+
+    const joinFriendly = async () => {
+      const myName = user?.name && user.name !== 'nulo' ? user.name : 'Jugador';
+      const myUserId = user?.id?.toString() || '';
+      const myAvatar = user?.avatarUrl || '';
+      const bet = 10;
+      try {
+        await connection.invoke('JoinRoom1v1', roomName, myName, bet, myUserId, myAvatar);
+      } catch (e) {
+        console.error('Error en JoinRoom1v1:', e);
+      }
+    };
+
+    joinFriendly();
+
+    connection.on('RoomUpdate1v1', (data: any) => {
+      setFriendlyRoomState(data);
+    });
+
+    connection.on('RoomFull1v1', (data: any) => {
+      Swal.fire({
+        title: 'Sala Llena',
+        text: data?.message || 'La sala 1 vs 1 ya cuenta con 2 jugadores completos.',
+        icon: 'info',
+        confirmButtonText: 'Regresar',
+        confirmButtonColor: '#f59e0b',
+        background: '#1a0e06',
+        color: '#fff',
+      }).then(() => router.push('/desk'));
+    });
+
+    return () => {
+      connection.off('RoomUpdate1v1');
+      connection.off('RoomFull1v1');
+    };
+  }, [connection, isFriendlyRoom, roomName, user]);
+
   useEffect(() => {
     if (!connection) return;
 
@@ -697,6 +857,64 @@ export default function Duel1vs1() {
       }
     });
 
+    // Inicio de partida 1vs1 desde salas privadas o emparejamiento
+    connection.on('MatchFound', async (msg: Message) => {
+      console.log('[MatchFound 1v1] Partida iniciada:', msg);
+      if (msg.order === 99 && msg.content) {
+        const parts = msg.content.split('|');
+        const [p1, n1, p2, n2, flagStr] = parts;
+        const isFlag = flagStr === '1';
+
+        const obj: DataDuel = {
+          id: msg.game,
+          userone: p1,
+          nameone: n1,
+          usertwo: p2,
+          nametwo: n2,
+          coins: 10,
+          turn: '',
+          flag: isFlag
+        };
+        datos.current = obj;
+        idGame.current = msg.game;
+        playerturn.current = isFlag ? '1' : '0';
+        changeturn.current = false;
+        roundturn.current = false;
+        switchturn.current = false;
+        setIsMyTurn(false);
+        setTimeLeft(30);
+        hasTimedOut.current = false;
+        setStateown(isFlag);
+
+        if (connection.connectionId) {
+          playerown.current = connection.connectionId;
+        } else {
+          playerown.current = isFlag ? p1 : p2;
+        }
+        playeropp.current = isFlag ? p2 : p1;
+
+        const myName = isFlag ? n1 : n2;
+        const oppName = isFlag ? n2 : n1;
+        setOponent(prev => ({ ...prev, username: oppName }));
+
+        if (myName) {
+          connection.invoke('IdentifyPlayer', myName, gameplayer.email || '', gameplayer.coins || 0).catch(() => {});
+        }
+
+        await connection.invoke('GetInitHand', msg.game, isFlag);
+        hasConnected.current = true;
+
+        // Conectar canal de voz WebRTC
+        const mySeat = isFlag ? 0 : 1;
+        const rivalSeat = isFlag ? 1 : 0;
+        connection.invoke('JoinVoice1vs1', msg.game, mySeat).catch(() => {});
+        if (voiceManagerRef.current) {
+          voiceManagerRef.current.updateSession(`game1vs1_${msg.game}`, mySeat, myName, connection);
+          voiceManagerRef.current.connectToPeer(rivalSeat, oppName);
+        }
+      }
+    });
+
     connection.on('setInitHand', (modelo: Message) => {
       setIsWaitingHandChange1v1(false);
       if (handWatchdogTimerRef.current) clearTimeout(handWatchdogTimerRef.current);
@@ -731,6 +949,7 @@ export default function Duel1vs1() {
       window.removeEventListener("focus", handleVisibilityChange);
       connection.off('OpponentConnectionUpdated');
       connection.off('OpponentReconnected1vs1');
+      connection.off('MatchFound');
       connection.off('setInitHand');
       connection.off('setChangeHand');
       connection.off('GameHandUpdated1vs1');
@@ -2348,7 +2567,116 @@ export default function Duel1vs1() {
   return (
     <main className='grid h-screen overflow-auto space-y-0'>
       <GameAnnouncement announcement={announcement} />
-      <AudioDiagnosticModal isOpen={showAudioDiagnostic} onClose={() => setShowAudioDiagnostic(false)} />
+      <AudioDiagnosticModal isOpen={showAudioDiagnostic} onClose={() => setShowAudioDiagnostic(false)} voiceManager={voiceManagerRef.current} />
+
+      {/* Lobby de Espera para Sala Privada Amistosa 1 vs 1 */}
+      {isFriendlyRoom && (!idGame.current || idGame.current === 0) && !hasConnected.current && (
+        <div className="fixed inset-0 z-40 bg-black/90 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="w-full max-w-md bg-gradient-to-b from-[#1c1308] via-[#140c05] to-[#0a0502] border-2 border-amber-500/60 rounded-3xl p-5 sm:p-7 shadow-2xl text-center">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center mx-auto text-3xl shadow-lg border border-amber-200/50 mb-3 animate-pulse">
+              🎴
+            </div>
+            <h2 className="text-xl sm:text-2xl font-black text-amber-200 uppercase tracking-wide">
+              SALA PRIVADA 1 VS 1
+            </h2>
+            <p className="text-xs text-amber-300/80 font-semibold mt-1">
+              Duelo Mano a Mano • Esperando a tu rival
+            </p>
+
+            {/* Código y Apuesta */}
+            <div className="flex items-center justify-center gap-3 my-4">
+              <div className="bg-black/60 border border-amber-500/40 px-3 py-1.5 rounded-xl">
+                <span className="text-[10px] text-slate-400 block font-bold">CÓDIGO DE SALA</span>
+                <span className="text-base sm:text-lg font-black text-amber-400 font-mono">{String(roomName).toUpperCase()}</span>
+              </div>
+              <div className="bg-black/60 border border-amber-500/40 px-3 py-1.5 rounded-xl">
+                <span className="text-[10px] text-slate-400 block font-bold">TARIFA DE ENTRADA</span>
+                <span className="text-base sm:text-lg font-black text-yellow-400">🪙 10</span>
+              </div>
+            </div>
+
+            {/* Compartir link */}
+            <div className="bg-black/70 border border-amber-500/30 rounded-2xl p-3 my-3">
+              <span className="text-[11px] font-black uppercase text-amber-300 block text-left mb-1.5">
+                🔗 Comparte este link con tu amigo:
+              </span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  readOnly
+                  value={typeof window !== 'undefined' ? window.location.href : ''}
+                  className="flex-1 bg-black/60 border border-slate-700 text-slate-300 text-xs px-3 py-2 rounded-xl outline-none font-mono select-all truncate"
+                />
+                <button
+                  type="button"
+                  onClick={handleCopyFriendlyLink}
+                  className="bg-amber-500 hover:bg-amber-400 text-black px-3 py-2 rounded-xl text-xs font-black flex items-center gap-1 transition active:scale-95 shadow shrink-0"
+                >
+                  {copiedLink ? <Check size={14} /> : <Copy size={14} />}
+                  <span>{copiedLink ? 'Copiado' : 'Copiar'}</span>
+                </button>
+              </div>
+
+              <div className="mt-2.5 flex items-center justify-center">
+                <button
+                  type="button"
+                  onClick={handleShareWhatsApp}
+                  className="w-full bg-[#25D366] hover:bg-[#20ba59] text-white py-2 px-3 rounded-xl text-xs font-black flex items-center justify-center gap-1.5 transition active:scale-95 shadow-md"
+                >
+                  <Share2 size={14} />
+                  <span>Compartir por WhatsApp</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Estado de Jugadores */}
+            <div className="my-4 grid grid-cols-2 gap-2 text-left">
+              <div className="bg-emerald-950/40 border border-emerald-500/40 rounded-xl p-2.5 flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-emerald-600 flex items-center justify-center font-bold text-white text-xs">
+                  P1
+                </div>
+                <div className="truncate">
+                  <span className="text-[10px] text-emerald-400 font-bold block">Tú</span>
+                  <span className="text-xs font-black text-white truncate block">{user?.name || 'Jugador 1'}</span>
+                </div>
+              </div>
+              <div className="bg-stone-900/40 border border-dashed border-stone-600 rounded-xl p-2.5 flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-stone-800 flex items-center justify-center font-bold text-stone-400 text-xs animate-pulse">
+                  ?
+                </div>
+                <div className="truncate">
+                  <span className="text-[10px] text-stone-400 font-bold block">Rival</span>
+                  <span className="text-xs font-semibold text-stone-300 truncate block">
+                    {friendlyRoomState?.seats && friendlyRoomState.seats.length > 1 ? friendlyRoomState.seats[1]?.name || 'Conectado' : 'Esperando...'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Controles de Micrófono en Espera */}
+            <div className="flex items-center justify-center gap-2 mb-4 bg-black/50 border border-amber-500/30 p-2 rounded-xl">
+              <span className="text-xs text-amber-300/80 font-bold">Micrófono en vivo:</span>
+              <button
+                type="button"
+                onClick={toggleVoiceMute}
+                className={`px-3 py-1 rounded-lg text-xs font-black flex items-center gap-1 transition ${
+                  isMicMuted ? 'bg-red-800 text-white' : 'bg-emerald-600 text-white'
+                }`}
+              >
+                {isMicMuted ? <MicOff size={13} /> : <Mic size={13} />}
+                <span>{isMicMuted ? 'Silenciado' : 'Activo'}</span>
+              </button>
+            </div>
+
+            <button
+              onClick={() => router.push('/desk')}
+              className="text-xs text-red-400 hover:text-red-300 font-bold underline transition"
+            >
+              Cancelar y volver al escritorio
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Modal interactivo de Reto 3-6-9 (Pedir) para Móvil y Desktop */}
       {pedirChallenge && (
@@ -2451,7 +2779,7 @@ export default function Duel1vs1() {
               />
             </div>
 
-            {/* Controles de la derecha: Sonido y Salir */}
+            {/* Controles de la derecha: Sonido, Micrófono y Salir */}
             <div className='flex items-center gap-1.5 sm:gap-2'>
               {/* Botón de Sonido del Juego y Desbloqueador de Audio */}
               <button
@@ -2467,11 +2795,42 @@ export default function Duel1vs1() {
                 <span>{isSoundMutedState ? '🔇' : '🔊'}</span>
               </button>
 
+              {/* Botón Micrófono 1 vs 1 */}
+              <button
+                type='button'
+                onClick={toggleVoiceMute}
+                className={`text-xs sm:text-sm font-bold py-1.5 px-2 sm:px-2.5 rounded-xl border shadow-lg flex items-center gap-1 transition-all cursor-pointer ${
+                  isMicMuted
+                    ? 'bg-red-950/80 hover:bg-red-900 border-red-500/50 text-red-300'
+                    : 'bg-emerald-950/80 hover:bg-emerald-900 border-emerald-500/60 text-emerald-300 shadow-emerald-500/20'
+                }`}
+                title={isMicMuted ? 'Micrófono SILENCIADO (Clic para activar)' : 'Micrófono EN VIVO (Clic para silenciar)'}
+              >
+                {isMicMuted ? <MicOff size={15} /> : <Mic size={15} className={speakingPeers[datos.current.flag ? 0 : 1] ? 'text-emerald-400 animate-pulse' : ''} />}
+                <span className='hidden md:inline text-[10px] font-black uppercase'>
+                  {isMicMuted ? 'Mudo' : 'Voz'}
+                </span>
+              </button>
+
+              {/* Botón Ensordecer 1 vs 1 */}
+              <button
+                type='button'
+                onClick={toggleDeafenAudio}
+                className={`text-xs sm:text-sm font-bold py-1.5 px-2 sm:px-2.5 rounded-xl border shadow-lg flex items-center gap-1 transition-all cursor-pointer ${
+                  isDeafened
+                    ? 'bg-red-950/80 hover:bg-red-900 border-red-500/50 text-red-300'
+                    : 'bg-stone-900/90 hover:bg-stone-800 border-stone-600/60 text-stone-300'
+                }`}
+                title={isDeafened ? 'Audio ensordecido (Clic para escuchar al rival)' : 'Ensordecer audio del rival'}
+              >
+                {isDeafened ? <VolumeX size={15} /> : <Volume2 size={15} />}
+              </button>
+
               {/* Botón de Diagnóstico y Prueba de Audio y Micrófono */}
               <button
                 type='button'
                 onClick={() => setShowAudioDiagnostic(true)}
-                className='text-xs sm:text-sm font-bold py-1.5 px-2.5 sm:px-3 rounded-xl border border-amber-500/50 bg-stone-900/90 hover:bg-amber-950 text-amber-300 shadow-lg flex items-center gap-1 transition-all cursor-pointer'
+                className='text-xs sm:text-sm font-bold py-1.5 px-2 sm:px-2.5 rounded-xl border border-amber-500/50 bg-stone-900/90 hover:bg-amber-950 text-amber-300 shadow-lg flex items-center gap-1 transition-all cursor-pointer'
                 title='Probar y diagnosticar voces y micrófono en vivo'
               >
                 <span>🎧</span>
@@ -2539,6 +2898,17 @@ export default function Duel1vs1() {
                         <div className='absolute z-20'>
                           <Image
                             src='/overlay.png' alt='overlay' width={120} height={120} />
+                        </div>
+                        {/* Micrófono / Estado de voz rival */}
+                        <div
+                          className={`absolute bottom-0 right-1 sm:right-2 z-30 w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] shadow border transition-all ${
+                            speakingPeers[datos.current.flag ? 1 : 0]
+                              ? 'bg-emerald-500 border-emerald-300 text-white animate-bounce ring-2 ring-emerald-400'
+                              : (voicePeerStates[datos.current.flag ? 1 : 0]?.isMuted ? 'bg-red-950 border-red-500 text-red-300' : 'bg-black/80 border-amber-500/50 text-emerald-400')
+                          }`}
+                          title={speakingPeers[datos.current.flag ? 1 : 0] ? 'El rival está hablando' : (voicePeerStates[datos.current.flag ? 1 : 0]?.isMuted ? 'Rival silenciado' : 'Micrófono rival listo')}
+                        >
+                          {speakingPeers[datos.current.flag ? 1 : 0] ? <Mic size={12} className='animate-pulse' /> : (voicePeerStates[datos.current.flag ? 1 : 0]?.isMuted ? <MicOff size={11} /> : <Mic size={11} />)}
                         </div>
                       </div>
                       <div className='text-center text-white font-bold text-xs sm:text-sm truncate max-w-[100px]'>
@@ -2759,6 +3129,17 @@ export default function Duel1vs1() {
                         <div className='absolute z-20'>
                           <Image
                             src='/overlay.png' alt='overlay' width={120} height={120} />
+                        </div>
+                        {/* Micrófono / Estado de voz propio */}
+                        <div
+                          className={`absolute bottom-0 right-1 sm:right-2 z-30 w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center text-[10px] shadow border transition-all ${
+                            speakingPeers[datos.current.flag ? 0 : 1]
+                              ? 'bg-emerald-500 border-emerald-300 text-white animate-bounce ring-2 ring-emerald-400'
+                              : (isMicMuted ? 'bg-red-950 border-red-500 text-red-300' : 'bg-black/80 border-amber-500/50 text-emerald-400')
+                          }`}
+                          title={speakingPeers[datos.current.flag ? 0 : 1] ? 'Estás hablando' : (isMicMuted ? 'Micrófono silenciado' : 'Micrófono activo')}
+                        >
+                          {speakingPeers[datos.current.flag ? 0 : 1] ? <Mic size={12} className='animate-pulse' /> : (isMicMuted ? <MicOff size={11} /> : <Mic size={11} />)}
                         </div>
                       </div>
                       <div className='text-center text-white font-bold text-xs sm:text-sm truncate max-w-[100px]'>

@@ -51,34 +51,61 @@ export default function Desk() {
 
   const handleCreatePrivateRoom = () => {
     Swal.fire({
-      title: 'CREAR SALA AMISTOSA 2 VS 2',
+      title: 'CREAR SALA AMISTOSA',
       html: `
-        <div style="text-align: center; padding: 6px 0;">
-          <p style="color: #cbd5e1; font-size: 14px; margin-bottom: 12px; line-height: 1.5;">
-            Esta es una <strong>Mesa Amistosa en Parejas</strong>.<br/>
-            Costo de entrada por jugador: <strong style="color: #facc15; font-size: 16px;">10 monedas</strong> (tarifa para la casa).
+        <div style="text-align: center; padding: 4px 0;">
+          <p style="color: #cbd5e1; font-size: 14px; margin-bottom: 16px;">
+            Elige la modalidad para jugar con tus amigos:
           </p>
-          <div style="background: rgba(34, 197, 94, 0.15); border: 1px solid rgba(34, 197, 94, 0.4); border-radius: 12px; padding: 10px; margin-bottom: 8px; color: #86efac; font-size: 13px;">
-            ℹ️ En los amistosos creados no hay pozo de apuestas: ¡el objetivo es jugar con amigos y sumar victorias a tu récord!
+          <div style="display: flex; flex-direction: column; gap: 12px; margin-bottom: 16px;">
+            <button id="swal-btn-1v1" type="button" style="background: linear-gradient(135deg, #1e293b, #0f172a); border: 2px solid #3b82f6; border-radius: 16px; padding: 14px; text-align: left; cursor: pointer; color: white; display: flex; align-items: center; gap: 14px; box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2); transition: all 0.2s;">
+              <div style="background: #2563eb; width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">🎴</div>
+              <div>
+                <div style="font-weight: 800; font-size: 15px; color: #60a5fa; letter-spacing: 0.5px;">MANO A MANO (1 vs 1)</div>
+                <div style="font-size: 12px; color: #94a3b8; margin-top: 2px;">Duelo directo de 2 jugadores con micrófono en vivo</div>
+              </div>
+            </button>
+            <button id="swal-btn-2v2" type="button" style="background: linear-gradient(135deg, #14281d, #07170f); border: 2px solid #22c55e; border-radius: 16px; padding: 14px; text-align: left; cursor: pointer; color: white; display: flex; align-items: center; gap: 14px; box-shadow: 0 4px 12px rgba(34, 197, 94, 0.2); transition: all 0.2s;">
+              <div style="background: #16a34a; width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 22px; flex-shrink: 0;">👥</div>
+              <div>
+                <div style="font-weight: 800; font-size: 15px; color: #4ade80; letter-spacing: 0.5px;">EN PAREJAS (2 vs 2)</div>
+                <div style="font-size: 12px; color: #86efac; margin-top: 2px;">Mesa de 4 jugadores (2 contra 2) con chat de voz en vivo</div>
+              </div>
+            </button>
+          </div>
+          <div style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 12px; padding: 10px; color: #fde68a; font-size: 12px;">
+            🪙 Costo de entrada: <strong>10 monedas</strong> por jugador (tarifa para la casa). ¡Ambas modalidades incluyen micrófono en vivo!
           </div>
         </div>
       `,
-      icon: 'info',
+      showConfirmButton: false,
       showCancelButton: true,
-      confirmButtonText: '¡Crear Sala (10 🪙)!',
       cancelButtonText: 'Cancelar',
-      confirmButtonColor: '#16a34a',
       cancelButtonColor: '#475569',
-      background: '#0a1a0f',
+      background: '#090d16',
       color: '#fff',
       customClass: {
-        popup: 'border-2 border-emerald-500/50 rounded-3xl shadow-2xl'
-      }
-    }).then((res) => {
-      if (res.isConfirmed) {
-        const randomCode = Math.floor(1000 + Math.random() * 9000);
-        const roomName = `sala-${randomCode}`;
-        router.push(`/game2v2/${roomName}?bet=10&friendly=1&creator=1`);
+        popup: 'border-2 border-amber-500/50 rounded-3xl shadow-2xl'
+      },
+      didOpen: () => {
+        const btn1v1 = document.getElementById('swal-btn-1v1');
+        const btn2v2 = document.getElementById('swal-btn-2v2');
+        if (btn1v1) {
+          btn1v1.addEventListener('click', () => {
+            Swal.close();
+            const randomCode = Math.floor(1000 + Math.random() * 9000);
+            const roomName = `sala-${randomCode}`;
+            router.push(`/game/${roomName}?bet=10&friendly=1&creator=1`);
+          });
+        }
+        if (btn2v2) {
+          btn2v2.addEventListener('click', () => {
+            Swal.close();
+            const randomCode = Math.floor(1000 + Math.random() * 9000);
+            const roomName = `sala-${randomCode}`;
+            router.push(`/game2v2/${roomName}?bet=10&friendly=1&creator=1`);
+          });
+        }
       }
     });
   };
@@ -115,7 +142,7 @@ export default function Desk() {
         }
         return val;
       }
-    }).then((res) => {
+    }).then(async (res) => {
       if (res.isConfirmed && res.value) {
         let inputVal = res.value.trim();
         let targetRoom = inputVal;
@@ -123,14 +150,56 @@ export default function Desk() {
         if (inputVal.includes('/game2v2/')) {
           const afterSlash = inputVal.split('/game2v2/')[1];
           targetRoom = afterSlash.split('?')[0];
-        } else {
-          targetRoom = targetRoom.toLowerCase().replace(/[^a-z0-9_-]/g, '');
-          if (!targetRoom.startsWith('sala-') && !targetRoom.startsWith('match-')) {
-            targetRoom = `sala-${targetRoom}`;
+          router.push(`/game2v2/${targetRoom}?bet=10&friendly=1`);
+          return;
+        } else if (inputVal.includes('/game/')) {
+          const afterSlash = inputVal.split('/game/')[1];
+          targetRoom = afterSlash.split('?')[0];
+          router.push(`/game/${targetRoom}?bet=10&friendly=1`);
+          return;
+        }
+
+        targetRoom = targetRoom.toLowerCase().replace(/[^a-z0-9_-]/g, '');
+        if (!targetRoom.startsWith('sala-') && !targetRoom.startsWith('match-')) {
+          targetRoom = `sala-${targetRoom}`;
+        }
+
+        // Consultar al backend mediante GetRoomInfo para auto-detectar si es 1v1 o 2v2
+        if (connection) {
+          try {
+            const info: any = await connection.invoke('GetRoomInfo', targetRoom);
+            if (info && info.exists) {
+              if (info.mode === '1v1') {
+                router.push(`/game/${targetRoom}?bet=10&friendly=1`);
+                return;
+              } else if (info.mode === '2v2') {
+                router.push(`/game2v2/${targetRoom}?bet=10&friendly=1`);
+                return;
+              }
+            }
+          } catch (e) {
+            console.warn('Error al verificar info de sala:', e);
           }
         }
 
-        router.push(`/game2v2/${targetRoom}?bet=10&friendly=1`);
+        // Si no se pudo detectar automáticamente, consultar al usuario:
+        Swal.fire({
+          title: 'TIPO DE SALA',
+          text: `¿La sala ${targetRoom.toUpperCase()} es 1 vs 1 o 2 vs 2?`,
+          showDenyButton: true,
+          confirmButtonText: '🎴 1 vs 1 (Mano a Mano)',
+          denyButtonText: '👥 2 vs 2 (En Parejas)',
+          confirmButtonColor: '#2563eb',
+          denyButtonColor: '#16a34a',
+          background: '#090d16',
+          color: '#fff',
+        }).then((choice) => {
+          if (choice.isConfirmed) {
+            router.push(`/game/${targetRoom}?bet=10&friendly=1`);
+          } else if (choice.isDenied) {
+            router.push(`/game2v2/${targetRoom}?bet=10&friendly=1`);
+          }
+        });
       }
     });
   };
