@@ -2384,7 +2384,7 @@ export default function Duel1vs1() {
         return;
       }
 
-      const title = "💔 PARTIDA FINALIZADA";
+      const title = data.isSala ? "🎴 SALA PRIVADA FINALIZADA" : "💔 PARTIDA FINALIZADA";
       const htmlContent = `
         <div style="font-family: inherit; font-size: 13px; text-align: left; padding: 4px 0;">
           <p style="margin-bottom: 12px; font-weight: bold; color: ${data.isWinner ? '#4ade80' : '#f87171'}; font-size: 14px; text-align: center;">
@@ -2392,9 +2392,19 @@ export default function Duel1vs1() {
           </p>
           <div style="background: rgba(0,0,0,0.45); border-radius: 12px; padding: 10px 14px; border: 1px solid rgba(250,204,21,0.25);">
             <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-              <span style="color: #cbd5e1;">🪙 Apuesta individual:</span>
+              <span style="color: #cbd5e1;">🪙 ${data.isSala ? "Tarifa individual:" : "Apuesta individual:"}</span>
               <span style="font-weight: bold; color: #facc15;">${data.bet} monedas</span>
             </div>
+            ${data.isSala ? `
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+              <span style="color: #cbd5e1;">🏛️ Recaudación de Sala (100% Casa):</span>
+              <span style="font-weight: bold; color: #fb923c;">${data.houseCommission} monedas</span>
+            </div>
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+              <span style="color: #cbd5e1;">👑 Modalidad:</span>
+              <span style="font-weight: bold; color: #38bdf8;">Sala Amistosa Privada</span>
+            </div>
+            ` : `
             <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
               <span style="color: #cbd5e1;">💰 Pozo total en juego:</span>
               <span style="font-weight: bold; color: #facc15;">${data.totalPot} monedas</span>
@@ -2407,6 +2417,7 @@ export default function Duel1vs1() {
               <span style="color: #cbd5e1;">🏆 Premio al ganador (80%):</span>
               <span style="font-weight: bold; color: #4ade80;">+${data.winnerPrize} monedas</span>
             </div>
+            `}
             <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.15); margin: 8px 0;" />
             <div style="display: flex; justify-content: space-between; font-size: 14px;">
               <span style="font-weight: bold; color: #fff;">👛 Tu nuevo saldo:</span>
@@ -2595,6 +2606,7 @@ export default function Duel1vs1() {
         loserAvatar={victoryModalData.loserAvatar}
         loserStones={victoryModalData.loserStones}
         stakeCoins={victoryModalData.stakeCoins}
+        isFriendlyRoom={isFriendlyRoom}
         onRequestRevancha={() => {
           setVictoryModalData(prev => ({ ...prev, isOpen: false }));
           handleRequestRevancha1vs1();

@@ -13,6 +13,7 @@ export interface VictoryShowcaseModalProps {
   loserStones: number;
   stakeCoins?: number;
   is2v2?: boolean;
+  isFriendlyRoom?: boolean;
   onRequestRevancha: () => void;
   onExitLobby: () => void;
 }
@@ -27,6 +28,7 @@ export default function VictoryShowcaseModal({
   loserStones,
   stakeCoins = 10,
   is2v2 = false,
+  isFriendlyRoom = false,
   onRequestRevancha,
   onExitLobby,
 }: VictoryShowcaseModalProps) {
@@ -41,7 +43,9 @@ export default function VictoryShowcaseModal({
   const displayWinner = winnerName && winnerName !== 'nulo' ? winnerName : 'Tú';
   const displayLoser = loserName && loserName !== 'nulo' ? loserName : 'Rival';
 
-  const shareText = `🎴 ¡Acabo de coronarme CAMPEÓN en El Pericón! 🏆\n\nLe gané una partida épica a @${displayLoser} (${winnerStones} piedras a ${loserStones}) y me llevé el pozo de monedas 🪙.\n\n¿Tienes el nivel para desafiarme en la mesa? ¡Rétame ahora en https://pericon.lat !`;
+  const shareText = isFriendlyRoom
+    ? `🎴 ¡Acabo de coronarme CAMPEÓN en El Pericón! 🏆\n\nLe gané una partida épica en sala privada a @${displayLoser} (${winnerStones} piedras a ${loserStones}). ¡El rey de la mesa!\n\n¿Tienes el nivel para desafiarme? ¡Rétame ahora en https://pericon.lat !`
+    : `🎴 ¡Acabo de coronarme CAMPEÓN en El Pericón! 🏆\n\nLe gané una partida épica a @${displayLoser} (${winnerStones} piedras a ${loserStones}) y me llevé el pozo de monedas 🪙.\n\n¿Tienes el nivel para desafiarme en la mesa? ¡Rétame ahora en https://pericon.lat !`;
 
   const handleShareWhatsApp = () => {
     const url = `https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`;
@@ -197,23 +201,43 @@ export default function VictoryShowcaseModal({
 
         {/* 4. Resumen de Pozo y Monedas Ganadas */}
         <div className="relative z-10 mb-4 rounded-xl border border-amber-500/30 bg-black/50 p-2.5 sm:p-3 text-xs text-slate-300">
-          <div className="flex justify-between items-center mb-1">
-            <span>🪙 Apuesta por jugador:</span>
-            <span className="font-extrabold text-amber-300">{stakeCoins} monedas</span>
-          </div>
-          <div className="flex justify-between items-center mb-1">
-            <span>💰 Pozo total disputado:</span>
-            <span className="font-extrabold text-amber-400">{potTotal} monedas</span>
-          </div>
-          <div className="flex justify-between items-center mb-1">
-            <span>🏛️ Comisión de casa (20%):</span>
-            <span className="font-extrabold text-orange-400">-{houseFee} monedas</span>
-          </div>
-          <div className="my-1.5 h-px bg-white/10" />
-          <div className="flex justify-between items-center text-sm font-black text-emerald-400">
-            <span>🏆 Premio neto acreditado:</span>
-            <span className="drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]">+{netEarnings} Monedas</span>
-          </div>
+          {isFriendlyRoom ? (
+            <>
+              <div className="flex justify-between items-center mb-1">
+                <span>🪙 Tarifa por jugador:</span>
+                <span className="font-extrabold text-amber-300">{stakeCoins} monedas</span>
+              </div>
+              <div className="flex justify-between items-center mb-1">
+                <span>🏛️ Recaudación de Sala (100% Casa):</span>
+                <span className="font-extrabold text-amber-400">🪙 {potTotal} monedas</span>
+              </div>
+              <div className="my-1.5 h-px bg-white/10" />
+              <div className="flex justify-between items-center text-sm font-black text-emerald-400">
+                <span>👑 Victoria en Sala Privada:</span>
+                <span className="drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]">¡Honor y Gloria en la Mesa!</span>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex justify-between items-center mb-1">
+                <span>🪙 Apuesta por jugador:</span>
+                <span className="font-extrabold text-amber-300">{stakeCoins} monedas</span>
+              </div>
+              <div className="flex justify-between items-center mb-1">
+                <span>💰 Pozo total disputado:</span>
+                <span className="font-extrabold text-amber-400">{potTotal} monedas</span>
+              </div>
+              <div className="flex justify-between items-center mb-1">
+                <span>🏛️ Comisión de casa (20%):</span>
+                <span className="font-extrabold text-orange-400">-{houseFee} monedas</span>
+              </div>
+              <div className="my-1.5 h-px bg-white/10" />
+              <div className="flex justify-between items-center text-sm font-black text-emerald-400">
+                <span>🏆 Premio neto acreditado:</span>
+                <span className="drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]">+{netEarnings} Monedas</span>
+              </div>
+            </>
+          )}
         </div>
 
         {/* 5. Botones de Acción */}

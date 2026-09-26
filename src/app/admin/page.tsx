@@ -2610,7 +2610,7 @@ export default function AdminPage() {
                       <th className="p-3.5">Jugadores</th>
                       <th className="p-3.5">Apuesta c/u</th>
                       <th className="p-3.5">Pozo Total</th>
-                      <th className="p-3.5">Comisión Casa (20%)</th>
+                      <th className="p-3.5">Comisión Casa</th>
                       <th className="p-3.5">Ganador</th>
                       <th className="p-3.5">Motivo</th>
                       <th className="p-3.5">Fecha</th>
@@ -2624,25 +2624,45 @@ export default function AdminPage() {
                         </td>
                       </tr>
                     ) : (
-                      matches.map((m) => (
-                        <tr key={m.id} className="hover:bg-amber-500/5 transition-colors">
-                          <td className="p-3.5 font-mono text-amber-200/50">#{m.id}</td>
-                          <td className="p-3.5">
-                            <span className="font-bold text-white">{m.playerOneName}</span> vs{" "}
-                            <span className="font-bold text-white">{m.playerTwoName}</span>
-                          </td>
-                          <td className="p-3.5 font-semibold text-amber-200">🪙 {m.betPerPlayer}</td>
-                          <td className="p-3.5 font-black text-amber-300">🪙 {m.totalPot}</td>
-                          <td className="p-3.5 font-bold text-green-400">+🪙 {m.houseCommission}</td>
-                          <td className="p-3.5">
-                            <span className="inline-flex items-center gap-1 font-bold text-amber-300">
-                              🏆 {m.winnerUsername}
-                            </span>
-                          </td>
-                          <td className="p-3.5 text-amber-200/70">{m.endReason}</td>
-                          <td className="p-3.5 text-amber-200/50 text-[11px]">{m.createdAt}</td>
-                        </tr>
-                      ))
+                      matches.map((m) => {
+                        const isSalaMatch = m.houseCommission === m.totalPot || m.endReason?.includes("[SALA") || (m.winnerPrize === 0 && m.totalPot > 0);
+                        return (
+                          <tr key={m.id} className="hover:bg-amber-500/5 transition-colors">
+                            <td className="p-3.5 font-mono text-amber-200/50">#{m.id}</td>
+                            <td className="p-3.5">
+                              <span className="font-bold text-white">{m.playerOneName}</span> vs{" "}
+                              <span className="font-bold text-white">{m.playerTwoName}</span>
+                            </td>
+                            <td className="p-3.5 font-semibold text-amber-200">🪙 {m.betPerPlayer}</td>
+                            <td className="p-3.5 font-black text-amber-300">🪙 {m.totalPot}</td>
+                            <td className="p-3.5 font-bold">
+                              {isSalaMatch ? (
+                                <div className="flex flex-col items-start gap-0.5">
+                                  <span className="text-emerald-400 font-black text-sm">+🪙 {m.houseCommission}</span>
+                                  <span className="inline-block bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9.5px] font-black uppercase px-2 py-0.5 rounded-full">
+                                    100% Sala
+                                  </span>
+                                </div>
+                              ) : (
+                                <div className="flex flex-col items-start gap-0.5">
+                                  <span className="text-green-400 font-bold">+🪙 {m.houseCommission}</span>
+                                  <span className="text-[10px] text-green-300/70 font-semibold">20% Duelo</span>
+                                </div>
+                              )}
+                            </td>
+                            <td className="p-3.5">
+                              <span className="inline-flex items-center gap-1 font-bold text-amber-300">
+                                🏆 {m.winnerUsername}
+                              </span>
+                              {isSalaMatch && (
+                                <span className="block text-[10px] text-amber-200/60 font-semibold">Tarifa Abonada a Casa</span>
+                              )}
+                            </td>
+                            <td className="p-3.5 text-amber-200/70">{m.endReason}</td>
+                            <td className="p-3.5 text-amber-200/50 text-[11px]">{m.createdAt}</td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -2735,7 +2755,7 @@ export default function AdminPage() {
                   🪙 {financialSummary.totalCommissions.toLocaleString()}
                 </div>
                 <p className="text-[11px] text-amber-200/60 mt-1">
-                  20% retenido de cada pozo jugado
+                  100% en salas privadas y 20% en duelos de matchmaking
                 </p>
               </div>
 
