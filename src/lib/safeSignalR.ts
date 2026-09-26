@@ -17,7 +17,7 @@ export function isSignalRConnected(connection: signalR.HubConnection | null): bo
  */
 export async function waitForSignalRConnection(
   connection: signalR.HubConnection | null,
-  timeoutMs: number = 4000
+  timeoutMs: number = 6000
 ): Promise<boolean> {
   if (!connection) return false;
   if (getSignalRState(connection) === signalR.HubConnectionState.Connected) return true;
@@ -45,9 +45,9 @@ export async function waitForSignalRConnection(
 
 /**
  * Invoca un método de SignalR de manera altamente tolerante a fallos:
- * 1. Comprueba si el socket está reconectando o desconectado y espera/reactiva.
- * 2. Realiza hasta 3 reintentos con backoff exponencial si ocurre un error de transporte (1006 / Disconnected).
- * 3. Proporciona diagnósticos claros para prevenir estados de juego congelados o desincronizados.
+ * 1. Comprueba si el socket está reconectando o desconectado y espera/reactiva activamente.
+ * 2. Realiza hasta 3 reintentos con espera activa de reconexión si ocurre un microcorte móvil.
+ * 3. Proporciona diagnósticos claros y rollback defensivo de cartas ante cortes prolongados.
  */
 export async function safeSignalRInvoke(
   connection: signalR.HubConnection | null,
@@ -58,7 +58,7 @@ export async function safeSignalRInvoke(
     throw new Error(`[safeSignalRInvoke] Conexión SignalR no instanciada para '${methodName}'.`);
   }
 
-  const isReady = await waitForSignalRConnection(connection, 3500);
+  const isReady = await waitForSignalRConnection(connection, 6000);
   if (!isReady && getSignalRState(connection) !== signalR.HubConnectionState.Connected) {
     // Intento forzado de start si está en Disconnected
     if (getSignalRState(connection) === signalR.HubConnectionState.Disconnected) {
@@ -88,15 +88,18 @@ export async function safeSignalRInvoke(
         errMsg.includes("WebSocket closed") ||
         errMsg.includes("not in the 'Connected' State") ||
         errMsg.includes("estado no conectado") ||
+        errMsg.includes("Reconnecting") ||
+        errMsg.includes("Connecting") ||
+        errMsg.includes("negotiate") ||
         errMsg.includes("1006");
 
       if (isTransientConnectionIssue && attempt < maxAttempts) {
         console.warn(
-          `[safeSignalRInvoke] Intento ${attempt}/${maxAttempts} para '${methodName}' falló por microcorte (${errMsg}). Reintentando en ${attempt * 300}ms...`
+          `[safeSignalRInvoke] Intento ${attempt}/${maxAttempts} para '${methodName}' detectó microcorte celular (${errMsg}). Esperando reconexión activa...`
         );
-        await new Promise((res) => setTimeout(res, attempt * 300));
-        // Intentar restablecer si se cerró
-        if (getSignalRState(connection) === signalR.HubConnectionState.Disconnected) {
+        // Espera activa de hasta 2500ms para permitir que la red móvil restablezca el socket
+        const reconnected = await waitForSignalRConnection(connection, 2500);
+        if (!reconnected && getSignalRState(connection) === signalR.HubConnectionState.Disconnected) {
           try {
             await connection.start();
           } catch (_) {}
