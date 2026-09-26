@@ -664,6 +664,37 @@ export default function AdminPage() {
     downloadCSV(`directorio_whatsapp_pericon_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
   };
 
+  const exportWhatsAppVCF = () => {
+    const validUsers = users.filter((u) => Boolean(u.phoneNumber && u.phoneNumber.trim()));
+    if (validUsers.length === 0) {
+      alert("No hay usuarios con número de WhatsApp registrado.");
+      return;
+    }
+
+    let vcf = "";
+    validUsers.forEach((u) => {
+      const clean = cleanPhoneDigits(u.phoneNumber);
+      if (clean) {
+        vcf += "BEGIN:VCARD\r\n";
+        vcf += "VERSION:3.0\r\n";
+        vcf += `FN:Pericon - ${u.username}\r\n`;
+        vcf += `TEL;TYPE=CELL:+${clean}\r\n`;
+        vcf += "END:VCARD\r\n";
+      }
+    });
+
+    const blob = new Blob([vcf], { type: "text/vcard;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `contactos_pericon_para_whatsapp_${new Date().toISOString().slice(0, 10)}.vcf`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+    setActionMessage(`📇 Archivo de contactos VCF generado con éxito (${validUsers.length} jugadores listos para guardar en tu celular).`);
+  };
+
   // Crear Nuevo Cupón Promocional
   const handleCreatePromo = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1800,6 +1831,15 @@ export default function AdminPage() {
                 >
                   <span>📥</span>
                   <span>Exportar Excel</span>
+                </button>
+
+                <button
+                  onClick={exportWhatsAppVCF}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-amber-700 hover:from-amber-500 hover:to-amber-600 text-white text-xs font-black shadow-lg shadow-amber-600/30 transition active:scale-95"
+                  title="Descargar archivo de contactos .VCF para importar todos los números a tu celular y agregarlos al grupo de WhatsApp"
+                >
+                  <span>📇</span>
+                  <span>Descargar Contactos (.VCF Celular)</span>
                 </button>
               </div>
             </div>
