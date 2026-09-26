@@ -27,6 +27,8 @@ import { safeSignalRInvoke } from '@/lib/safeSignalR';
 import { WebRTCVoiceManager, VoicePeerState } from '@/lib/webrtcVoiceManager';
 import AudioDiagnosticModal from '@/components/audio-diagnostic-modal';
 import VictoryShowcaseModal from '@/components/victory-showcase-modal';
+import DefeatShowcaseModal from '@/components/defeat-showcase-modal';
+import RivalTimeoutModal from '@/components/rival-timeout-modal';
 import { Mic, MicOff, Volume2, VolumeX, Copy, Check, Share2, Users } from 'lucide-react';
 import styles from './page.module.css';
 
@@ -302,6 +304,116 @@ export default function Duel1vs1() {
     }, 2600);
   };
 
+  // Estado del Cuadro de Derrota Épica con Cartas Originales y Revancha
+  const [defeatModalData, setDefeatModalData] = useState<{
+    isOpen: boolean;
+    winnerName: string;
+    winnerAvatar?: string;
+    winnerStones: number;
+    loserName: string;
+    loserAvatar?: string;
+    loserStones: number;
+    stakeCoins: number;
+    newBalance?: number;
+    endReason?: string;
+  }>({
+    isOpen: false,
+    winnerName: '',
+    winnerStones: 0,
+    loserName: '',
+    loserStones: 0,
+    stakeCoins: 10,
+    newBalance: undefined,
+    endReason: undefined,
+  });
+
+  // Estado del Modal de Inactividad / Desconexión del Rival (30s o corte de internet)
+  const [rivalTimeoutData, setRivalTimeoutData] = useState<{
+    isOpen: boolean;
+    rivalName: string;
+    rivalAvatar?: string;
+    reason: 'timeout' | 'disconnect';
+    isClaiming: boolean;
+  }>({
+    isOpen: false,
+    rivalName: '',
+    reason: 'timeout',
+    isClaiming: false,
+  });
+
+  const triggerEpicDefeatSequence = (payoutData?: any) => {
+    // 1. Primero la locución y voz de derrota solicitada
+    playVoiceAudio('derrota_partida', "Partida finalizada. Tu oponente se llevó la victoria.");
+    playSynthSound?.('reject');
+    vibrateDevice('tumba');
+
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance("Partida finalizada. Tu oponente se llevó la victoria.");
+        utterance.lang = 'es-ES';
+        utterance.rate = 1.0;
+        utterance.pitch = 0.95;
+        const voices = window.speechSynthesis.getVoices();
+        const esVoice = voices.find(v => v.lang.startsWith('es'));
+        if (esVoice) utterance.voice = esVoice;
+        window.speechSynthesis.speak(utterance);
+      } catch (err) {
+        console.warn("[SpeechSynthesis] Error al narrar derrota:", err);
+      }
+    }
+
+    const myName = user?.name && user.name !== 'nulo' ? user.name : 'Tú';
+    const oppName = oponent.username && oponent.username !== 'nulo' ? oponent.username : 'Rival';
+    const myStones = visiblePoints.own || pointsown.current || 0;
+    const oppStones = visiblePoints.opp || pointsopp.current || 9;
+    const coinsBet = payoutData?.bet || datos.current.coins || 10;
+
+    // 2. El cuadro estético de derrota con cartas oficiales aparece tras la voz (2.6s)
+    setTimeout(() => {
+      setDefeatModalData({
+        isOpen: true,
+        winnerName: oppName,
+        winnerAvatar: oponent.avatar || '/avatar.png',
+        winnerStones: oppStones,
+        loserName: myName,
+        loserAvatar: (user as any)?.avatar || '/avatar.png',
+        loserStones: myStones,
+        stakeCoins: coinsBet,
+        newBalance: payoutData?.newBalance,
+        endReason: payoutData?.message || undefined,
+      });
+    }, 2600);
+  };
+
+  const handleClaimRivalTimeout = async () => {
+    if (rivalTimeoutData.isClaiming) return;
+    if (!idGame.current || idGame.current <= 0) return;
+    setRivalTimeoutData(prev => ({ ...prev, isClaiming: true }));
+    try {
+      if (connection) {
+        console.log("[ClaimTimeout] Reclamando victoria por inactividad/desconexión del rival:", idGame.current);
+        await connection.invoke("ClaimOpponentTimeout1vs1", idGame.current);
+      }
+    } catch (err) {
+      console.error("Error al invocar ClaimOpponentTimeout1vs1:", err);
+      setRivalTimeoutData(prev => ({ ...prev, isClaiming: false }));
+    }
+  };
+
+  const handleRivalTimeoutDetected = () => {
+    if (hasTimedOut.current) return;
+    const oppName = oponent.username && oponent.username !== 'nulo' ? oponent.username : 'Rival';
+    playSynthSound?.('tumba');
+    setRivalTimeoutData({
+      isOpen: true,
+      rivalName: oppName,
+      rivalAvatar: oponent.avatar || '/avatar.png',
+      reason: 'timeout',
+      isClaiming: false,
+    });
+  };
+
   // Captura global de excepciones y telemetría automática hacia Railway
   useEffect(() => {
     const handleGlobalError = (event: ErrorEvent) => {
@@ -516,6 +628,8 @@ export default function Duel1vs1() {
           clearInterval(interval);
           if (isMyTurn && !hasTimedOut.current && !isWaitingOppTumba && tumbaCountdown === null) {
             handleTimeoutForfeit();
+          } else if (!isMyTurn && !hasTimedOut.current && !isWaitingOppTumba && tumbaCountdown === null) {
+            handleRivalTimeoutDetected();
           }
           return 0;
         }
@@ -918,6 +1032,20 @@ export default function Duel1vs1() {
       if (data?.opponentConnectionId) {
         playeropp.current = data.opponentConnectionId;
       }
+      setRivalTimeoutData(prev => ({ ...prev, isOpen: false }));
+    });
+
+    connection.on('OpponentDisconnectedNotice1vs1', (data: any) => {
+      console.log("[OpponentDisconnectedNotice1vs1] El rival se desconectó del servidor:", data);
+      playSynthSound?.('tumba');
+      const oppName = data?.disconnectedPlayerName || oponent.username || 'Rival';
+      setRivalTimeoutData({
+        isOpen: true,
+        rivalName: oppName,
+        rivalAvatar: oponent.avatar || '/avatar.png',
+        reason: 'disconnect',
+        isClaiming: false,
+      });
     });
 
     // Inicio de partida 1vs1 desde salas privadas o emparejamiento
@@ -1012,6 +1140,7 @@ export default function Duel1vs1() {
       window.removeEventListener("focus", handleVisibilityChange);
       connection.off('OpponentConnectionUpdated');
       connection.off('OpponentReconnected1vs1');
+      connection.off('OpponentDisconnectedNotice1vs1');
       connection.off('MatchFound');
       connection.off('setInitHand');
       connection.off('setChangeHand');
@@ -1678,6 +1807,7 @@ export default function Duel1vs1() {
     if (!connection) return;
     connection.on('ResponseCard1vs1', (modelo: Message) => {
       console.log("ResponseCard1vs1: ", modelo);
+      setRivalTimeoutData(prev => prev.isOpen ? { ...prev, isOpen: false } : prev);
       oponentCards.current = oponentCards.current - 1;
       if (modelo.order == 84) {
         const cardZero: Card = Baraja(parseInt(Trozo(modelo.content, 2)), 0);
@@ -2289,28 +2419,11 @@ export default function Duel1vs1() {
             console.error("Error al cambiar juego tras timeout:", err);
           }
         } else if (data.gameOver) {
-          playVoiceAudio(data.won ? 'victoria_partida' : 'derrota_partida', data.won ? '¡Felicidades, ganaste la partida!' : 'Has perdido la partida.');
-          Swal.fire({
-            title: data.won ? '¡VICTORIA DEL JUEGO!' : 'JUEGO TERMINADO',
-            text: data.won ? '¡Felicidades, ganaste la partida!' : 'Has perdido la partida.',
-            icon: data.won ? 'success' : 'error',
-            confirmButtonColor: '#d97706',
-            confirmButtonText: 'Ir al Lobby',
-            showDenyButton: true,
-            denyButtonText: "🔄 Pedir Revancha",
-            denyButtonColor: "#16a34a",
-            allowOutsideClick: false,
-            customClass: {
-              title: styles.customtitle,
-              popup: styles.custompopup
-            }
-          }).then((result) => {
-            if (result.isDenied) {
-              handleRequestRevancha1vs1();
-            } else {
-              router.push("/desk");
-            }
-          });
+          if (data.won) {
+            triggerEpicVictorySequence();
+          } else {
+            triggerEpicDefeatSequence();
+          }
         }
       });
     });
@@ -2325,6 +2438,7 @@ export default function Duel1vs1() {
     if (!connection) return;
     connection.on('OpponentSurrendered', (data: any) => {
       console.log("[OpponentSurrendered] Rival se rindió:", data);
+      setRivalTimeoutData(prev => ({ ...prev, isOpen: false }));
       playSynthSound?.('win');
       triggerEpicVictorySequence({ bet: datos.current.coins, isSurrender: true });
     });
@@ -2378,76 +2492,16 @@ export default function Duel1vs1() {
         console.error("Error al actualizar saldo y estadísticas en localStorage:", e);
       }
 
+      setRivalTimeoutData(prev => ({ ...prev, isOpen: false }));
+
       if (data.isWinner) {
         playCoinWinSound();
         triggerEpicVictorySequence(data);
         return;
       }
 
-      const title = data.isSala ? "🎴 SALA PRIVADA FINALIZADA" : "💔 PARTIDA FINALIZADA";
-      const htmlContent = `
-        <div style="font-family: inherit; font-size: 13px; text-align: left; padding: 4px 0;">
-          <p style="margin-bottom: 12px; font-weight: bold; color: ${data.isWinner ? '#4ade80' : '#f87171'}; font-size: 14px; text-align: center;">
-            ${data.message}
-          </p>
-          <div style="background: rgba(0,0,0,0.45); border-radius: 12px; padding: 10px 14px; border: 1px solid rgba(250,204,21,0.25);">
-            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-              <span style="color: #cbd5e1;">🪙 ${data.isSala ? "Tarifa individual:" : "Apuesta individual:"}</span>
-              <span style="font-weight: bold; color: #facc15;">${data.bet} monedas</span>
-            </div>
-            ${data.isSala ? `
-            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-              <span style="color: #cbd5e1;">🏛️ Recaudación de Sala (100% Casa):</span>
-              <span style="font-weight: bold; color: #fb923c;">${data.houseCommission} monedas</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-              <span style="color: #cbd5e1;">👑 Modalidad:</span>
-              <span style="font-weight: bold; color: #38bdf8;">Sala Amistosa Privada</span>
-            </div>
-            ` : `
-            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-              <span style="color: #cbd5e1;">💰 Pozo total en juego:</span>
-              <span style="font-weight: bold; color: #facc15;">${data.totalPot} monedas</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-              <span style="color: #cbd5e1;">🏛️ Comisión árbitro (20%):</span>
-              <span style="font-weight: bold; color: #fb923c;">-${data.houseCommission} monedas</span>
-            </div>
-            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-              <span style="color: #cbd5e1;">🏆 Premio al ganador (80%):</span>
-              <span style="font-weight: bold; color: #4ade80;">+${data.winnerPrize} monedas</span>
-            </div>
-            `}
-            <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.15); margin: 8px 0;" />
-            <div style="display: flex; justify-content: space-between; font-size: 14px;">
-              <span style="font-weight: bold; color: #fff;">👛 Tu nuevo saldo:</span>
-              <span style="font-weight: 900; color: #fde047;">${data.newBalance} monedas</span>
-            </div>
-          </div>
-        </div>
-      `;
-
-      Swal.fire({
-        title: title,
-        html: htmlContent,
-        icon: data.isWinner ? 'success' : 'info',
-        confirmButtonText: 'Continuar al Lobby',
-        confirmButtonColor: data.isWinner ? '#16a34a' : '#4b5563',
-        showDenyButton: true,
-        denyButtonText: '🔄 Pedir Revancha',
-        denyButtonColor: '#2563eb',
-        allowOutsideClick: false,
-        customClass: {
-          title: styles.customtitle,
-          popup: styles.custompopup
-        }
-      }).then((result) => {
-        if (result.isDenied) {
-          handleRequestRevancha1vs1();
-        } else {
-          router.push("/desk");
-        }
-      });
+      // Si no es ganador, activar la secuencia épica de derrota (primero locución, luego cuadro con cartas)
+      triggerEpicDefeatSequence(data);
     });
 
     return () => {
@@ -2614,6 +2668,43 @@ export default function Duel1vs1() {
         onExitLobby={() => {
           setVictoryModalData(prev => ({ ...prev, isOpen: false }));
           router.push("/desk");
+        }}
+      />
+
+      {/* Cuadro Épico de Derrota con Cartas Originales y Desafío de Revancha */}
+      <DefeatShowcaseModal
+        isOpen={defeatModalData.isOpen}
+        winnerName={defeatModalData.winnerName}
+        winnerAvatar={defeatModalData.winnerAvatar}
+        winnerStones={defeatModalData.winnerStones}
+        loserName={defeatModalData.loserName}
+        loserAvatar={defeatModalData.loserAvatar}
+        loserStones={defeatModalData.loserStones}
+        stakeCoins={defeatModalData.stakeCoins}
+        newBalance={defeatModalData.newBalance}
+        endReason={defeatModalData.endReason}
+        isFriendlyRoom={isFriendlyRoom}
+        onRequestRevancha={() => {
+          setDefeatModalData(prev => ({ ...prev, isOpen: false }));
+          handleRequestRevancha1vs1();
+        }}
+        onExitLobby={() => {
+          setDefeatModalData(prev => ({ ...prev, isOpen: false }));
+          router.push("/desk");
+        }}
+      />
+
+      {/* Modal de Alerta por Inactividad o Desconexión del Rival (30s o corte de internet) */}
+      <RivalTimeoutModal
+        isOpen={rivalTimeoutData.isOpen}
+        rivalName={rivalTimeoutData.rivalName}
+        rivalAvatar={rivalTimeoutData.rivalAvatar}
+        reason={rivalTimeoutData.reason}
+        initialSeconds={25}
+        isClaiming={rivalTimeoutData.isClaiming}
+        onClaimVictory={handleClaimRivalTimeout}
+        onWait={() => {
+          console.log("[RivalTimeout] Esperando reconexión del rival...");
         }}
       />
 
