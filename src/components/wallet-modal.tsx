@@ -796,10 +796,10 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
                 <div className="bg-black/50 p-2 rounded-xl border border-amber-500/20 flex items-center justify-between">
                   <div>
                     <span className="text-[10px] text-amber-400/80 font-bold block uppercase">Teléfono:</span>
-                    <span className="font-black text-amber-100 text-xs">04129278335</span>
+                    <span className="font-black text-amber-100 text-xs">04129278135</span>
                   </div>
                   <button
-                    onClick={() => handleCopy("04129278335", "phone")}
+                    onClick={() => handleCopy("04129278135", "phone")}
                     className="text-[10px] bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/40 transition"
                   >
                     {copiedField === "phone" ? "✓ Copiado" : "Copiar"}
