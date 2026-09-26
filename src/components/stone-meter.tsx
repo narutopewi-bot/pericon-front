@@ -1,6 +1,4 @@
 import React from "react";
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input";
 
 interface StonesProps {
   stoneone: number;
@@ -10,34 +8,54 @@ interface StonesProps {
 }
 
 const Stone: React.FC<StonesProps> = ({ stoneone, stonetwo, isTumbaOne, isTumbaTwo }: StonesProps) => {
-  const stoneString = stoneone.toString() + "-" + stonetwo.toString();
   const isObligado = (isTumbaOne || stoneone >= 9) && (isTumbaTwo || stonetwo >= 9);
   const someoneInTumba = (isTumbaOne || stoneone >= 9) || (isTumbaTwo || stonetwo >= 9);
 
   return (
-    <React.Fragment>
-      <div className="flex items-center relative mr-4 gap-2">
-        {isObligado ? (
-          <span className="bg-red-600 text-white text-[10px] font-bold px-2 py-1 rounded animate-pulse uppercase tracking-wider">
-            ¡OBLIGADO!
+    <div className="flex flex-col items-center justify-center shrink-0 select-none">
+      {/* Alerta de Estado: Tumba u Obligado */}
+      {isObligado ? (
+        <span className="mb-0.5 bg-red-600 text-white text-[8px] sm:text-[9px] font-black px-2 py-0.5 rounded-full animate-pulse uppercase tracking-wider shadow-[0_0_10px_rgba(239,68,68,0.7)] border border-red-300">
+          ¡OBLIGADO!
+        </span>
+      ) : someoneInTumba ? (
+        <span className="mb-0.5 bg-amber-500 text-black text-[8px] sm:text-[9px] font-black px-2 py-0.5 rounded-full animate-bounce uppercase tracking-wider shadow-[0_0_10px_rgba(245,158,11,0.7)] border border-yellow-200">
+          ¡EN TUMBA!
+        </span>
+      ) : null}
+
+      {/* Marcador Principal de Piedras */}
+      <div 
+        className="flex items-center bg-gradient-to-r from-stone-950/95 via-[#231508] to-stone-950/95 border-2 border-amber-500/70 rounded-2xl px-2.5 sm:px-3.5 py-1 shadow-[0_0_16px_rgba(245,158,11,0.3)] backdrop-blur-md"
+        title={`Marcador: Tú ${stoneone} piedras vs Rival ${stonetwo} piedras`}
+      >
+        {/* Mis Piedras */}
+        <div className="flex flex-col items-center min-w-[20px]">
+          <span className="text-sm sm:text-base font-black text-amber-300 leading-none drop-shadow">
+            {stoneone}
           </span>
-        ) : someoneInTumba ? (
-          <span className="bg-amber-500 text-black text-[10px] font-bold px-2 py-1 rounded animate-bounce uppercase tracking-wider">
-            ¡EN TUMBA!
+          <span className="text-[7.5px] sm:text-[8px] font-black text-amber-400/80 uppercase tracking-tighter leading-none mt-0.5">
+            Tú
           </span>
-        ) : null}
-        <div className="flex justify-between items-center relative">
-          <div className="mr-[-2px] z-10">
-            <Button size="icon" className="bg-yellow-700 w-[34px] h-[36px] mt-[2px] rounded-tl-[5px] rounded-bl-[5px]">
-              <img src="/stone.svg" className="text-red-900" alt="stone" />
-            </Button>
-          </div>
-          <div className="max-w-[115px] relative z-0">
-            <Input readOnly value={stoneString} className="bg-yellow-700 h-[36px] font-bold text-white border-none outline-none rounded-tr-[5px] rounded-br-[5px] max-w-[60px] text-center" />
-          </div>
+        </div>
+
+        {/* Separador e Ícono de Piedra */}
+        <div className="flex items-center gap-1 mx-2 sm:mx-2.5">
+          <span className="text-base sm:text-lg filter drop-shadow">🪨</span>
+          <span className="text-amber-500/60 font-black text-xs sm:text-sm">:</span>
+        </div>
+
+        {/* Piedras del Rival */}
+        <div className="flex flex-col items-center min-w-[20px]">
+          <span className="text-sm sm:text-base font-black text-slate-200 leading-none drop-shadow">
+            {stonetwo}
+          </span>
+          <span className="text-[7.5px] sm:text-[8px] font-black text-slate-400 uppercase tracking-tighter leading-none mt-0.5">
+            Rival
+          </span>
         </div>
       </div>
-    </React.Fragment>
+    </div>
   );
 };
 

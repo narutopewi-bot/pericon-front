@@ -5,9 +5,17 @@
 
 /* Color variables */
 :root {
+  --background: 28 50% 5%;
+  --foreground: 0 0% 100%;
   --color-yellow: #daaa00;
   --color-brown: #5e3c1b;
   --color-white: #fff;
+}
+
+html, body {
+  background-color: #140a04;
+  color: #ffffff;
+  min-height: 100%;
 }
 
 .bg-table {
@@ -92,16 +100,14 @@
 
 body {
   font-family: Arial, Helvetica, sans-serif;
+  background-color: #140a04;
   background-image: url(/bg.jpg);
   background-position: center;
   background-size: cover;
-  background-attachment: fixed;
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  z-index: -1;
+  background-repeat: no-repeat;
+  margin: 0;
+  padding: 0;
+  -webkit-font-smoothing: antialiased;
 }
 
 @layer utilities {

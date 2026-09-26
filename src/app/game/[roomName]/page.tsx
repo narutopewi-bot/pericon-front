@@ -2583,7 +2583,7 @@ export default function Duel1vs1() {
   };
 
   return (
-    <main className='grid h-screen overflow-auto space-y-0'>
+    <main className='grid h-screen overflow-auto space-y-0 bg-[#140a04] text-white'>
       <GameAnnouncement announcement={announcement} />
       <AudioDiagnosticModal isOpen={showAudioDiagnostic} onClose={() => setShowAudioDiagnostic(false)} voiceManager={voiceManagerRef.current} />
       <VictoryShowcaseModal
@@ -2777,27 +2777,32 @@ export default function Duel1vs1() {
           </div>
         </div>
       )}
-      <div className='bg-goat absolute inset-0 z-0'></div>
+      {/* Fondo oficial del juego con fijación acelerada por GPU para iOS / Safari / Android */}
+      <div 
+        className="fixed inset-0 z-0 bg-[#140a04] bg-cover bg-center bg-no-repeat pointer-events-none"
+        style={{ backgroundImage: "url('/bg.jpg')" }}
+      />
+      <div className='bg-goat absolute inset-0 z-0 pointer-events-none'></div>
       <div className='flex flex-col h-screen relative'>
         {/* UI content */}
         <div className='relative z-10'>
-          <div className='flex justify-between items-center w-full max-w-4xl mx-auto pt-2 pb-1 px-3 sm:px-6'>
+          <div className='flex justify-between items-center w-full max-w-4xl mx-auto pt-2 pb-1 px-2 sm:px-6'>
             {/* Temporizador 30s con indicador de turno */}
-            <div className={`flex items-center gap-1.5 sm:gap-2 px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-xl border backdrop-blur-md shadow-lg transition-all ${
+            <div className={`flex items-center gap-1 sm:gap-1.5 px-2 py-1 rounded-xl border backdrop-blur-md shadow-md transition-all shrink-0 ${
               isMyTurn 
                 ? (timeLeft <= 10 
                     ? 'bg-red-950/85 border-red-500 ring-2 ring-red-500/50 animate-pulse' 
                     : 'bg-emerald-950/85 border-emerald-500/60 ring-1 ring-emerald-400/40') 
                 : 'bg-stone-900/80 border-amber-900/40 opacity-90'
             }`}>
-              <span className='text-sm sm:text-lg'>⏱️</span>
+              <span className='text-xs sm:text-base'>⏱️</span>
               <div className='flex flex-col text-left'>
-                <span className={`text-[9px] sm:text-[10px] font-black uppercase tracking-wider ${
+                <span className={`text-[8px] sm:text-[9px] font-black uppercase tracking-wider leading-none ${
                   isMyTurn ? (timeLeft <= 10 ? 'text-red-400' : 'text-emerald-400') : 'text-amber-400/70'
                 }`}>
                   {isMyTurn ? 'Tu turno' : 'Turno rival'}
                 </span>
-                <span className={`text-xs sm:text-base font-extrabold font-mono leading-none ${
+                <span className={`text-xs sm:text-sm font-black font-mono leading-tight ${
                   isMyTurn ? (timeLeft <= 10 ? 'text-red-300' : 'text-emerald-200') : 'text-stone-300'
                 }`}>
                   00:{timeLeft.toString().padStart(2, '0')}
@@ -2805,8 +2810,8 @@ export default function Duel1vs1() {
               </div>
             </div>
 
-            {/* Marcador de Piedras */}
-            <div className='flex justify-center'>
+            {/* Marcador de Piedras Centrado y con Espacio Asegurado */}
+            <div className='flex justify-center shrink-0 mx-1'>
               <Stone
                 stoneone={visiblePoints.own}
                 stonetwo={visiblePoints.opp}
@@ -2815,71 +2820,67 @@ export default function Duel1vs1() {
               />
             </div>
 
-            {/* Controles de la derecha: Sonido, Micrófono y Salir */}
-            <div className='flex items-center gap-1.5 sm:gap-2'>
+            {/* Controles de la derecha: Agrupados de forma compacta y elegante */}
+            <div className='flex items-center gap-1 sm:gap-1.5 shrink-0'>
               {/* Botón de Sonido del Juego y Desbloqueador de Audio */}
               <button
                 type='button'
                 onClick={handleToggleSound}
-                className={`text-xs sm:text-sm font-bold py-1.5 px-2.5 sm:px-3 rounded-xl border shadow-lg flex items-center gap-1 transition-all cursor-pointer ${
+                className={`h-8 w-8 sm:h-9 sm:w-9 rounded-xl border shadow flex items-center justify-center transition-all cursor-pointer ${
                   isSoundMutedState 
                     ? 'bg-stone-800/90 hover:bg-stone-700 border-stone-600 text-stone-400' 
                     : 'bg-amber-950/80 hover:bg-amber-900 border-amber-600/60 text-amber-300'
                 }`}
                 title={isSoundMutedState ? 'Sonido desactivado (Clic para activar)' : 'Sonido activo (Clic para silenciar)'}
               >
-                <span>{isSoundMutedState ? '🔇' : '🔊'}</span>
+                <span className='text-xs sm:text-sm'>{isSoundMutedState ? '🔇' : '🔊'}</span>
               </button>
 
               {/* Botón Micrófono 1 vs 1 */}
               <button
                 type='button'
                 onClick={toggleVoiceMute}
-                className={`text-xs sm:text-sm font-bold py-1.5 px-2 sm:px-2.5 rounded-xl border shadow-lg flex items-center gap-1 transition-all cursor-pointer ${
+                className={`h-8 w-8 sm:h-9 sm:w-9 rounded-xl border shadow flex items-center justify-center transition-all cursor-pointer ${
                   isMicMuted
-                    ? 'bg-red-950/80 hover:bg-red-900 border-red-500/50 text-red-300'
-                    : 'bg-emerald-950/80 hover:bg-emerald-900 border-emerald-500/60 text-emerald-300 shadow-emerald-500/20'
+                    ? 'bg-red-950/85 hover:bg-red-900 border-red-500/50 text-red-300'
+                    : 'bg-emerald-950/85 hover:bg-emerald-900 border-emerald-500/70 text-emerald-300 shadow-emerald-500/25 ring-1 ring-emerald-500/40'
                 }`}
                 title={isMicMuted ? 'Micrófono SILENCIADO (Clic para activar)' : 'Micrófono EN VIVO (Clic para silenciar)'}
               >
-                {isMicMuted ? <MicOff size={15} /> : <Mic size={15} className={speakingPeers[datos.current.flag ? 0 : 1] ? 'text-emerald-400 animate-pulse' : ''} />}
-                <span className='hidden md:inline text-[10px] font-black uppercase'>
-                  {isMicMuted ? 'Mudo' : 'Voz'}
-                </span>
+                {isMicMuted ? <MicOff size={14} /> : <Mic size={14} className={speakingPeers[datos.current.flag ? 0 : 1] ? 'text-emerald-400 animate-pulse' : ''} />}
               </button>
 
               {/* Botón Ensordecer 1 vs 1 */}
               <button
                 type='button'
                 onClick={toggleDeafenAudio}
-                className={`text-xs sm:text-sm font-bold py-1.5 px-2 sm:px-2.5 rounded-xl border shadow-lg flex items-center gap-1 transition-all cursor-pointer ${
+                className={`h-8 w-8 sm:h-9 sm:w-9 rounded-xl border shadow flex items-center justify-center transition-all cursor-pointer ${
                   isDeafened
-                    ? 'bg-red-950/80 hover:bg-red-900 border-red-500/50 text-red-300'
+                    ? 'bg-red-950/85 hover:bg-red-900 border-red-500/50 text-red-300'
                     : 'bg-stone-900/90 hover:bg-stone-800 border-stone-600/60 text-stone-300'
                 }`}
                 title={isDeafened ? 'Audio ensordecido (Clic para escuchar al rival)' : 'Ensordecer audio del rival'}
               >
-                {isDeafened ? <VolumeX size={15} /> : <Volume2 size={15} />}
+                {isDeafened ? <VolumeX size={14} /> : <Volume2 size={14} />}
               </button>
 
               {/* Botón de Diagnóstico y Prueba de Audio y Micrófono */}
               <button
                 type='button'
                 onClick={() => setShowAudioDiagnostic(true)}
-                className='text-xs sm:text-sm font-bold py-1.5 px-2 sm:px-2.5 rounded-xl border border-amber-500/50 bg-stone-900/90 hover:bg-amber-950 text-amber-300 shadow-lg flex items-center gap-1 transition-all cursor-pointer'
+                className='h-8 w-8 sm:h-9 sm:w-9 rounded-xl border border-amber-500/40 bg-stone-900/90 hover:bg-amber-950 text-amber-300 shadow flex items-center justify-center transition-all cursor-pointer'
                 title='Probar y diagnosticar voces y micrófono en vivo'
               >
-                <span>🎧</span>
+                <span className='text-xs sm:text-sm'>🎧</span>
               </button>
 
               {/* Botón Salir (Abandonar y rendirse) */}
               <button
                 onClick={handleSurrenderClick}
-                className='bg-red-700/90 hover:bg-red-600 active:scale-95 text-white text-xs sm:text-sm font-bold py-1.5 px-2.5 sm:px-4 rounded-xl border border-red-500/50 shadow-lg flex items-center gap-1 sm:gap-1.5 transition-all cursor-pointer'
+                className='h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-red-700/90 hover:bg-red-600 active:scale-95 text-white border border-red-500/50 shadow flex items-center justify-center transition-all cursor-pointer'
                 title='Abandonar partida'
               >
-                <span>🚪</span>
-                <span className='hidden sm:inline font-black uppercase tracking-wider text-[11px] sm:text-xs'>Salir</span>
+                <span className='text-xs sm:text-sm'>🚪</span>
               </button>
             </div>
           </div>
