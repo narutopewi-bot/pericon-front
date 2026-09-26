@@ -9,6 +9,7 @@ import { setGamePlayer } from '@/store/slices/gameplayerSlice';
 import { useParams } from 'next/navigation';
 
 import { useSignalRContext } from '@/lib/signalrcontext';
+import * as signalR from "@microsoft/signalr";
 import { Porcion, Trozo, Baraja, isTrumpCard } from "@/lib/library";
 
 import Image from 'next/image';
@@ -177,6 +178,7 @@ export default function Duel1vs1() {
   const [isWaitingOppTumba, setIsWaitingOppTumba] = useState<boolean>(false);
   const [isProcessingMove, setIsProcessingMove] = useState<boolean>(false);
   const isProcessingRef = useRef<boolean>(false);
+  const [isReconnecting, setIsReconnecting] = useState<boolean>(false);
 
   // Estado de Tumba activo (en cualquiera de los dos jugadores)
   const isTumbaActive = (visiblePoints.own >= 9 || (partownRef.current === 1 && visiblePoints.own === 8)) ||
@@ -857,14 +859,14 @@ export default function Duel1vs1() {
           const myName = obj.flag == true ? obj.nameone : obj.nametwo;
           if (myName) {
             try {
-              await connection.invoke("IdentifyPlayer", myName, gameplayer.email || "", gameplayer.coins || 0);
+              await safeSignalRInvoke(connection, "IdentifyPlayer", myName, gameplayer.email || "", gameplayer.coins || 0);
             } catch (e) {
               console.error("Error al identificar jugador en juego:", e);
             }
           }
 
           const juego: number = obj.id;
-          await connection.invoke("GetInitHand", juego, obj.flag);
+          await safeSignalRInvoke(connection, "GetInitHand", juego, obj.flag);
           hasConnected.current = true;
         } catch (error: any) {
           console.error("Error al iniciar el juego 1vs1:", error);
@@ -996,12 +998,18 @@ export default function Duel1vs1() {
     if (!connection) return;
 
     // Manejo de reconexión transparente de SignalR en 1 vs 1
+    const handleReconnecting = (error: any) => {
+      console.warn("[SignalR 1v1] Reconectando señal de red...", error);
+      setIsReconnecting(true);
+    };
+
     const handleReconnected = async (newConnectionId?: string) => {
       console.log("[SignalR 1v1] Reconexión exitosa. Nuevo ID:", newConnectionId);
+      setIsReconnecting(false);
       if (newConnectionId) playerown.current = newConnectionId;
       if (connection && idGame.current > 0) {
         try {
-          await connection.invoke("RejoinGame1vs1", idGame.current, datos.current.flag);
+          await safeSignalRInvoke(connection, "RejoinGame1vs1", idGame.current, datos.current.flag);
         } catch (err: any) {
           console.error("Error en RejoinGame1vs1 tras reconexión:", err);
         }
@@ -1011,11 +1019,12 @@ export default function Duel1vs1() {
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         if (connection && idGame.current > 0) {
-          connection.invoke("RejoinGame1vs1", idGame.current, datos.current.flag).catch(() => {});
+          safeSignalRInvoke(connection, "RejoinGame1vs1", idGame.current, datos.current.flag).catch(() => {});
         }
       }
     };
 
+    connection.onreconnecting(handleReconnecting);
     connection.onreconnected(handleReconnected);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("focus", handleVisibilityChange);
@@ -1449,15 +1458,34 @@ export default function Duel1vs1() {
 
   const handleCardClick = async (cardZero: Card) => {
     if (!connection || isDealing || isReturningToDeck || isProcessingMove || isProcessingRef.current || isWaitingOppTumba || tumbaCountdown !== null) return;
-    if (connection) {
+
+    if (connection.state !== signalR.HubConnectionState.Connected) {
+      if (connection.state === signalR.HubConnectionState.Reconnecting) {
+        Swal.fire({
+          title: "Reconectando señal...",
+          text: "Se detectó un cambio en tu conexión móvil. Tu turno está protegido; por favor espera un momento.",
+          icon: "info",
+          toast: true,
+          position: "top",
+          timer: 3000,
+          showConfirmButton: false
+        });
+      }
+      return;
+    }
+
+    // Bloqueo inmediato anti-doble clic
+    isProcessingRef.current = true;
+    setIsProcessingMove(true);
+
+    try {
       playCardDropSound();
       playCardSound();
       setSelectedCard(cardZero);
 
-      //      let numGame : number = played?.game; 
       let dato: Message = { game: 0, order: 0, content: "" };
       let numOrder: number = 0;
-      let strMessage: string = ""; //card.id.toString();
+      let strMessage: string = "";
       let flagTurn: string = (!roundturn.current == true ? " 1" : " 0");
       cpownRef.current = cardZero;
       if (connection?.connectionId) {
@@ -1495,6 +1523,8 @@ export default function Duel1vs1() {
             confirmButtonText: "Entendido",
             confirmButtonColor: "#f59e0b"
           });
+          isProcessingRef.current = false;
+          setIsProcessingMove(false);
           return;
         }
 
@@ -1511,6 +1541,8 @@ export default function Duel1vs1() {
 
       if (numOrder === 0) {
         console.warn("handleCardClick: Not player's turn to play (numOrder is 0)");
+        isProcessingRef.current = false;
+        setIsProcessingMove(false);
         return;
       }
 
@@ -1520,12 +1552,18 @@ export default function Duel1vs1() {
       try {
         console.log("Enviando objeto al servidor:", dato);
         await safeSignalRInvoke(connection, "RequestCard1vs1", dato);
+        if (numOrder === 82) {
+          isProcessingRef.current = false;
+          setIsProcessingMove(false);
+        }
       } catch (error: any) {
         console.error("Error al enviar objeto al servidor tras reintentos:", error);
         // Rollback defensivo: devuelve la carta a la mano del jugador para que no la pierda ante microcortes
         setPlayerCards(previousCards);
         setIsMyTurn(true);
         switchturn.current = true;
+        isProcessingRef.current = false;
+        setIsProcessingMove(false);
 
         reportAppError({
           source: 'Game1v1',
@@ -1545,8 +1583,12 @@ export default function Duel1vs1() {
           timer: 4000,
           showConfirmButton: false
         });
-      };
-    };
+      }
+    } catch (errGen) {
+      console.error("Error general en handleCardClick:", errGen);
+      isProcessingRef.current = false;
+      setIsProcessingMove(false);
+    }
   };
 
   const handlePedirClick = async () => {
@@ -2650,6 +2692,12 @@ export default function Duel1vs1() {
   return (
     <main className='grid h-screen overflow-auto space-y-0 bg-[#140a04] text-white'>
       <GameAnnouncement announcement={announcement} />
+      {isReconnecting && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-amber-600/95 text-white text-xs sm:text-sm font-bold px-5 py-2 rounded-full shadow-2xl backdrop-blur flex items-center gap-2.5 animate-pulse border-2 border-amber-300">
+          <span className="w-2.5 h-2.5 rounded-full bg-yellow-300 animate-ping inline-block" />
+          <span>Reconectando señal móvil... Tu partida está protegida</span>
+        </div>
+      )}
       <AudioDiagnosticModal isOpen={showAudioDiagnostic} onClose={() => setShowAudioDiagnostic(false)} voiceManager={voiceManagerRef.current} />
       <VictoryShowcaseModal
         isOpen={victoryModalData.isOpen}

@@ -7,6 +7,7 @@ import Link from 'next/link';
 import { RootState, useAppSelector, useAppDispatch } from '@/store/store';
 import { setGamePlayer } from '@/store/slices/gameplayerSlice';
 import { useSignalRContext } from '@/lib/signalrcontext';
+import * as signalR from '@microsoft/signalr';
 import { Baraja } from '@/lib/library';
 import Stone from '@/components/stone-meter';
 import { GameAnnouncement, AnnouncementData } from '@/components/game-announcement';
@@ -1333,6 +1334,21 @@ export default function GameTwoVsTwo() {
   // Lanzar carta del jugador humano local
   const handlePlayMyCard = (card: Card) => {
     if (currentTurnRef.current !== mySeatIndexRef.current || isProcessingMoveRef.current || isCleaningTable || isWaitingOppTumba || tumbaCountdown !== null || isStakePendingRef.current) return;
+
+    if (connection && connection.state !== signalR.HubConnectionState.Connected) {
+      if (connection.state === signalR.HubConnectionState.Reconnecting) {
+        Swal.fire({
+          title: "Reconectando señal...",
+          text: "Se detectó un cambio en tu conexión móvil. Tu turno está protegido; por favor espera un momento.",
+          icon: "info",
+          toast: true,
+          position: "top",
+          timer: 3000,
+          showConfirmButton: false
+        });
+      }
+      return;
+    }
 
     // Regla del Pelao: Si salieron con un triunfo y poseemos triunfos en la mano, obligatorio tirar triunfo (salvo excepción del 5 de Oro en 1ra baza)
     if (playedCardsRef.current.length > 0) {
