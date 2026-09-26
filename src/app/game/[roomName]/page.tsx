@@ -26,6 +26,7 @@ import { reportAppError } from '@/lib/errorLogger';
 import { safeSignalRInvoke } from '@/lib/safeSignalR';
 import { WebRTCVoiceManager, VoicePeerState } from '@/lib/webrtcVoiceManager';
 import AudioDiagnosticModal from '@/components/audio-diagnostic-modal';
+import VictoryShowcaseModal from '@/components/victory-showcase-modal';
 import { Mic, MicOff, Volume2, VolumeX, Copy, Check, Share2, Users } from 'lucide-react';
 import styles from './page.module.css';
 
@@ -238,6 +239,68 @@ export default function Duel1vs1() {
   };
 
   const [showAudioDiagnostic, setShowAudioDiagnostic] = useState(false);
+
+  // Estado del Cuadro de Victoria Épica con Cartas Originales y Presumir en WhatsApp
+  const [victoryModalData, setVictoryModalData] = useState<{
+    isOpen: boolean;
+    winnerName: string;
+    winnerAvatar?: string;
+    winnerStones: number;
+    loserName: string;
+    loserAvatar?: string;
+    loserStones: number;
+    stakeCoins: number;
+  }>({
+    isOpen: false,
+    winnerName: '',
+    winnerStones: 0,
+    loserName: '',
+    loserStones: 0,
+    stakeCoins: 10,
+  });
+
+  const triggerEpicVictorySequence = (payoutData?: any) => {
+    // 1. Primero la locución y voz triunfal solicitada
+    playVoiceAudio('victoria_partida', "¡Ganaste la partida, fuiste victorioso!");
+    playSynthSound?.('win');
+    vibrateDevice('winMatch');
+
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+      try {
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance("¡Ganaste la partida, fuiste victorioso!");
+        utterance.lang = 'es-ES';
+        utterance.rate = 1.0;
+        utterance.pitch = 1.05;
+        const voices = window.speechSynthesis.getVoices();
+        const esVoice = voices.find(v => v.lang.startsWith('es'));
+        if (esVoice) utterance.voice = esVoice;
+        window.speechSynthesis.speak(utterance);
+      } catch (err) {
+        console.warn("[SpeechSynthesis] Error al narrar victoria:", err);
+      }
+    }
+
+    const myName = user?.name && user.name !== 'nulo' ? user.name : 'Tú';
+    const oppName = oponent.username && oponent.username !== 'nulo' ? oponent.username : 'Rival';
+    const myStones = visiblePoints.own || pointsown.current || 9;
+    const oppStones = visiblePoints.opp || pointsopp.current || 0;
+    const coinsBet = payoutData?.bet || datos.current.coins || 10;
+
+    // 2. El cuadro triunfal estético con cartas originales aparece tras la voz
+    setTimeout(() => {
+      setVictoryModalData({
+        isOpen: true,
+        winnerName: myName,
+        winnerAvatar: (user as any)?.avatar || '/avatar.png',
+        winnerStones: myStones,
+        loserName: oppName,
+        loserAvatar: oponent.avatar || '/avatar.png',
+        loserStones: oppStones,
+        stakeCoins: coinsBet,
+      });
+    }, 2600);
+  };
 
   // Captura global de excepciones y telemetría automática hacia Railway
   useEffect(() => {
@@ -1784,25 +1847,8 @@ export default function Duel1vs1() {
                   badge: 'VICTORIA'
                 }, 4000);
                 setTimeout(() => {
-                  playVoiceAudio('victoria_partida', "¡Felicidades, ganaste la partida!");
-                  Swal.fire({
-                    title: "¡GANASTE EL JUEGO!",
-                    text: "¡Felicidades, completaste la tumba y eres el vencedor de la partida!",
-                    icon: "success",
-                    confirmButtonText: "Ir al Lobby",
-                    confirmButtonColor: "#d97706",
-                    showDenyButton: true,
-                    denyButtonText: "🔄 Pedir Revancha",
-                    denyButtonColor: "#16a34a",
-                    allowOutsideClick: false,
-                  }).then((result) => {
-                    if (result.isDenied) {
-                      handleRequestRevancha1vs1();
-                    } else {
-                      router.push("/desk");
-                    }
-                  });
-                }, 3500);
+                  triggerEpicVictorySequence();
+                }, 1200);
               }
             } else {
               if (Orden == "0") {
@@ -2060,25 +2106,8 @@ export default function Duel1vs1() {
                 badge: 'VICTORIA'
               }, 4000);
               setTimeout(() => {
-                playVoiceAudio('victoria_partida', "¡Felicidades, ganaste la partida!");
-                Swal.fire({
-                  title: "¡GANASTE EL JUEGO!",
-                  text: "¡Felicidades, completaste la tumba y eres el vencedor de la partida!",
-                  icon: "success",
-                  confirmButtonText: "Ir al Lobby",
-                  confirmButtonColor: "#d97706",
-                  showDenyButton: true,
-                  denyButtonText: "🔄 Pedir Revancha",
-                  denyButtonColor: "#16a34a",
-                  allowOutsideClick: false,
-                }).then((result) => {
-                  if (result.isDenied) {
-                    handleRequestRevancha1vs1();
-                  } else {
-                    router.push("/desk");
-                  }
-                });
-              }, 3500);
+                triggerEpicVictorySequence();
+              }, 1200);
             }
           } else {
             if (Orden == "1") {
@@ -2296,22 +2325,8 @@ export default function Duel1vs1() {
     if (!connection) return;
     connection.on('OpponentSurrendered', (data: any) => {
       console.log("[OpponentSurrendered] Rival se rindió:", data);
-      playVoiceAudio('victoria_partida', "¡Felicidades, ganaste la partida!");
       playSynthSound?.('win');
-      Swal.fire({
-        title: '¡VICTORIA POR RETIRADA!',
-        text: data.message || 'Tu contrincante se ha retirado de la partida. ¡Has ganado todo lo apostado!',
-        icon: 'success',
-        confirmButtonText: 'Cobrar y Salir',
-        confirmButtonColor: '#16a34a',
-        allowOutsideClick: false,
-        customClass: {
-          title: styles.customtitle,
-          popup: styles.custompopup
-        }
-      }).then(() => {
-        router.push("/desk");
-      });
+      triggerEpicVictorySequence({ bet: datos.current.coins, isSurrender: true });
     });
 
     return () => {
@@ -2363,10 +2378,13 @@ export default function Duel1vs1() {
         console.error("Error al actualizar saldo y estadísticas en localStorage:", e);
       }
 
-      const title = data.isWinner ? "🏆 ¡VICTORIA CONFIRMADA!" : "💔 PARTIDA FINALIZADA";
       if (data.isWinner) {
         playCoinWinSound();
+        triggerEpicVictorySequence(data);
+        return;
       }
+
+      const title = "💔 PARTIDA FINALIZADA";
       const htmlContent = `
         <div style="font-family: inherit; font-size: 13px; text-align: left; padding: 4px 0;">
           <p style="margin-bottom: 12px; font-weight: bold; color: ${data.isWinner ? '#4ade80' : '#f87171'}; font-size: 14px; text-align: center;">
@@ -2568,6 +2586,24 @@ export default function Duel1vs1() {
     <main className='grid h-screen overflow-auto space-y-0'>
       <GameAnnouncement announcement={announcement} />
       <AudioDiagnosticModal isOpen={showAudioDiagnostic} onClose={() => setShowAudioDiagnostic(false)} voiceManager={voiceManagerRef.current} />
+      <VictoryShowcaseModal
+        isOpen={victoryModalData.isOpen}
+        winnerName={victoryModalData.winnerName}
+        winnerAvatar={victoryModalData.winnerAvatar}
+        winnerStones={victoryModalData.winnerStones}
+        loserName={victoryModalData.loserName}
+        loserAvatar={victoryModalData.loserAvatar}
+        loserStones={victoryModalData.loserStones}
+        stakeCoins={victoryModalData.stakeCoins}
+        onRequestRevancha={() => {
+          setVictoryModalData(prev => ({ ...prev, isOpen: false }));
+          handleRequestRevancha1vs1();
+        }}
+        onExitLobby={() => {
+          setVictoryModalData(prev => ({ ...prev, isOpen: false }));
+          router.push("/desk");
+        }}
+      />
 
       {/* Lobby de Espera para Sala Privada Amistosa 1 vs 1 */}
       {isFriendlyRoom && (!idGame.current || idGame.current === 0) && !hasConnected.current && (
