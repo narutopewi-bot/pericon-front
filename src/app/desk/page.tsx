@@ -328,11 +328,13 @@ export default function Desk() {
       fetch(`${apiUrl}/api/admin/announcement/active`)
         .then((res) => (res.ok ? res.json() : null))
         .then((data) => {
-          if (data && data.announcement) {
-            const ann = data.announcement;
-            const isDismissed = localStorage.getItem(`pericon_dismissed_announcement_${ann.id}`);
-            if (!isDismissed) {
-              setGlobalAnnouncement(ann);
+          if (data) {
+            const ann = data.announcement || (data.id ? data : null);
+            if (ann && ann.id && ann.message) {
+              const isDismissed = localStorage.getItem(`pericon_dismissed_announcement_${ann.id}`);
+              if (!isDismissed) {
+                setGlobalAnnouncement(ann);
+              }
             }
           }
         })
