@@ -670,7 +670,7 @@ export default function Duel() {
                                 (pointsoppRef.current >= 9 || (partoppRef.current === 1 && pointsoppRef.current === 8));
                 const nextAiStake = currentStakeRef.current === 1 ? 3 : (currentStakeRef.current === 3 ? 6 : 9);
                 if (currentStakeRef.current < 9 && lastStakeAskedByRef.current !== 'opp' && !isTumba) {
-                  if (evaluateAiAcceptance(nextAiStake) && Math.random() < 0.40) {
+                  if (evaluateAiAcceptance(nextAiStake) && Math.random() < 0.70) {
                     setTimeout(() => {
                       triggerAiPedir();
                     }, 800);
@@ -873,30 +873,35 @@ export default function Duel() {
   // Inteligencia de Pericón (IA) para Cantos (Pedir 3, 6, 9)
   const evaluateAiAcceptance = (targetStake: number): boolean => {
     const trumpCard = cpEightRef.current.id !== -1 ? cpEightRef.current : cpEight;
-    let strongTrumpsCount = 0;
+    let score = 0;
     const lifeSuit = Math.floor(trumpCard.id / 10);
 
     for (const c of aiCardsRef.current) {
-      if (c.id === 38 || c.id === 7 || c.id === 0) {
-        // 11 Basto, 10 Oro, 1 Oro
-        strongTrumpsCount += 2;
+      if (c.id === 4) {
+        score += 3.5; // 5 de Oro (Perico - triunfo supremo)
+      } else if (c.id === 33) {
+        score += 3.0; // 4 de Bastos (Perica)
+      } else if (c.id === 38 || c.id === 7 || c.id === 0) {
+        score += 2.5; // 11 Basto, 10 Oro, 1 Oro
       } else {
         const cSuit = Math.floor(c.id / 10);
         if (cSuit === lifeSuit) {
           const face = c.id % 10;
-          if (face === 2) strongTrumpsCount += 2; // 3 de vida
-          else if (face === 1) strongTrumpsCount += 1.5; // 2 de vida
-          else strongTrumpsCount += 1; // triunfo común
+          if (face === 2) score += 2.5; // 3 de vida (Gollero)
+          else if (face === 1) score += 2.0; // 2 de vida
+          else if (face === 0) score += 1.8; // 1 de vida (As de vida)
+          else score += 1.5; // triunfo común de la vida
         }
       }
     }
 
+    // Regla de Oro de la Casa: NUNCA regalar piedras aceptando retos altos con manos débiles
     if (targetStake === 3) {
-      return strongTrumpsCount >= 2 || Math.random() < 0.45;
+      return score >= 2.5;
     } else if (targetStake === 6) {
-      return strongTrumpsCount >= 3 || Math.random() < 0.35;
+      return score >= 4.5;
     } else if (targetStake === 9) {
-      return strongTrumpsCount >= 4 || Math.random() < 0.25;
+      return score >= 6.0;
     }
     return false;
   };

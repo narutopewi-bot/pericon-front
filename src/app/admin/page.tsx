@@ -21,10 +21,17 @@ interface AdminStats {
   totalBotCoinsWagered?: number;
   totalBotHouseProfit?: number;
   totalBotUserWins?: number;
-  totalBotWins?: number;
   combinedTotalMatches?: number;
   combinedCoinsWagered?: number;
   combinedHouseProfit?: number;
+  live?: {
+    onlineUsers?: number;
+    activeSolitaire?: number;
+    active1v1?: number;
+    active2v2?: number;
+    inQueue?: number;
+    totalActiveGames?: number;
+  };
 }
 
 interface MatchRow {
@@ -1310,6 +1317,17 @@ export default function AdminPage() {
           </div>
         </div>
 
+        {/* Monitor en Vivo de Partidas */}
+        <div className="mx-3 mb-2 px-3.5 py-2.5 bg-gradient-to-r from-[#201007] to-[#160b05] border border-amber-500/30 rounded-xl flex items-center justify-between text-xs shadow-inner">
+          <div className="flex items-center gap-2">
+            <span className={`w-2.5 h-2.5 rounded-full ${((stats?.live?.totalActiveGames || 0) > 0) ? "bg-emerald-400 animate-ping" : "bg-green-500"}`}></span>
+            <span className="font-bold text-amber-200">Partidas en Vivo:</span>
+          </div>
+          <span className={`px-2 py-0.5 rounded-full font-black text-xs ${((stats?.live?.totalActiveGames || 0) > 0) ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40" : "bg-amber-950/60 text-amber-300/80 border border-amber-500/30"}`}>
+            {stats?.live?.totalActiveGames || 0} activas
+          </span>
+        </div>
+
         {/* Menú de Navegación Vertical */}
         <nav className={`flex-1 px-3 space-y-1 py-2 ${mobileMenuOpen ? "block" : "hidden md:block"}`}>
           {/* 1. Dashboard */}
@@ -1624,6 +1642,40 @@ export default function AdminPage() {
                   <span>🔄</span>
                   <span>Reiniciar Panel a Cero</span>
                 </button>
+              </div>
+            </div>
+
+            {/* Monitor de Actividad y Partidas en Juego en Vivo */}
+            <div className="bg-gradient-to-r from-[#1c0f08] via-[#241309] to-[#1c0f08] border border-amber-500/40 rounded-2xl p-4 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-xl">
+                  {((stats?.live?.totalActiveGames || 0) > 0) ? "🎮" : "🟢"}
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-black text-white">MONITOR DE JUGADAS EN TIEMPO REAL</span>
+                    <span className={`w-2.5 h-2.5 rounded-full ${((stats?.live?.totalActiveGames || 0) > 0) ? "bg-emerald-400 animate-ping" : "bg-green-500"}`}></span>
+                  </div>
+                  <p className="text-xs text-amber-200/70">
+                    {((stats?.live?.totalActiveGames || 0) > 0) 
+                      ? `⚠️ Hay ${stats?.live?.totalActiveGames} partida(s) jugándose en este segundo (${stats?.live?.activeSolitaire || 0} Solitario vs Bot, ${stats?.live?.active1v1 || 0} 1v1 PvP).` 
+                      : "✅ No hay ninguna partida jugándose ahora mismo. El servidor está 100% despejado."}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 self-end sm:self-auto">
+                <div className="px-3 py-1.5 rounded-xl bg-black/40 border border-amber-500/30 text-center">
+                  <div className="text-[10px] text-amber-300 font-bold uppercase">Conectados</div>
+                  <div className="text-sm font-black text-white">{stats?.live?.onlineUsers || 0}</div>
+                </div>
+                <div className="px-3 py-1.5 rounded-xl bg-black/40 border border-amber-500/30 text-center">
+                  <div className="text-[10px] text-amber-300 font-bold uppercase">En Solitario</div>
+                  <div className="text-sm font-black text-emerald-400">{stats?.live?.activeSolitaire || 0}</div>
+                </div>
+                <div className="px-3 py-1.5 rounded-xl bg-black/40 border border-amber-500/30 text-center">
+                  <div className="text-[10px] text-amber-300 font-bold uppercase">En Duelos PvP</div>
+                  <div className="text-sm font-black text-amber-400">{(stats?.live?.active1v1 || 0) + (stats?.live?.active2v2 || 0)}</div>
+                </div>
               </div>
             </div>
 
