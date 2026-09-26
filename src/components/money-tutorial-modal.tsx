@@ -18,6 +18,7 @@ export default function MoneyTutorialModal({
   const [currentStep, setCurrentStep] = useState(0);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [selectedFlyer, setSelectedFlyer] = useState<string | null>(null);
+  const studioAudioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     if (isOpen) {
@@ -109,11 +110,10 @@ export default function MoneyTutorialModal({
       "Aquí tienes los flyers promocionales oficiales de El Pericón para compartir en tus redes sociales, estados de WhatsApp e historias de Instagram. Muestran cómo recargar y retirar con Pago Móvil y el aviso de juego con dinero real para mayores de edad.",
   };
 
-  const speakCurrentTab = () => {
+  const fallbackSpeech = (text: string) => {
     if (typeof window === "undefined" || !("speechSynthesis" in window)) return;
     window.speechSynthesis.cancel();
 
-    const text = speechTexts[activeTab];
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.lang = "es-ES";
     utterance.rate = 1.05;
@@ -129,9 +129,50 @@ export default function MoneyTutorialModal({
     window.speechSynthesis.speak(utterance);
   };
 
+  const speakCurrentTab = () => {
+    if (typeof window === "undefined") return;
+    stopSpeech();
+
+    if (activeTab === "responsible") {
+      try {
+        const audio = new Audio("/audio/mas_18.mp3");
+        studioAudioRef.current = audio;
+        audio.onplay = () => setIsSpeaking(true);
+        audio.onended = () => {
+          setIsSpeaking(false);
+          studioAudioRef.current = null;
+        };
+        audio.onerror = () => {
+          fallbackSpeech(speechTexts.responsible);
+        };
+        const playPromise = audio.play();
+        if (playPromise !== undefined) {
+          playPromise.catch(() => {
+            fallbackSpeech(speechTexts.responsible);
+          });
+        }
+        return;
+      } catch (_) {
+        fallbackSpeech(speechTexts.responsible);
+        return;
+      }
+    }
+
+    fallbackSpeech(speechTexts[activeTab]);
+  };
+
   const stopSpeech = () => {
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
+    if (typeof window !== "undefined") {
+      if (studioAudioRef.current) {
+        try {
+          studioAudioRef.current.pause();
+          studioAudioRef.current.currentTime = 0;
+        } catch (_) {}
+        studioAudioRef.current = null;
+      }
+      if ("speechSynthesis" in window) {
+        window.speechSynthesis.cancel();
+      }
       setIsSpeaking(false);
     }
   };

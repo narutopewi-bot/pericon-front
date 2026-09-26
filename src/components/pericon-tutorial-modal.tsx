@@ -286,10 +286,11 @@ export default function PericonTutorialModal({
     if (typeof window === "undefined") return;
     stopAllAudio();
 
-    // Pasos 1 al 6: voz real de estudio del Chivo de Carora
-    if (stepNumber >= 1 && stepNumber <= 6) {
+    // Pasos 1 al 7: voz real de estudio del Chivo de Carora (incluye el paso 7 de Mayoría de Edad +18)
+    if (stepNumber >= 1 && stepNumber <= 7) {
       try {
-        const audio = new Audio(`/audio/tutorial_paso_${stepNumber}.mp3`);
+        const audioSrc = stepNumber === 7 ? '/audio/tutorial_paso_7.mp3' : `/audio/tutorial_paso_${stepNumber}.mp3`;
+        const audio = new Audio(audioSrc);
         tutorialAudioRef.current = audio;
 
         audio.onplay = () => {
@@ -300,12 +301,39 @@ export default function PericonTutorialModal({
           tutorialAudioRef.current = null;
         };
         audio.onerror = () => {
+          if (stepNumber === 7) {
+            try {
+              const fallbackAudio = new Audio('/audio/mas_18.mp3');
+              tutorialAudioRef.current = fallbackAudio;
+              fallbackAudio.onplay = () => setIsSpeaking(true);
+              fallbackAudio.onended = () => {
+                setIsSpeaking(false);
+                tutorialAudioRef.current = null;
+              };
+              fallbackAudio.onerror = () => fallbackSpeech(text);
+              fallbackAudio.play().catch(() => fallbackSpeech(text));
+              return;
+            } catch (_) {}
+          }
           fallbackSpeech(text);
         };
 
         const playPromise = audio.play();
         if (playPromise !== undefined) {
           playPromise.catch(() => {
+            if (stepNumber === 7) {
+              try {
+                const fallbackAudio = new Audio('/audio/mas_18.mp3');
+                tutorialAudioRef.current = fallbackAudio;
+                fallbackAudio.onplay = () => setIsSpeaking(true);
+                fallbackAudio.onended = () => {
+                  setIsSpeaking(false);
+                  tutorialAudioRef.current = null;
+                };
+                fallbackAudio.play().catch(() => fallbackSpeech(text));
+                return;
+              } catch (_) {}
+            }
             fallbackSpeech(text);
           });
         }
@@ -316,7 +344,7 @@ export default function PericonTutorialModal({
       }
     }
 
-    // Paso 7 (Aviso legal +18) u otros textos
+    // Otros textos
     fallbackSpeech(text);
   };
 

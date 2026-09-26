@@ -99,7 +99,7 @@ export const ALL_VOICE_KEYS = [
   'ganaste_la_ronda', 'ganaron_la_mano', 'victoria_partida',
   'victoria_partida_alt', 'derrota_partida', 'tutorial_paso_1',
   'tutorial_paso_2', 'tutorial_paso_3', 'tutorial_paso_4',
-  'tutorial_paso_5', 'tutorial_paso_6', 'tutorial_reto_acepto',
+  'tutorial_paso_5', 'tutorial_paso_6', 'tutorial_paso_7', 'tutorial_reto_acepto',
   'tutorial_reto_rechazo', 'mas_18', '+18', 'advertencia_18'
 ];
 
