@@ -91,7 +91,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
   const [igRewardError, setIgRewardError] = useState<string | null>(null);
 
   // Formulario de Recarga (con soporte para borrar sin trabarse en 1)
-  const [amountBs, setAmountBs] = useState<string>("100");
+  const [amountBs, setAmountBs] = useState<string>("800");
   const [reference, setReference] = useState<string>("");
   const [receiptBase64, setReceiptBase64] = useState<string>("");
   const [receiptFileName, setReceiptFileName] = useState<string>("");
@@ -416,8 +416,8 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
     }
 
     const numAmount = parseInt(amountBs, 10) || 0;
-    if (numAmount <= 0) {
-      setSubmitError("Por favor ingresa un monto válido en Bolívares (mínimo 1 Bs).");
+    if (numAmount < 800) {
+      setSubmitError("El monto mínimo de recarga es de 800 Bs. (800 monedas).");
       return;
     }
 
@@ -848,7 +848,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
                 {/* Monto con borrado libre */}
                 <div>
                   <label className="text-[11px] text-amber-200/80 font-bold block mb-1">
-                    Monto transferido (Bs.):
+                    Monto transferido (Bs.) <span className="text-amber-400 font-extrabold">(Mínimo 800 Bs.)</span>:
                   </label>
                   <div className="relative">
                     <input
@@ -862,7 +862,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
                         }
                       }}
                       className="w-full bg-black/70 border border-amber-500/40 rounded-xl px-3 py-2 text-sm text-white font-black focus:outline-none focus:border-amber-400"
-                      placeholder="100"
+                      placeholder="800"
                       required
                     />
                     <span className="absolute right-3 top-2 text-xs font-extrabold text-amber-400">

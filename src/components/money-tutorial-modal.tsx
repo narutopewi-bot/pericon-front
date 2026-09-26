@@ -42,7 +42,7 @@ export default function MoneyTutorialModal({
       title: "2. Realiza tu Pago Móvil desde tu Banco",
       icon: "🏦",
       badge: "Paso 2",
-      desc: "Abre la aplicación de tu banco venezolano (Banesco, Banco de Venezuela, Mercantil, BNC, Provincial, etc.) y transfiere el monto que desees recargar (mínimo 10 Bs.). Guarda el número de referencia bancaria o capture de pantalla.",
+      desc: "Abre la aplicación de tu banco venezolano (Banesco, Banco de Venezuela, Mercantil, BNC, Provincial, etc.) y transfiere el monto que desees recargar (mínimo 800 Bs.). Guarda el número de referencia bancaria o capture de pantalla.",
       highlight: "Seguridad garantizada: Solo transfiere a los datos oficiales de la plataforma.",
       actionText: "Anota los últimos 4 dígitos o referencia completa",
     },
@@ -101,7 +101,7 @@ export default function MoneyTutorialModal({
 
   const speechTexts = {
     recharge:
-      "Para recargar monedas en El Pericón: Paso uno: Entra a tu billetera y copia los datos oficiales de Pago Móvil. La tasa es de un bolívar por cada moneda. Paso dos: Desde la app de tu banco, haz la transferencia por el monto que quieras y guarda el número de referencia o captura. Paso tres: Vuelve al juego, coloca el monto, el número de referencia y adjunta el comprobante. Paso cuatro: El equipo valida el pago y tus monedas se acreditan en pocos minutos para jugar.",
+      "Para recargar monedas en El Pericón: Paso uno: Entra a tu billetera y copia los datos oficiales de Pago Móvil. La tasa es de un bolívar por cada moneda. Paso dos: Desde la app de tu banco, haz la transferencia por el monto que quieras, con un mínimo de ochocientos bolívares, y guarda el número de referencia o captura. Paso tres: Vuelve al juego, coloca el monto, el número de referencia y adjunta el comprobante. Paso cuatro: El equipo valida el pago y tus monedas se acreditan en pocos minutos para jugar.",
     withdraw:
       "Para retirar tu dinero en El Pericón: Paso uno: Abre tu billetera y ve a la pestaña Retiro. El monto mínimo de retiro es de mil quinientos bolívares. Paso dos: Selecciona tu banco venezolano e ingresa tu teléfono de Pago Móvil y tu cédula de identidad. Paso tres: Escribe la cantidad de monedas a retirar y envía la solicitud. Paso cuatro: La administración te transfiere los bolívares directamente a tu cuenta por Pago Móvil rápido y seguro.",
     responsible:
