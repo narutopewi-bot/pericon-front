@@ -8,7 +8,7 @@ import { setGamePlayer } from '@/store/slices/gameplayerSlice';
 import { playCoinWinSound } from '@/lib/soundEffects';
 
 import { useSignalRContext } from '@/lib/signalrcontext';
-import { Porcion, Baraja, isTrumpCard } from "@/lib/library";
+import { Porcion, Baraja, isTrumpCard, NumCard } from "@/lib/library";
 
 import Image from 'next/image'
 import Timer from '@/components/timer'
@@ -478,6 +478,19 @@ export default function Duel() {
           vibrateDevice('tumba');
           playSynthSound('tumba');
         }
+
+        // Iniciativa proactiva de la Casa: Si el Bot tiene mano dominante en Baza 1 y no hay tumba,
+        // reta al usuario a "¡Dame tres!" para maximizar ganancias o llevarse 1 piedra inmediata
+        if (!playerInTumba && !oppInTumba && !isObligado && currentStakeRef.current === 1 && !hasAiAskedThisHand.current) {
+          setTimeout(() => {
+            if (!hasAiAskedThisHand.current && currentStakeRef.current === 1 && aiCardsRef.current.length === 3) {
+              if (evaluateAiAcceptance(3) && Math.random() < 0.75) {
+                hasAiAskedThisHand.current = true;
+                triggerAiPedir();
+              }
+            }
+          }, 1800);
+        }
       }
   };
 
@@ -670,8 +683,9 @@ export default function Duel() {
                                 (pointsoppRef.current >= 9 || (partoppRef.current === 1 && pointsoppRef.current === 8));
                 const nextAiStake = currentStakeRef.current === 1 ? 3 : (currentStakeRef.current === 3 ? 6 : 9);
                 if (currentStakeRef.current < 9 && lastStakeAskedByRef.current !== 'opp' && !isTumba) {
-                  if (evaluateAiAcceptance(nextAiStake) && Math.random() < 0.70) {
+                  if (evaluateAiAcceptance(nextAiStake) && Math.random() < 0.85) {
                     setTimeout(() => {
+                      hasAiAskedThisHand.current = true;
                       triggerAiPedir();
                     }, 800);
                   }
@@ -870,38 +884,61 @@ export default function Duel() {
   const isTumbaActive = (pointsown >= 9 || (partown === 1 && pointsown === 8)) ||
                         (pointsopp >= 9 || (partopp === 1 && pointsopp === 8));
 
+  // Poder de triunfo de cartas según las reglas del Pericón (espejo del servidor)
+  const getAiCardPower = (cardId: number, lifeId: number): number => {
+    if (cardId < 0 || lifeId < 0) return 0;
+    if (cardId === 4) return 30;  // 5 de Oro (Perico - triunfo supremo)
+    if (cardId === 33) return 29; // 4 de Bastos (Perica)
+    if (cardId === 38) return 27; // 11 de Bastos
+    if (cardId === 0) return 26;  // 1 de Oro
+    if (cardId === 7) return 25;  // 10 de Oro
+
+    const lifeSuit = Math.floor(lifeId / 10);
+    const cardSuit = Math.floor(cardId / 10);
+    const face = NumCard(cardId);
+
+    if (cardSuit === lifeSuit) {
+      if (face === 3) return 28; // El Gollero (3 de vida)
+      if (face === 2) return 24; // 2 de vida
+      if (face === 12) return 22; // Rey de vida
+      if (face === 11) return 21; // Caballo de vida
+      if (face === 10) return 20; // Sota de vida
+      if (face === 7) return 19;
+      if (face === 6) return 18;
+      if (face === 1) return 17; // As de vida
+      if (face === 5) return 16;
+      if (face === 4) return 15;
+    }
+    return 0; // Blanca
+  };
+
   // Inteligencia de Pericón (IA) para Cantos (Pedir 3, 6, 9)
   const evaluateAiAcceptance = (targetStake: number): boolean => {
-    const trumpCard = cpEightRef.current.id !== -1 ? cpEightRef.current : cpEight;
-    let score = 0;
-    const lifeSuit = Math.floor(trumpCard.id / 10);
+    const currentLife = cpEightRef.current.id !== -1 ? cpEightRef.current : cpEight;
+    const lifeId = currentLife.id;
+    if (lifeId === -1 || aiCardsRef.current.length === 0) return false;
+
+    let highestPower = 0;
+    let trumpsCount = 0;
 
     for (const c of aiCardsRef.current) {
-      if (c.id === 4) {
-        score += 3.5; // 5 de Oro (Perico - triunfo supremo)
-      } else if (c.id === 33) {
-        score += 3.0; // 4 de Bastos (Perica)
-      } else if (c.id === 38 || c.id === 7 || c.id === 0) {
-        score += 2.5; // 11 Basto, 10 Oro, 1 Oro
-      } else {
-        const cSuit = Math.floor(c.id / 10);
-        if (cSuit === lifeSuit) {
-          const face = c.id % 10;
-          if (face === 2) score += 2.5; // 3 de vida (Gollero)
-          else if (face === 1) score += 2.0; // 2 de vida
-          else if (face === 0) score += 1.8; // 1 de vida (As de vida)
-          else score += 1.5; // triunfo común de la vida
-        }
+      const p = getAiCardPower(c.id, lifeId);
+      if (p >= 15) {
+        trumpsCount++;
+        if (p > highestPower) highestPower = p;
       }
     }
 
-    // Regla de Oro de la Casa: NUNCA regalar piedras aceptando retos altos con manos débiles
+    // Regla de Oro: La Casa acepta retos cuando tiene cartas decisivas
     if (targetStake === 3) {
-      return score >= 2.5;
+      // Para 3 piedras: Acepta si tiene un triunfo de alta jerarquía (>= 20) O al menos 2 triunfos
+      return (highestPower >= 20) || (trumpsCount >= 2);
     } else if (targetStake === 6) {
-      return score >= 4.5;
+      // Para 6 piedras: Acepta si tiene triunfo superior (>= 25) O 2 triunfos con al menos uno >= 21
+      return (highestPower >= 25) || (trumpsCount >= 2 && highestPower >= 21);
     } else if (targetStake === 9) {
-      return score >= 6.0;
+      // Para 9 piedras: Acepta con triunfo supremo (>= 28) y respaldo
+      return (highestPower >= 28 && trumpsCount >= 2) || (highestPower === 30);
     }
     return false;
   };

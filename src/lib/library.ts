@@ -159,7 +159,7 @@ const ClubCard = (x: number) : string => {
     return nameClub;
 };
 
-const NumCard = (x: number) : number => {
+export const NumCard = (x: number) : number => {
     let _numCard : number = 0;
     if (x > 9) x -= 10;
     if (x > 9) x -= 10;
