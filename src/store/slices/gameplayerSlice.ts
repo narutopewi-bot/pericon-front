@@ -15,6 +15,8 @@ export interface GamePlayer {
   name: string;
   email: string;
   coins: number;
+  bonusCoins?: number;
+  retirableCoins?: number;
   active: boolean;
   wins?: number;
   losses?: number;

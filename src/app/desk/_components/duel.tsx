@@ -108,6 +108,12 @@ const Duel = ({ open, duelToggle, }: any) => {
       return;
     }
 
+    const currentCoins = user?.coins ?? 0;
+    if (currentCoins < bet) {
+      alert(`Saldo insuficiente. Tienes ${currentCoins} monedas y la apuesta mínima seleccionada requiere ${bet} monedas.`);
+      return;
+    }
+
     if (mode === "Solitario") {
       router.push(`/solitaire/999?bet=${bet}`);
       return;

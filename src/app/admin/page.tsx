@@ -17,6 +17,14 @@ interface AdminStats {
   totalHouseCommissions?: number;
   totalMatchesFinished?: number;
   totalCoinsWagered?: number;
+  totalBotMatches?: number;
+  totalBotCoinsWagered?: number;
+  totalBotHouseProfit?: number;
+  totalBotUserWins?: number;
+  totalBotWins?: number;
+  combinedTotalMatches?: number;
+  combinedCoinsWagered?: number;
+  combinedHouseProfit?: number;
 }
 
 interface MatchRow {
@@ -121,7 +129,35 @@ interface AnnouncementRow {
   expiresAt?: string | null;
 }
 
-type TabType = "dashboard" | "users" | "whatsapp" | "broadcast" | "recharges" | "withdrawals" | "matches" | "reports" | "promos" | "errors";
+interface BotMatchRow {
+  id: number;
+  userId: number;
+  username: string;
+  botName: string;
+  betAmount: number;
+  userWon: boolean;
+  coinsWon: number;
+  coinsLost: number;
+  houseProfit: number;
+  userCoinsBefore: number;
+  userCoinsAfter: number;
+  endReason: string;
+  createdAt: string;
+}
+
+interface BotSummary {
+  totalBotMatches: number;
+  userWinsCount: number;
+  botWinsCount: number;
+  userWinRate: number;
+  botWinRate: number;
+  totalCoinsWagered: number;
+  totalCoinsWonByUser: number;
+  totalCoinsWonByHouse: number;
+  netHouseProfit: number;
+}
+
+type TabType = "dashboard" | "users" | "whatsapp" | "broadcast" | "recharges" | "withdrawals" | "matches" | "bot-matches" | "reports" | "promos" | "errors";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -158,6 +194,21 @@ export default function AdminPage() {
   const [withdrawals, setWithdrawals] = useState<WithdrawalRow[]>([]);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [matches, setMatches] = useState<MatchRow[]>([]);
+  const [matchesSubTab, setMatchesSubTab] = useState<"pvp" | "bot">("pvp");
+  const [botMatches, setBotMatches] = useState<BotMatchRow[]>([]);
+  const [botSummary, setBotSummary] = useState<BotSummary>({
+    totalBotMatches: 0,
+    userWinsCount: 0,
+    botWinsCount: 0,
+    userWinRate: 0,
+    botWinRate: 0,
+    totalCoinsWagered: 0,
+    totalCoinsWonByUser: 0,
+    totalCoinsWonByHouse: 0,
+    netHouseProfit: 0,
+  });
+  const [botSearch, setBotSearch] = useState("");
+  const [botResultFilter, setBotResultFilter] = useState<"all" | "user_won" | "bot_won">("all");
   const [promos, setPromos] = useState<PromoCodeRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
@@ -298,7 +349,7 @@ export default function AdminPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [resStats, resRecharges, resWithdrawals, resUsers, resMatches, resPromos, resAnnounce] = await Promise.all([
+      const [resStats, resRecharges, resWithdrawals, resUsers, resMatches, resPromos, resAnnounce, resBot] = await Promise.all([
         adminFetch(`${apiUrl}/api/admin/stats`),
         adminFetch(`${apiUrl}/api/admin/recharges?status=${rechargeStatusFilter}`),
         adminFetch(`${apiUrl}/api/admin/withdrawals?status=${withdrawalStatusFilter}`),
@@ -306,6 +357,7 @@ export default function AdminPage() {
         adminFetch(`${apiUrl}/api/admin/matches`),
         adminFetch(`${apiUrl}/api/admin/promos`),
         adminFetch(`${apiUrl}/api/admin/announcements`),
+        adminFetch(`${apiUrl}/api/admin/bot-matches`),
       ]);
 
       if (resStats.ok) setStats(await resStats.json());
@@ -315,9 +367,69 @@ export default function AdminPage() {
       if (resMatches.ok) setMatches(await resMatches.json());
       if (resPromos.ok) setPromos(await resPromos.json());
       if (resAnnounce.ok) setAnnouncements(await resAnnounce.json());
+      if (resBot.ok) {
+        const botData = await resBot.json();
+        setBotMatches(botData.matches || []);
+        if (botData.summary) setBotSummary(botData.summary);
+      }
       await fetchErrorLogs();
     } catch (err) {
       console.error("Error loading admin data:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadBotMatches = async (searchQuery: string = botSearch, filterType: string = botResultFilter) => {
+    try {
+      const res = await adminFetch(`${apiUrl}/api/admin/bot-matches?search=${encodeURIComponent(searchQuery)}&filter=${filterType}`);
+      if (res.ok) {
+        const data = await res.json();
+        setBotMatches(data.matches || []);
+        if (data.summary) setBotSummary(data.summary);
+      }
+    } catch (e) {
+      console.error("Error al cargar partidas vs bot:", e);
+    }
+  };
+
+  const exportBotMatchesCSV = () => {
+    const headers = ["ID", "Usuario", "Rival", "Apuesta", "Resultado", "Monedas Ganadas", "Monedas Perdidas", "Impacto Casa", "Saldo Final", "Motivo", "Fecha"];
+    const rows = filteredBotMatches.map((m) => [
+      m.id,
+      m.username,
+      m.botName,
+      m.betAmount,
+      m.userWon ? "GANO USUARIO" : "GANO BOT",
+      m.coinsWon,
+      m.coinsLost,
+      m.houseProfit,
+      m.userCoinsAfter,
+      m.endReason,
+      m.createdAt,
+    ]);
+    downloadCSV(`partidas_bot_pericon_${new Date().toISOString().slice(0, 10)}.csv`, headers, rows);
+  };
+
+  const handleResetMatchHistory = async () => {
+    if (!window.confirm("⚠️ ¿Estás completamente seguro de reiniciar a CERO todas las partidas (Multijugador y Solitario vs Bot) y las ganancias de la casa?\n\nEsta acción dejará el panel administrativo completamente limpio en cero (0 partidas jugadas y 0 ganancias acumuladas) para iniciar el conteo oficial con dinero real a partir de la próxima jugada.")) {
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await adminFetch(`${apiUrl}/api/admin/matches/reset-history`, {
+        method: "POST",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`✅ ${data.message}`);
+        setActionMessage(`🔄 ${data.message}`);
+        loadData();
+      } else {
+        alert(data.message || "Error al reiniciar estadísticas del panel.");
+      }
+    } catch {
+      alert("Error al conectar con el servidor.");
     } finally {
       setLoading(false);
     }
@@ -1040,6 +1152,19 @@ export default function AdminPage() {
     });
   }, [users, whatsappSearch, whatsappFilter]);
 
+  // Partidas contra el Bot filtradas y buscadas
+  const filteredBotMatches = useMemo(() => {
+    return botMatches.filter((m) => {
+      const q = botSearch.toLowerCase().trim();
+      const matchSearch = !q || m.username.toLowerCase().includes(q) || m.botName.toLowerCase().includes(q);
+      if (!matchSearch) return false;
+
+      if (botResultFilter === "user_won") return m.userWon;
+      if (botResultFilter === "bot_won") return !m.userWon;
+      return true;
+    });
+  }, [botMatches, botSearch, botResultFilter]);
+
   // Cálculos para reportes financieros
   const financialSummary = useMemo(() => {
     const totalDeposits = recharges.filter((r) => r.status === "APROBADO").reduce((sum, r) => sum + r.amountBs, 0);
@@ -1050,6 +1175,10 @@ export default function AdminPage() {
     const totalCommissions = matches.reduce((sum, m) => sum + m.houseCommission, 0);
     const totalWagered = matches.reduce((sum, m) => sum + m.totalPot, 0);
 
+    const totalBotCoinsWagered = botMatches.reduce((sum, m) => sum + m.betAmount, 0);
+    const totalBotHouseProfit = botMatches.reduce((sum, m) => sum + m.houseProfit, 0);
+    const totalCombinedProfit = totalCommissions + totalBotHouseProfit;
+
     return {
       totalDeposits,
       totalWithdrawalsPaid,
@@ -1058,8 +1187,12 @@ export default function AdminPage() {
       totalCommissions,
       totalWagered,
       totalMatches: matches.length,
+      totalBotMatches: botMatches.length,
+      totalBotCoinsWagered,
+      totalBotHouseProfit,
+      totalCombinedProfit,
     };
-  }, [recharges, withdrawals, users, matches]);
+  }, [recharges, withdrawals, users, matches, botMatches]);
 
   // ----------------------------------------------------
   // PANTALLA DE LOGIN GUARDIAN
@@ -1326,10 +1459,31 @@ export default function AdminPage() {
           >
             <div className="flex items-center gap-3">
               <span className="text-base">🃏</span>
-              <span>Partidas y Apuestas</span>
+              <span>Partidas Multijugador</span>
             </div>
             <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-950/60 text-amber-300 border border-amber-400/30">
               {matches.length}
+            </span>
+          </button>
+
+          {/* 5.1. Partidas vs Bot */}
+          <button
+            onClick={() => {
+              setActiveTab("bot-matches");
+              setMobileMenuOpen(false);
+            }}
+            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
+              activeTab === "bot-matches"
+                ? "bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20"
+                : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-base">🤖</span>
+              <span>Partidas vs Bot</span>
+            </div>
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-950/60 text-amber-300 border border-amber-400/30">
+              {botMatches.length}
             </span>
           </button>
 
@@ -1451,17 +1605,30 @@ export default function AdminPage() {
         {/* ========================================================================= */}
         {activeTab === "dashboard" && (
           <div className="space-y-6">
-            <div>
-              <h1 className={`${fonts.bowlbyOneSC.className} text-xl md:text-2xl text-amber-400 tracking-wide`}>
-                Panel de Control General
-              </h1>
-              <p className="text-xs text-amber-200/60 mt-0.5">
-                Resumen de actividad, transacciones y usuarios en El Pericón.
-              </p>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h1 className={`${fonts.bowlbyOneSC.className} text-xl md:text-2xl text-amber-400 tracking-wide`}>
+                  Panel de Control General
+                </h1>
+                <p className="text-xs text-amber-200/60 mt-0.5">
+                  Resumen de actividad, transacciones, partidas y balances en El Pericón.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+                <button
+                  onClick={handleResetMatchHistory}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-950/70 hover:bg-red-900 text-red-300 border border-red-500/40 text-xs font-bold transition shadow"
+                  title="Reiniciar partidas jugadas y ganancias del panel a cero"
+                >
+                  <span>🔄</span>
+                  <span>Reiniciar Panel a Cero</span>
+                </button>
+              </div>
             </div>
 
             {/* Tarjetas KPI */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
               <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-4 shadow-lg">
                 <div className="flex items-center justify-between text-amber-400 mb-2">
                   <span className="text-xs font-bold uppercase tracking-wider">Usuarios</span>
@@ -1501,14 +1668,40 @@ export default function AdminPage() {
 
               <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-4 shadow-lg">
                 <div className="flex items-center justify-between text-amber-400 mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider">Comisión de la Casa</span>
-                  <span className="text-xl">🪙</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">Comisión PvP</span>
+                  <span className="text-xl">⚔️</span>
                 </div>
                 <div className="text-2xl font-black text-amber-300">
-                  {(stats?.totalHouseCommissions ?? financialSummary.totalCommissions).toLocaleString()}
+                  🪙 {(stats?.totalHouseCommissions ?? financialSummary.totalCommissions).toLocaleString()}
                 </div>
                 <div className="text-[11px] text-amber-200/60 mt-1">
-                  En {matches.length} partidas finalizadas
+                  En {matches.length} duelos 1v1 y 2v2
+                </div>
+              </div>
+
+              <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-4 shadow-lg">
+                <div className="flex items-center justify-between text-amber-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">Balance vs Bot</span>
+                  <span className="text-xl">🤖</span>
+                </div>
+                <div className={`text-2xl font-black ${botSummary.netHouseProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                  🪙 {botSummary.netHouseProfit >= 0 ? "+" : ""}{botSummary.netHouseProfit.toLocaleString()}
+                </div>
+                <div className="text-[11px] text-amber-200/60 mt-1">
+                  En {botMatches.length} partidas Solitario
+                </div>
+              </div>
+
+              <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-4 shadow-lg">
+                <div className="flex items-center justify-between text-amber-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">Ganancia Casa</span>
+                  <span className="text-xl">🏦</span>
+                </div>
+                <div className={`text-2xl font-black ${financialSummary.totalCombinedProfit >= 0 ? "text-yellow-400" : "text-red-400"}`}>
+                  🪙 {financialSummary.totalCombinedProfit >= 0 ? "+" : ""}{financialSummary.totalCombinedProfit.toLocaleString()}
+                </div>
+                <div className="text-[11px] text-amber-200/60 mt-1">
+                  {matches.length + botMatches.length} partidas en total
                 </div>
               </div>
             </div>
@@ -2654,9 +2847,9 @@ export default function AdminPage() {
         )}
 
         {/* ========================================================================= */}
-        {/* PESTAÑA 5: PARTIDAS Y AUDITORÍA */}
+        {/* PESTAÑA 5: PARTIDAS Y AUDITORÍA (MULTIJUGADOR Y BOT) */}
         {/* ========================================================================= */}
-        {activeTab === "matches" && (
+        {activeTab === "matches" && matchesSubTab === "pvp" && (
           <div className="space-y-6">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
               <div>
@@ -2664,17 +2857,44 @@ export default function AdminPage() {
                   Auditoría de Partidas y Apuestas
                 </h1>
                 <p className="text-xs text-amber-200/60 mt-0.5">
-                  Historial de duelos, pozos apostados y comisiones de sala retenidas.
+                  Historial de duelos multijugador, pozos apostados y comisiones de sala retenidas.
                 </p>
               </div>
 
+              <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+                <button
+                  onClick={exportMatchesCSV}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition shadow"
+                  title="Exportar partidas multijugador a archivo CSV/Excel"
+                >
+                  <span>📥</span>
+                  <span>Exportar Excel</span>
+                </button>
+
+                <button
+                  onClick={handleResetMatchHistory}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-950/70 hover:bg-red-900 text-red-300 border border-red-500/40 text-xs font-bold transition shadow"
+                  title="Reiniciar partidas jugadas y ganancias del panel a cero"
+                >
+                  <span>🔄</span>
+                  <span>Reiniciar a Cero</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Selector de Sub-pestañas: Multijugador vs Bot */}
+            <div className="flex items-center gap-2 border-b border-amber-500/20 pb-3">
               <button
-                onClick={exportMatchesCSV}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition shadow self-start md:self-auto"
-                title="Exportar partidas a archivo CSV/Excel"
+                onClick={() => setMatchesSubTab("pvp")}
+                className="px-4 py-2 rounded-xl text-xs font-bold transition bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20"
               >
-                <span>📥</span>
-                <span>Exportar Excel</span>
+                ⚔️ Duelos Multijugador ({matches.length})
+              </button>
+              <button
+                onClick={() => setMatchesSubTab("bot")}
+                className="px-4 py-2 rounded-xl text-xs font-bold transition bg-[#180e07] text-amber-200/70 border border-amber-500/20 hover:text-white"
+              >
+                🤖 Solitario contra el Bot ({botMatches.length})
               </button>
             </div>
 
@@ -2697,7 +2917,7 @@ export default function AdminPage() {
                     {matches.length === 0 ? (
                       <tr>
                         <td colSpan={8} className="text-center py-10 text-amber-200/40">
-                          No hay registros de partidas finalizadas con apuesta aún.
+                          No hay registros de partidas multijugador finalizadas aún (Panel en Cero).
                         </td>
                       </tr>
                     ) : (
@@ -2740,6 +2960,233 @@ export default function AdminPage() {
                           </tr>
                         );
                       })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* PESTAÑA 5.1: PARTIDAS SOLITARIO CONTRA EL BOT */}
+        {/* ========================================================================= */}
+        {(activeTab === "bot-matches" || (activeTab === "matches" && matchesSubTab === "bot")) && (
+          <div className="space-y-6">
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h1 className={`${fonts.bowlbyOneSC.className} text-xl md:text-2xl text-amber-400 tracking-wide`}>
+                  Auditoría de Partidas contra el Bot (Solitario)
+                </h1>
+                <p className="text-xs text-amber-200/60 mt-0.5">
+                  Registro de duelos contra la máquina, victorias de usuarios, efectividad de la IA y balance neto de la casa.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+                <button
+                  onClick={exportBotMatchesCSV}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition shadow"
+                  title="Exportar partidas vs bot a archivo CSV/Excel"
+                >
+                  <span>📥</span>
+                  <span>Exportar Excel</span>
+                </button>
+
+                <button
+                  onClick={handleResetMatchHistory}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-950/70 hover:bg-red-900 text-red-300 border border-red-500/40 text-xs font-bold transition shadow"
+                  title="Reiniciar partidas jugadas y ganancias del panel a cero"
+                >
+                  <span>🔄</span>
+                  <span>Reiniciar a Cero</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Selector de Sub-pestañas: Multijugador vs Bot si estamos en matches */}
+            {activeTab === "matches" && (
+              <div className="flex items-center gap-2 border-b border-amber-500/20 pb-3">
+                <button
+                  onClick={() => setMatchesSubTab("pvp")}
+                  className="px-4 py-2 rounded-xl text-xs font-bold transition bg-[#180e07] text-amber-200/70 border border-amber-500/20 hover:text-white"
+                >
+                  ⚔️ Duelos Multijugador ({matches.length})
+                </button>
+                <button
+                  onClick={() => setMatchesSubTab("bot")}
+                  className="px-4 py-2 rounded-xl text-xs font-bold transition bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20"
+                >
+                  🤖 Solitario contra el Bot ({botMatches.length})
+                </button>
+              </div>
+            )}
+
+            {/* Tarjetas Resumen de Rendimiento del Bot */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-4 shadow-lg">
+                <div className="flex items-center justify-between text-amber-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">Partidas vs Bot</span>
+                  <span className="text-xl">🤖</span>
+                </div>
+                <div className="text-2xl font-black text-white">{botSummary.totalBotMatches}</div>
+                <div className="text-[11px] text-amber-200/60 mt-1">
+                  🪙 {botSummary.totalCoinsWagered.toLocaleString()} monedas apostadas
+                </div>
+              </div>
+
+              <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-4 shadow-lg">
+                <div className="flex items-center justify-between text-emerald-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">Victorias Jugadores</span>
+                  <span className="text-xl">👤</span>
+                </div>
+                <div className="text-2xl font-black text-emerald-400">{botSummary.userWinsCount}</div>
+                <div className="text-[11px] text-emerald-300/70 mt-1">
+                  {botSummary.userWinRate}% efectividad · 🪙 {botSummary.totalCoinsWonByUser.toLocaleString()} entregadas
+                </div>
+              </div>
+
+              <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-4 shadow-lg">
+                <div className="flex items-center justify-between text-amber-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">Victorias del Bot</span>
+                  <span className="text-xl">💻</span>
+                </div>
+                <div className="text-2xl font-black text-amber-400">{botSummary.botWinsCount}</div>
+                <div className="text-[11px] text-amber-300/70 mt-1">
+                  {botSummary.botWinRate}% efectividad · 🪙 {botSummary.totalCoinsWonByHouse.toLocaleString()} retenidas
+                </div>
+              </div>
+
+              <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-4 shadow-lg">
+                <div className="flex items-center justify-between text-amber-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">Balance Casa (Bot)</span>
+                  <span className="text-xl">🏦</span>
+                </div>
+                <div className={`text-2xl font-black ${botSummary.netHouseProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                  🪙 {botSummary.netHouseProfit >= 0 ? "+" : ""}{botSummary.netHouseProfit.toLocaleString()}
+                </div>
+                <div className="text-[11px] text-amber-200/60 mt-1">
+                  {botSummary.netHouseProfit >= 0 ? "Superávit neto para la casa" : "Premios pagados superan derrotas"}
+                </div>
+              </div>
+            </div>
+
+            {/* Filtros y Buscador */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#180e07] border border-amber-500/20 rounded-2xl p-3">
+              <div className="relative w-full sm:w-80">
+                <input
+                  type="text"
+                  placeholder="Buscar por usuario o bot..."
+                  value={botSearch}
+                  onChange={(e) => setBotSearch(e.target.value)}
+                  className="w-full bg-[#100804] border border-amber-500/30 rounded-xl px-3.5 py-2 text-xs text-white placeholder-amber-200/40 focus:outline-none focus:border-amber-400"
+                />
+                {botSearch && (
+                  <button
+                    onClick={() => setBotSearch("")}
+                    className="absolute right-2.5 top-2.5 text-xs text-amber-400 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              <div className="flex rounded-xl bg-[#1e1008] border border-amber-500/30 p-0.5 text-xs font-bold w-full sm:w-auto justify-center">
+                <button
+                  onClick={() => setBotResultFilter("all")}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                    botResultFilter === "all" ? "bg-amber-500 text-amber-950 font-black" : "text-amber-200/60 hover:text-white"
+                  }`}
+                >
+                  Todas ({botMatches.length})
+                </button>
+                <button
+                  onClick={() => setBotResultFilter("user_won")}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                    botResultFilter === "user_won" ? "bg-emerald-500 text-emerald-950 font-black" : "text-emerald-300/60 hover:text-white"
+                  }`}
+                >
+                  🏆 Ganó Usuario ({botSummary.userWinsCount})
+                </button>
+                <button
+                  onClick={() => setBotResultFilter("bot_won")}
+                  className={`px-3 py-1.5 rounded-lg transition-all ${
+                    botResultFilter === "bot_won" ? "bg-red-500 text-white font-black" : "text-red-300/60 hover:text-white"
+                  }`}
+                >
+                  🤖 Ganó Bot ({botSummary.botWinsCount})
+                </button>
+              </div>
+            </div>
+
+            {/* Tabla de Partidas vs Bot */}
+            <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs">
+                  <thead className="bg-[#24140a] border-b border-amber-500/30 text-amber-300 uppercase tracking-wider font-bold">
+                    <tr>
+                      <th className="p-3.5">ID</th>
+                      <th className="p-3.5">Jugador</th>
+                      <th className="p-3.5">Rival</th>
+                      <th className="p-3.5">Apuesta</th>
+                      <th className="p-3.5">Resultado</th>
+                      <th className="p-3.5">Monedas Usuario</th>
+                      <th className="p-3.5">Balance Casa</th>
+                      <th className="p-3.5">Saldo Final</th>
+                      <th className="p-3.5">Motivo</th>
+                      <th className="p-3.5">Fecha</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-amber-500/10">
+                    {filteredBotMatches.length === 0 ? (
+                      <tr>
+                        <td colSpan={10} className="text-center py-10 text-amber-200/40">
+                          No hay registros de partidas solitario contra el Bot aún (Panel en Cero).
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredBotMatches.map((m) => (
+                        <tr key={m.id} className="hover:bg-amber-500/5 transition-colors">
+                          <td className="p-3.5 font-mono text-amber-200/50">#{m.id}</td>
+                          <td className="p-3.5 font-bold text-white">
+                            <span>👤 {m.username}</span>
+                          </td>
+                          <td className="p-3.5 font-medium text-amber-300">
+                            <span>🤖 {m.botName}</span>
+                          </td>
+                          <td className="p-3.5 font-semibold text-amber-200">🪙 {m.betAmount}</td>
+                          <td className="p-3.5">
+                            {m.userWon ? (
+                              <span className="inline-flex items-center gap-1 bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[10px] font-black uppercase px-2 py-0.5 rounded-full">
+                                🏆 Ganó Usuario
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 bg-red-500/20 text-red-300 border border-red-500/40 text-[10px] font-black uppercase px-2 py-0.5 rounded-full">
+                                🤖 Ganó el Bot
+                              </span>
+                            )}
+                          </td>
+                          <td className="p-3.5 font-bold">
+                            {m.userWon ? (
+                              <span className="text-emerald-400 font-black">+🪙 {m.coinsWon}</span>
+                            ) : (
+                              <span className="text-red-400 font-bold">-🪙 {m.coinsLost}</span>
+                            )}
+                          </td>
+                          <td className="p-3.5 font-bold">
+                            {m.houseProfit > 0 ? (
+                              <span className="text-emerald-400 font-black">+🪙 {m.houseProfit}</span>
+                            ) : m.houseProfit < 0 ? (
+                              <span className="text-red-400 font-bold">-🪙 {Math.abs(m.houseProfit)}</span>
+                            ) : (
+                              <span className="text-amber-200/50">🪙 0</span>
+                            )}
+                          </td>
+                          <td className="p-3.5 font-semibold text-amber-100">🪙 {m.userCoinsAfter}</td>
+                          <td className="p-3.5 text-amber-200/70">{m.endReason}</td>
+                          <td className="p-3.5 text-amber-200/50 text-[11px]">{m.createdAt}</td>
+                        </tr>
+                      ))
                     )}
                   </tbody>
                 </table>
@@ -2826,13 +3273,37 @@ export default function AdminPage() {
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-5">
                 <div className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-1">
-                  Comisión de Sala Acumulada
+                  Comisión Duelos PvP
                 </div>
                 <div className="text-2xl font-black text-amber-400">
                   🪙 {financialSummary.totalCommissions.toLocaleString()}
                 </div>
                 <p className="text-[11px] text-amber-200/60 mt-1">
-                  100% en salas privadas y 20% en duelos de matchmaking
+                  En {financialSummary.totalMatches} duelos (100% salas privadas y 20% matchmaking)
+                </p>
+              </div>
+
+              <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-5">
+                <div className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-1">
+                  Balance Solitario vs Bot
+                </div>
+                <div className={`text-2xl font-black ${financialSummary.totalBotHouseProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                  🪙 {financialSummary.totalBotHouseProfit >= 0 ? "+" : ""}{financialSummary.totalBotHouseProfit.toLocaleString()}
+                </div>
+                <p className="text-[11px] text-amber-200/60 mt-1">
+                  En {financialSummary.totalBotMatches} partidas vs máquina (🪙 {financialSummary.totalBotCoinsWagered.toLocaleString()} apostadas)
+                </p>
+              </div>
+
+              <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-5">
+                <div className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-1">
+                  Ganancia Neta Total Casa
+                </div>
+                <div className={`text-2xl font-black ${financialSummary.totalCombinedProfit >= 0 ? "text-yellow-400" : "text-red-400"}`}>
+                  🪙 {financialSummary.totalCombinedProfit >= 0 ? "+" : ""}{financialSummary.totalCombinedProfit.toLocaleString()}
+                </div>
+                <p className="text-[11px] text-amber-200/60 mt-1">
+                  Comisiones PvP + Balance Solitario vs Bot
                 </p>
               </div>
 
@@ -2848,15 +3319,15 @@ export default function AdminPage() {
                 </p>
               </div>
 
-              <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-5">
+              <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-5 md:col-span-2">
                 <div className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-1">
-                  Volumen Total Apostado
+                  Volumen Total Apostado Global
                 </div>
                 <div className="text-2xl font-black text-white">
-                  🪙 {financialSummary.totalWagered.toLocaleString()}
+                  🪙 {(financialSummary.totalWagered + financialSummary.totalBotCoinsWagered).toLocaleString()}
                 </div>
                 <p className="text-[11px] text-amber-200/60 mt-1">
-                  Monedas apostadas en {financialSummary.totalMatches} partidas
+                  Monedas apostadas en {financialSummary.totalMatches + financialSummary.totalBotMatches} partidas ({financialSummary.totalMatches} multijugador + {financialSummary.totalBotMatches} solitario)
                 </p>
               </div>
             </div>

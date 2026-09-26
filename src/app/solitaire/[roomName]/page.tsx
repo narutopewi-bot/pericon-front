@@ -246,8 +246,19 @@ export default function Duel() {
       });
       return;
     }
+    if (gameplayer?.coins !== undefined && gameplayer.coins < betAmount) {
+      Swal.fire({
+        title: "SALDO INSUFICIENTE",
+        text: `No tienes suficientes monedas para jugar esta partida (Apuesta: ${betAmount}, Tu saldo: ${gameplayer.coins} monedas).`,
+        icon: "warning",
+        confirmButtonColor: "#d97706"
+      }).then(() => {
+        router.push("/desk");
+      });
+      return;
+    }
     setOponent({ username: 'Pericon', avatar: '/avatar.png' })
-  }, [gameplayer, router])
+  }, [gameplayer, router, betAmount])
 
   // Initialize Game parameters
 
@@ -1245,7 +1256,7 @@ export default function Duel() {
       losses: !isWinner ? (gameplayer?.losses || 0) + 1 : (gameplayer?.losses || 0)
     }));
 
-    // Registrar en base de datos PostgreSQL (Supabase)
+    // Registrar en base de datos PostgreSQL y modelo de auditoría
     if (currentUserId > 0) {
       fetch(`${apiUrl}/api/user/record-match`, {
         method: 'POST',
@@ -1253,16 +1264,31 @@ export default function Duel() {
         body: JSON.stringify({
           userId: currentUserId,
           won: isWinner,
-          coinsChange: coinsChange
+          coinsChange: coinsChange,
+          betAmount: betAmount,
+          endReason: isWinner ? "Victoria contra la Máquina" : "Derrota contra la Máquina",
+          botName: "Pericón (Bot IA)"
         })
       })
       .then(res => res.ok ? res.json() : null)
       .then(data => {
-        if (data && typeof window !== 'undefined' && storedUser) {
-          storedUser.coins = data.coins;
-          storedUser.wins = data.wins;
-          storedUser.losses = data.losses;
-          localStorage.setItem("pericon_user", JSON.stringify(storedUser));
+        if (data && typeof window !== 'undefined') {
+          if (storedUser) {
+            storedUser.coins = data.coins;
+            if (data.bonusCoins !== undefined) storedUser.bonusCoins = data.bonusCoins;
+            if (data.retirableCoins !== undefined) storedUser.retirableCoins = data.retirableCoins;
+            storedUser.wins = data.wins;
+            storedUser.losses = data.losses;
+            localStorage.setItem("pericon_user", JSON.stringify(storedUser));
+          }
+          dispatch(setGamePlayer({
+            ...gameplayer,
+            coins: data.coins,
+            bonusCoins: data.bonusCoins ?? gameplayer.bonusCoins,
+            retirableCoins: data.retirableCoins ?? gameplayer.retirableCoins,
+            wins: data.wins,
+            losses: data.losses
+          }));
         }
       })
       .catch(e => console.error("Error al registrar partida solitario:", e));
