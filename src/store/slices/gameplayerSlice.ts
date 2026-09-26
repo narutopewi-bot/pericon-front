@@ -28,11 +28,13 @@ const initialState: GamePlayer = {
   id: "",
   name: "",
   email: "",
-  coins: 100,
+  coins: 200,
+  bonusCoins: 200,
+  retirableCoins: 0,
   active: false,
   wins: 0,
   losses: 0,
-  level: "Novato",
+  level: "Peón de Casona",
   avatarUrl: "",
 };
 
