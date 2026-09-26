@@ -602,6 +602,34 @@ export default function AdminPage() {
     }
   };
 
+  // Reiniciar Temporada: 500 Monedas, Ranking en 0 y Victorias en 0
+  const handleResetSeasonStats = async () => {
+    if (!window.confirm("⚠️ ¿Estás completamente seguro de reiniciar a TODOS los usuarios a 500 monedas y poner ranking y victorias en CERO?\n\nEsta acción iniciará oficialmente la era de Dinero Real y publicará el comunicado global.")) {
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await adminFetch(`${apiUrl}/api/admin/reset-season-stats`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coins: 500, clearMatchHistory: false }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        alert(`✅ ${data.message}`);
+        setActionMessage(`🔄 ${data.message}`);
+        loadData();
+        loadAnnouncements();
+      } else {
+        alert(data.message || "Error al reiniciar temporada.");
+      }
+    } catch {
+      alert("Error de conexión al servidor al reiniciar temporada.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Funciones de Apoyo para Directorio de WhatsApp
   const cleanPhoneDigits = (phone?: string) => {
     if (!phone) return "";
@@ -1676,6 +1704,15 @@ export default function AdminPage() {
                 >
                   <span>📥</span>
                   <span>Exportar Excel</span>
+                </button>
+
+                <button
+                  onClick={handleResetSeasonStats}
+                  className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-black font-extrabold text-xs transition shadow-lg border border-yellow-300 active:scale-95"
+                  title="Reiniciar monedas a 500 y ranking a cero para todos los usuarios (Inicio de Dinero Real)"
+                >
+                  <span>🔄</span>
+                  <span>Reiniciar Temporada (500 Monedas)</span>
                 </button>
               </div>
             </div>
