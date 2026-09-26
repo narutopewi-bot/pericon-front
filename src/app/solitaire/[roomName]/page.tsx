@@ -703,9 +703,9 @@ export default function Duel() {
             // Fin de la mano (uno de los dos ganó 2 bazas)
             const playerWonHand = (cp01 == 2);
             
-            // Verificar estados de Tumba usando refs actualizadas
-            const playerInTumba = (pointsownRef.current >= 9 || (partownRef.current === 1 && pointsownRef.current === 8));
-            const oppInTumba = (pointsoppRef.current >= 9 || (partoppRef.current === 1 && pointsoppRef.current === 8));
+            // Verificar estados de Tumba: si hubo Cogía en esta mano, solo se acumulan piedras y la Tumba se jugará en la siguiente mano
+            const playerInTumba = (pointsownRef.current >= 9 || (partownRef.current === 1 && pointsownRef.current === 8)) && (isCogiaBonus !== 1);
+            const oppInTumba = (pointsoppRef.current >= 9 || (partoppRef.current === 1 && pointsoppRef.current === 8)) && (isCogiaBonus !== 2);
             const isObligado = playerInTumba && oppInTumba;
 
             if (isObligado) {
