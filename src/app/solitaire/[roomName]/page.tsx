@@ -350,7 +350,7 @@ export default function Duel() {
                   Si aceptas y pierdes, se te restarán 3 piedras. Si rechazas, se te resta 1 piedra y se le suma al contrario.
                 </p>
                 <div style="background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.4); border-radius: 8px; padding: 6px; font-size: 12px; color: #fca5a5; font-weight: bold;">
-                  Auto-ingreso a la mano en: <strong id="tumba-swal-timer-sol" style="color: #ef4444; font-size: 14px;">3</strong>s
+                  Auto-ingreso a la mano en: <strong id="tumba-swal-timer-sol" style="color: #ef4444; font-size: 14px;">8</strong>s
                 </div>
               `,
               icon: "warning",
@@ -361,7 +361,7 @@ export default function Duel() {
               cancelButtonColor: "#ef4444",
               allowOutsideClick: false,
               allowEscapeKey: false,
-              timer: 3000,
+              timer: 8000,
               timerProgressBar: true,
               didOpen: () => {
                 const timerEl = document.getElementById("tumba-swal-timer-sol");

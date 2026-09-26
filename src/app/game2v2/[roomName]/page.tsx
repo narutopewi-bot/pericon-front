@@ -958,7 +958,7 @@ export default function GameTwoVsTwo() {
                 Si aceptas y pierdes, se le restarán 3 piedras a tu equipo. Si rechazas, se te resta 1 piedra y se le suma al contrario.
               </p>
               <div style="background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.4); border-radius: 8px; padding: 6px; font-size: 12px; color: #fca5a5; font-weight: bold;">
-                Auto-ingreso a la mano en: <strong id="tumba-swal-timer-2v2" style="color: #ef4444; font-size: 14px;">3</strong>s
+                Auto-ingreso a la mano en: <strong id="tumba-swal-timer-2v2" style="color: #ef4444; font-size: 14px;">8</strong>s
               </div>
             `,
             icon: "warning",
@@ -969,7 +969,7 @@ export default function GameTwoVsTwo() {
             cancelButtonColor: "#ef4444",
             allowOutsideClick: false,
             allowEscapeKey: false,
-            timer: 3000,
+            timer: 8000,
             timerProgressBar: true,
             background: "#1a0e06",
             color: "#fff",
@@ -1037,11 +1037,11 @@ export default function GameTwoVsTwo() {
       setIsProcessingMove(true);
       setTimeLeft(30);
 
-      // Watchdog de seguridad: máximo 15 segundos esperando decisión de Tumba del equipo rival
+      // Watchdog de seguridad sincronizado: 10s análisis + 8s decisión + 10s margen red móvil = 28 segundos
       setTimeout(() => {
         setIsWaitingOppTumba(prev => {
           if (prev) {
-            console.warn("[Watchdog Tumba 2v2] Tiempo agotado esperando a los rivales (15s). Desbloqueando mesa...");
+            console.warn("[Watchdog Tumba 2v2] Tiempo agotado esperando a los rivales (28s). Desbloqueando mesa...");
             setTimeLeft(30);
             isProcessingMoveRef.current = false;
             setIsProcessingMove(false);
@@ -1049,7 +1049,7 @@ export default function GameTwoVsTwo() {
           }
           return false;
         });
-      }, 15000);
+      }, 28000);
     } else {
       setIsWaitingOppTumba(false);
       isProcessingMoveRef.current = false;

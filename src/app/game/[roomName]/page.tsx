@@ -228,6 +228,31 @@ export default function Duel1vs1() {
   const isWaitingHandChange1v1Ref = useRef<boolean>(false);
   useEffect(() => { isWaitingHandChange1v1Ref.current = isWaitingHandChange1v1; }, [isWaitingHandChange1v1]);
   const handWatchdogTimerRef = useRef<any>(null);
+  const oppTumbaWatchdogRef = useRef<any>(null);
+  const processingWatchdogRef = useRef<any>(null);
+
+  // Watchdog de seguridad anti-bloqueo: si isProcessingMove permanece true por más de 6 segundos, auto-desbloquear mesa
+  useEffect(() => {
+    if (!isProcessingMove) {
+      if (processingWatchdogRef.current) {
+        clearTimeout(processingWatchdogRef.current);
+        processingWatchdogRef.current = null;
+      }
+      return;
+    }
+
+    processingWatchdogRef.current = setTimeout(() => {
+      console.warn("[Anti-Bloqueo 1v1] isProcessingMove retenido por más de 6s. Liberando mesa automáticamente...");
+      isProcessingRef.current = false;
+      setIsProcessingMove(false);
+    }, 6000);
+
+    return () => {
+      if (processingWatchdogRef.current) {
+        clearTimeout(processingWatchdogRef.current);
+      }
+    };
+  }, [isProcessingMove]);
 
   // Control de sonido en vivo y auto-desbloqueo
   const [isSoundMutedState, setIsSoundMutedState] = useState<boolean>(() => isSoundMuted());
@@ -391,6 +416,11 @@ export default function Duel1vs1() {
   const handleClaimRivalTimeout = async () => {
     if (rivalTimeoutData.isClaiming) return;
     if (!idGame.current || idGame.current <= 0) return;
+    if (isWaitingOppTumba || tumbaCountdown !== null || isWaitingHandChange1v1 || playerCards.length === 0) {
+      console.warn("[ClaimTimeout] Reclamo rechazado en cliente: la mesa está en fase de tumba, reparto o cambio de manos.");
+      setRivalTimeoutData(prev => ({ ...prev, isOpen: false }));
+      return;
+    }
     setRivalTimeoutData(prev => ({ ...prev, isClaiming: true }));
     try {
       if (connection) {
@@ -404,7 +434,22 @@ export default function Duel1vs1() {
   };
 
   const handleRivalTimeoutDetected = () => {
-    if (hasTimedOut.current) return;
+    if (
+      hasTimedOut.current ||
+      isWaitingHandChange1v1 ||
+      isWaitingOppTumba ||
+      tumbaCountdown !== null ||
+      isProcessingMove ||
+      isDealing ||
+      isReturningToDeck ||
+      trickWinner !== null ||
+      playerCards.length === 0 ||
+      !idGame.current ||
+      idGame.current <= 0
+    ) {
+      console.log("[RivalTimeout] Detección de inactividad ignorada: la mesa se encuentra en estado protegido (transición/reparto/tumba).");
+      return;
+    }
     const oppName = oponent.username && oponent.username !== 'nulo' ? oponent.username : 'Rival';
     playSynthSound?.('tumba');
     setRivalTimeoutData({
@@ -618,9 +663,20 @@ export default function Duel1vs1() {
     preloadVoiceAudios();
   }, []);
 
-  // Cuenta regresiva de 30 segundos por turno (se pausa durante análisis y decisión de Tumba)
+  // Cuenta regresiva de 30 segundos por turno (se pausa durante análisis y decisión de Tumba, repartos y transiciones)
   useEffect(() => {
-    if (isDealing || isReturningToDeck || !hasConnected.current || isWaitingOppTumba || tumbaCountdown !== null || pedirChallenge !== null) {
+    if (
+      isDealing ||
+      isReturningToDeck ||
+      !hasConnected.current ||
+      isWaitingOppTumba ||
+      tumbaCountdown !== null ||
+      pedirChallenge !== null ||
+      isWaitingHandChange1v1 ||
+      isProcessingMove ||
+      trickWinner !== null ||
+      playerCards.length === 0
+    ) {
       return;
     }
 
@@ -628,9 +684,9 @@ export default function Duel1vs1() {
       setTimeLeft(prev => {
         if (prev <= 1) {
           clearInterval(interval);
-          if (isMyTurn && !hasTimedOut.current && !isWaitingOppTumba && tumbaCountdown === null) {
+          if (isMyTurn && !hasTimedOut.current && !isWaitingOppTumba && tumbaCountdown === null && !isWaitingHandChange1v1 && playerCards.length > 0) {
             handleTimeoutForfeit();
-          } else if (!isMyTurn && !hasTimedOut.current && !isWaitingOppTumba && tumbaCountdown === null) {
+          } else if (!isMyTurn && !hasTimedOut.current && !isWaitingOppTumba && tumbaCountdown === null && !isWaitingHandChange1v1 && playerCards.length > 0) {
             handleRivalTimeoutDetected();
           }
           return 0;
@@ -640,7 +696,18 @@ export default function Duel1vs1() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [isMyTurn, isDealing, isReturningToDeck, isWaitingOppTumba, tumbaCountdown, pedirChallenge]);
+  }, [
+    isMyTurn,
+    isDealing,
+    isReturningToDeck,
+    isWaitingOppTumba,
+    tumbaCountdown,
+    pedirChallenge,
+    isWaitingHandChange1v1,
+    isProcessingMove,
+    trickWinner,
+    playerCards.length
+  ]);
 
   // Cuenta regresiva para responder al Pedir (12 segundos)
   useEffect(() => {
@@ -1161,6 +1228,10 @@ export default function Duel1vs1() {
     if (!connection) return;
     connection.on('TumbaPassedNotice', (data: any) => {
       console.log("[TumbaPassedNotice] Recibido:", data);
+      if (oppTumbaWatchdogRef.current) {
+        clearTimeout(oppTumbaWatchdogRef.current);
+        oppTumbaWatchdogRef.current = null;
+      }
       setIsWaitingOppTumba(false);
       isProcessingRef.current = false;
       setIsProcessingMove(false);
@@ -1193,6 +1264,10 @@ export default function Duel1vs1() {
 
     connection.on('TumbaAcceptedNotice', (data: any) => {
       console.log("[TumbaAcceptedNotice] Recibido:", data);
+      if (oppTumbaWatchdogRef.current) {
+        clearTimeout(oppTumbaWatchdogRef.current);
+        oppTumbaWatchdogRef.current = null;
+      }
       setIsWaitingOppTumba(false);
       isProcessingRef.current = false;
       setIsProcessingMove(false);
@@ -1224,6 +1299,10 @@ export default function Duel1vs1() {
     isProcessingRef.current = false;
     setIsProcessingMove(false);
     setIsWaitingOppTumba(false);
+    if (oppTumbaWatchdogRef.current) {
+      clearTimeout(oppTumbaWatchdogRef.current);
+      oppTumbaWatchdogRef.current = null;
+    }
     if (tumbaCountdownTimerRef.current) {
       clearInterval(tumbaCountdownTimerRef.current);
       tumbaCountdownTimerRef.current = null;
@@ -1345,7 +1424,7 @@ export default function Duel1vs1() {
                 Si aceptas y pierdes, se te restarán 3 piedras. Si rechazas, se te resta 1 piedra y se le suma al contrario.
               </p>
               <div style="background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.4); border-radius: 8px; padding: 6px; font-size: 12px; color: #fca5a5; font-weight: bold;">
-                Auto-ingreso a la mano en: <strong id="tumba-swal-timer" style="color: #ef4444; font-size: 14px;">3</strong>s
+                Auto-ingreso a la mano en: <strong id="tumba-swal-timer" style="color: #ef4444; font-size: 14px;">8</strong>s
               </div>
             `,
             icon: "warning",
@@ -1356,7 +1435,7 @@ export default function Duel1vs1() {
             cancelButtonColor: "#ef4444",
             allowOutsideClick: false,
             allowEscapeKey: false,
-            timer: 3000,
+            timer: 8000,
             timerProgressBar: true,
             didOpen: () => {
               const timerEl = document.getElementById("tumba-swal-timer");
@@ -1402,6 +1481,10 @@ export default function Duel1vs1() {
               isProcessingRef.current = false;
               setIsProcessingMove(false);
               setIsWaitingOppTumba(false);
+              if (oppTumbaWatchdogRef.current) {
+                clearTimeout(oppTumbaWatchdogRef.current);
+                oppTumbaWatchdogRef.current = null;
+              }
               playVoiceAudio('pasaste_en_tumba', "Pasaste en Tumba. Menos una piedra.");
               vibrateDevice('reject');
               playSynthSound('reject');
@@ -1434,11 +1517,12 @@ export default function Duel1vs1() {
       setTimeLeft(30);
       hasTimedOut.current = false;
 
-      // Watchdog de seguridad: máximo 15 segundos esperando la decisión de Tumba del rival
-      setTimeout(() => {
+      // Watchdog de seguridad sincronizado: 10s análisis + 8s decisión + 10s margen red móvil = 28 segundos
+      if (oppTumbaWatchdogRef.current) clearTimeout(oppTumbaWatchdogRef.current);
+      oppTumbaWatchdogRef.current = setTimeout(() => {
         setIsWaitingOppTumba(prev => {
           if (prev) {
-            console.warn("[Watchdog Tumba 1v1] Tiempo de espera del rival agotado (15s). Desbloqueando mesa...");
+            console.warn("[Watchdog Tumba 1v1] Tiempo de espera del rival agotado (28s). Desbloqueando mesa...");
             setTimeLeft(30);
             hasTimedOut.current = false;
             isProcessingRef.current = false;
@@ -1447,9 +1531,13 @@ export default function Duel1vs1() {
           }
           return false;
         });
-      }, 15000);
+      }, 28000);
     } else {
       setIsWaitingOppTumba(false);
+      if (oppTumbaWatchdogRef.current) {
+        clearTimeout(oppTumbaWatchdogRef.current);
+        oppTumbaWatchdogRef.current = null;
+      }
       isProcessingRef.current = false;
       setIsProcessingMove(false);
     }
