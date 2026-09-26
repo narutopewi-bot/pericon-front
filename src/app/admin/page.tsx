@@ -602,9 +602,9 @@ export default function AdminPage() {
     }
   };
 
-  // Reiniciar Temporada: 500 Monedas, Ranking en 0 y Victorias en 0
+  // Reiniciar Temporada: 300 Monedas de Cortesía, Ranking en 0 y Victorias en 0
   const handleResetSeasonStats = async () => {
-    if (!window.confirm("⚠️ ¿Estás completamente seguro de reiniciar a TODOS los usuarios a 500 monedas y poner ranking y victorias en CERO?\n\nEsta acción iniciará oficialmente la era de Dinero Real y publicará el comunicado global.")) {
+    if (!window.confirm("⚠️ ¿Estás completamente seguro de reiniciar a TODOS los usuarios a 300 monedas de cortesía y poner ranking y victorias en CERO?\n\nEsta acción iniciará oficialmente la era de Dinero Real y publicará el comunicado global.")) {
       return;
     }
     setLoading(true);
@@ -612,7 +612,7 @@ export default function AdminPage() {
       const res = await adminFetch(`${apiUrl}/api/admin/reset-season-stats`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ coins: 500, clearMatchHistory: false }),
+        body: JSON.stringify({ coins: 300, clearMatchHistory: false }),
       });
       const data = await res.json();
       if (res.ok) {
@@ -1709,10 +1709,10 @@ export default function AdminPage() {
                 <button
                   onClick={handleResetSeasonStats}
                   className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gradient-to-r from-amber-600 to-yellow-500 hover:from-amber-500 hover:to-yellow-400 text-black font-extrabold text-xs transition shadow-lg border border-yellow-300 active:scale-95"
-                  title="Reiniciar monedas a 500 y ranking a cero para todos los usuarios (Inicio de Dinero Real)"
+                  title="Reiniciar monedas a 300 de cortesía y ranking a cero para todos los usuarios (Inicio de Dinero Real)"
                 >
                   <span>🔄</span>
-                  <span>Reiniciar Temporada (500 Monedas)</span>
+                  <span>Reiniciar Temporada (300 Monedas)</span>
                 </button>
               </div>
             </div>
