@@ -230,8 +230,14 @@ export default function AdminPage() {
   // Directorio de WhatsApp
   const [whatsappSearch, setWhatsappSearch] = useState("");
   const [whatsappFilter, setWhatsappFilter] = useState<"all" | "with_phone" | "without_phone">("all");
-  const [whatsappTemplate, setWhatsappTemplate] = useState<"torneo" | "novedades" | "promo" | "libre">("torneo");
+  const [whatsappTemplate, setWhatsappTemplate] = useState<"grupo" | "torneo" | "novedades" | "promo" | "libre">("grupo");
   const [customWaMessage, setCustomWaMessage] = useState("");
+  const [whatsappGroupLink, setWhatsappGroupLink] = useState(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("pericon_wa_group_link") || "";
+    }
+    return "";
+  });
 
   // Formulario de Creación de Cupón
   const [newPromoCode, setNewPromoCode] = useState("");
@@ -762,6 +768,10 @@ export default function AdminPage() {
   };
 
   const getWhatsAppMessageText = (username: string) => {
+    if (whatsappTemplate === "grupo") {
+      const link = whatsappGroupLink.trim() || "[ENLACE_DEL_GRUPO]";
+      return `¡Hola ${username}! 🃏 Te saluda el equipo de El Pericón. Te invitamos a unirte a nuestro Grupo Oficial de WhatsApp para enterarte de partidas, torneos relámpago, promociones y recargas: ${link}`;
+    }
     if (whatsappTemplate === "torneo") {
       return `¡Hola ${username}! 🏆 Te escribe la administración de El Pericón. Te invitamos al próximo gran torneo en nuestra plataforma. ¡Participa y gana fabulosos premios!`;
     }
@@ -2170,6 +2180,7 @@ export default function AdminPage() {
                 </div>
                 <div className="flex flex-wrap gap-1.5 text-xs font-bold">
                   {[
+                    { id: "grupo", label: "👥 Invitar al Grupo Oficial" },
                     { id: "torneo", label: "🏆 Convocatoria a Torneo" },
                     { id: "promo", label: "🎁 Bono y Promoción" },
                     { id: "novedades", label: "📢 Nuevas Salas y Mejoras" },
@@ -2188,6 +2199,27 @@ export default function AdminPage() {
                     </button>
                   ))}
                 </div>
+              </div>
+
+              {/* Enlace configurable del Grupo de WhatsApp */}
+              <div className="bg-[#24140a] border border-emerald-500/30 rounded-xl p-3 flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+                <span className="text-[11px] font-bold text-emerald-300 flex items-center gap-1.5 flex-shrink-0">
+                  <span>🔗</span>
+                  <span>Enlace de tu Grupo de WhatsApp:</span>
+                </span>
+                <input
+                  type="url"
+                  placeholder="https://chat.whatsapp.com/..."
+                  value={whatsappGroupLink}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setWhatsappGroupLink(val);
+                    if (typeof window !== "undefined") {
+                      localStorage.setItem("pericon_wa_group_link", val);
+                    }
+                  }}
+                  className="flex-1 bg-black/60 border border-emerald-500/40 rounded-lg px-3 py-1.5 text-xs text-emerald-100 placeholder-emerald-400/30 focus:outline-none focus:border-emerald-400 font-mono"
+                />
               </div>
 
               {whatsappTemplate === "libre" ? (
