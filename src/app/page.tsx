@@ -49,20 +49,6 @@ export default function Home() {
     }
   };
 
-  const handleGuestPlay = () => {
-    const guestName = `Invitado_${Math.floor(1000 + Math.random() * 9000)}`;
-    dispatch(
-      setGamePlayer({
-        id: "guest_" + Date.now(),
-        name: guestName,
-        email: "invitado@pericon.com",
-        coins: 50,
-        active: true,
-      })
-    );
-    router.push("/desk");
-  };
-
   return (
     <React.Fragment>
       <div className="absolute inset-6 bg-diablo mix-blend-soft-light opacity-20 z-[-1]"></div>
@@ -141,13 +127,6 @@ export default function Home() {
                 className="w-full bg-black/85 hover:bg-black border-2 border-slate-300 hover:border-white text-white py-3 rounded-2xl text-sm font-extrabold shadow-xl shadow-black/90 tracking-wide hover:scale-[1.02] active:scale-95 transition-all">
                 Crear Cuenta Nueva
               </Button>
-
-              <button
-                onClick={handleGuestPlay}
-                className="w-full py-2.5 px-3 mt-1 rounded-xl bg-white/10 hover:bg-white/20 border border-white/25 text-xs text-white font-bold transition flex items-center justify-center gap-1.5 hover:scale-[1.02] active:scale-95">
-                <span>🎲</span>
-                <span>Jugar como Invitado (Solo Amistoso)</span>
-              </button>
             </>
           )}
         </div>
