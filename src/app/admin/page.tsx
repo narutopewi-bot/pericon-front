@@ -54,6 +54,7 @@ interface RechargeRow {
   userId: number;
   username: string;
   userEmail: string;
+  userPhone?: string;
   userCoins: number;
   amountBs: number;
   coinsAmount: number;
@@ -791,6 +792,22 @@ export default function AdminPage() {
     return text ? `https://wa.me/${clean}?text=${encodeURIComponent(text)}` : `https://wa.me/${clean}`;
   };
 
+  const getRechargeApprovedWhatsAppLink = (r: RechargeRow) => {
+    const phone = r.userPhone || users.find((u) => u.id === r.userId)?.phoneNumber;
+    const clean = cleanPhoneDigits(phone);
+    if (!clean) return "#";
+    const text = `¡Hola ${r.username}! 🪙 Tu recarga de Bs. ${r.amountBs.toLocaleString()} (${r.coinsAmount.toLocaleString()} Monedas) ha sido APROBADA exitosamente en El Pericón. Tu saldo ya se encuentra acreditado en tu cuenta. ¡Mucho éxito en tus partidas! 🃏`;
+    return `https://wa.me/${clean}?text=${encodeURIComponent(text)}`;
+  };
+
+  const getWithdrawalPaidWhatsAppLink = (w: WithdrawalRow) => {
+    const clean = cleanPhoneDigits(w.phoneNumber);
+    if (!clean) return "#";
+    const refText = w.adminReference ? ` (Ref Bancaria: ${w.adminReference})` : "";
+    const text = `¡Hola ${w.username}! 💸 Tu retiro de ${w.coinsAmount.toLocaleString()} Monedas (Bs. ${w.amountBs.toLocaleString()}) ha sido PROCESADO Y PAGADO exitosamente por Pago Móvil a tu cuenta (${w.bankName}, Cédula: ${w.idCard})${refText}. ¡Gracias por jugar en El Pericón! 🏆`;
+    return `https://wa.me/${clean}?text=${encodeURIComponent(text)}`;
+  };
+
   const copyAllWhatsAppNumbers = () => {
     const phones = users
       .map((u) => cleanPhoneDigits(u.phoneNumber))
@@ -1026,8 +1043,15 @@ export default function AdminPage() {
       });
       const data = await res.json();
       if (res.ok) {
-        setActionMessage(`✅ ${data.message}`);
+        setActionMessage(`✅ ${data.message || "Recarga aprobada exitosamente."}`);
         loadData();
+        const found = recharges.find((r) => r.id === id);
+        if (found) {
+          const waUrl = getRechargeApprovedWhatsAppLink(found);
+          if (waUrl && waUrl !== "#" && window.confirm("¿Deseas abrir WhatsApp para notificar al jugador que su recarga fue aprobada?")) {
+            window.open(waUrl, "_blank");
+          }
+        }
         try {
           if (typeof window !== "undefined") {
             const raw = localStorage.getItem("pericon_user");
@@ -1098,6 +1122,11 @@ export default function AdminPage() {
       if (res.ok) {
         setActionMessage(`✅ Retiro #${w.id} marcado como PAGADO exitosamente. Referencia: ${ref.trim()}`);
         loadData();
+        const updatedW: WithdrawalRow = { ...w, adminReference: ref.trim(), status: "PAGADO" };
+        const waUrl = getWithdrawalPaidWhatsAppLink(updatedW);
+        if (waUrl && waUrl !== "#" && window.confirm("¿Deseas abrir WhatsApp para enviar el comprobante de pago al jugador?")) {
+          window.open(waUrl, "_blank");
+        }
       } else {
         setActionMessage(`❌ Error: ${data.message}`);
       }
@@ -2784,8 +2813,21 @@ export default function AdminPage() {
                                   Rechazar
                                 </button>
                               </div>
+                            ) : r.status === "APROBADO" ? (
+                              <div className="flex items-center justify-center gap-1.5">
+                                <a
+                                  href={getRechargeApprovedWhatsAppLink(r)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition shadow"
+                                  title="Enviar comprobante de aprobación por WhatsApp al jugador"
+                                >
+                                  <span>💬</span>
+                                  <span>Avisar WhatsApp</span>
+                                </a>
+                              </div>
                             ) : (
-                              <span className="text-amber-200/30 text-[11px]">Completada</span>
+                              <span className="text-amber-200/30 text-[11px]">Rechazada</span>
                             )}
                           </td>
                         </tr>
@@ -2916,8 +2958,21 @@ export default function AdminPage() {
                                   Rechazar
                                 </button>
                               </div>
+                            ) : w.status === "PAGADO" ? (
+                              <div className="flex items-center justify-center gap-1.5">
+                                <a
+                                  href={getWithdrawalPaidWhatsAppLink(w)}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold transition shadow"
+                                  title="Enviar comprobante de pago por WhatsApp al jugador"
+                                >
+                                  <span>💬</span>
+                                  <span>Avisar Pago WhatsApp</span>
+                                </a>
+                              </div>
                             ) : (
-                              <span className="text-amber-200/30 text-[11px]">Procesado</span>
+                              <span className="text-amber-200/30 text-[11px]">Rechazado</span>
                             )}
                           </td>
                         </tr>
