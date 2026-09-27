@@ -144,6 +144,20 @@ interface AnnouncementRow {
   expiresAt?: string | null;
 }
 
+interface FeedbackRow {
+  id: number;
+  userId?: number;
+  username: string;
+  userEmail?: string;
+  userPhone?: string;
+  rating: number;
+  category: string;
+  message: string;
+  canPublish: boolean;
+  isFeatured: boolean;
+  createdAt: string;
+}
+
 interface BotMatchRow {
   id: number;
   userId: number;
@@ -172,7 +186,7 @@ interface BotSummary {
   netHouseProfit: number;
 }
 
-type TabType = "dashboard" | "users" | "whatsapp" | "broadcast" | "recharges" | "withdrawals" | "matches" | "bot-matches" | "reports" | "promos" | "errors";
+type TabType = "dashboard" | "users" | "whatsapp" | "broadcast" | "recharges" | "withdrawals" | "matches" | "bot-matches" | "reports" | "promos" | "errors" | "feedbacks";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -229,6 +243,10 @@ export default function AdminPage() {
   const [botSearch, setBotSearch] = useState("");
   const [botResultFilter, setBotResultFilter] = useState<"all" | "user_won" | "bot_won">("all");
   const [promos, setPromos] = useState<PromoCodeRow[]>([]);
+  const [feedbacks, setFeedbacks] = useState<FeedbackRow[]>([]);
+  const [feedbackStats, setFeedbackStats] = useState<{ total: number; averageRating: number }>({ total: 0, averageRating: 5.0 });
+  const [feedbackCategoryFilter, setFeedbackCategoryFilter] = useState<string>("ALL");
+  const [feedbackRatingFilter, setFeedbackRatingFilter] = useState<number>(0);
   const [loading, setLoading] = useState(false);
   const [actionMessage, setActionMessage] = useState<string | null>(null);
 
@@ -374,7 +392,7 @@ export default function AdminPage() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [resStats, resRecharges, resWithdrawals, resUsers, resMatches, resPromos, resAnnounce, resBot] = await Promise.all([
+      const [resStats, resRecharges, resWithdrawals, resUsers, resMatches, resPromos, resAnnounce, resBot, resFeedbacks] = await Promise.all([
         adminFetch(`${apiUrl}/api/admin/stats`),
         adminFetch(`${apiUrl}/api/admin/recharges?status=ALL`),
         adminFetch(`${apiUrl}/api/admin/withdrawals?status=ALL`),
@@ -383,6 +401,7 @@ export default function AdminPage() {
         adminFetch(`${apiUrl}/api/admin/promos`),
         adminFetch(`${apiUrl}/api/admin/announcements`),
         adminFetch(`${apiUrl}/api/admin/bot-matches`),
+        adminFetch(`${apiUrl}/api/admin/feedbacks`),
       ]);
 
       if (resStats.ok) setStats(await resStats.json());
@@ -392,6 +411,11 @@ export default function AdminPage() {
       if (resMatches.ok) setMatches(await resMatches.json());
       if (resPromos.ok) setPromos(await resPromos.json());
       if (resAnnounce.ok) setAnnouncements(await resAnnounce.json());
+      if (resFeedbacks.ok) {
+        const fData = await resFeedbacks.json();
+        setFeedbacks(fData.feedbacks || []);
+        setFeedbackStats({ total: fData.total || 0, averageRating: fData.averageRating || 5.0 });
+      }
       if (resBot.ok) {
         const botData = await resBot.json();
         setBotMatches(botData.matches || []);
@@ -539,6 +563,32 @@ export default function AdminPage() {
       }
     } catch (err) {
       console.error("Error clearing resolved errors:", err);
+    }
+  };
+
+  const handleToggleFeaturedFeedback = async (id: number) => {
+    try {
+      const res = await adminFetch(`${apiUrl}/api/admin/feedback/${id}/toggle-featured`, { method: "POST" });
+      if (res.ok) {
+        const data = await res.json();
+        setFeedbacks(prev => prev.map(f => f.id === id ? { ...f, isFeatured: data.isFeatured } : f));
+        setActionMessage(data.isFeatured ? "⭐ Opinión destacada como testimonio público" : "Opinión removida de destacados");
+      }
+    } catch (err) {
+      alert("Error al actualizar estado");
+    }
+  };
+
+  const handleDeleteFeedback = async (id: number) => {
+    if (!window.confirm("¿Seguro que deseas eliminar esta opinión de jugador?")) return;
+    try {
+      const res = await adminFetch(`${apiUrl}/api/admin/feedback/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setFeedbacks(prev => prev.filter(f => f.id !== id));
+        setActionMessage("🗑️ Opinión eliminada correctamente");
+      }
+    } catch (err) {
+      alert("Error al eliminar opinión");
     }
   };
 
@@ -1772,6 +1822,27 @@ export default function AdminPage() {
                 {errorLogs.length}
               </span>
             )}
+          </button>
+
+          {/* 9. Opiniones y Sugerencias de Jugadores */}
+          <button
+            onClick={() => {
+              setActiveTab("feedbacks");
+              setMobileMenuOpen(false);
+            }}
+            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
+              activeTab === "feedbacks"
+                ? "bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 text-stone-950 shadow-md shadow-amber-500/30"
+                : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-base">⭐</span>
+              <span>Opiniones & Sugerencias</span>
+            </div>
+            <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-950/60 text-amber-300 border border-amber-400/30">
+              {feedbacks.length}
+            </span>
           </button>
         </nav>
 
@@ -4373,6 +4444,219 @@ export default function AdminPage() {
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* 9. PESTAÑA: OPINIONES, SUGERENCIAS Y TESTIMONIOS DE JUGADORES             */}
+        {/* ========================================================================= */}
+        {activeTab === "feedbacks" && (
+          <div className="space-y-6 animate-in fade-in duration-300">
+            {/* Cabecera del Módulo */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#180e07] border border-amber-500/30 p-5 rounded-2xl shadow-xl">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">⭐💬</span>
+                  <h2 className="text-lg font-black text-amber-300">
+                    Opiniones, Sugerencias y Experiencias
+                  </h2>
+                </div>
+                <p className="text-xs text-amber-200/70 mt-1 max-w-2xl">
+                  Revisa qué tal le parece <strong>El Pericón</strong> a tus jugadores, responde a sus ideas por WhatsApp y destaca sus testimonios en la página principal.
+                </p>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={loadData}
+                  className="px-3.5 py-2 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/40 rounded-xl text-xs font-bold transition flex items-center gap-2"
+                >
+                  <span>🔄</span>
+                  <span>Actualizar</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Tarjetas de Métricas de Opiniones */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <div className="bg-[#180e07] border border-amber-500/30 p-4 rounded-xl shadow-lg">
+                <span className="text-[10px] font-bold text-amber-300/70 uppercase block">Calificación Promedio</span>
+                <div className="flex items-baseline gap-2 mt-1">
+                  <span className="text-2xl font-black text-yellow-400">★ {feedbackStats.averageRating}</span>
+                  <span className="text-xs text-amber-200/60">/ 5.0</span>
+                </div>
+                <p className="text-[10px] text-amber-200/50 mt-1">Nivel de satisfacción global</p>
+              </div>
+
+              <div className="bg-[#180e07] border border-amber-500/30 p-4 rounded-xl shadow-lg">
+                <span className="text-[10px] font-bold text-amber-300/70 uppercase block">Total de Opiniones</span>
+                <span className="text-2xl font-black text-white mt-1 block">{feedbacks.length}</span>
+                <p className="text-[10px] text-amber-200/50 mt-1">Comentarios recibidos</p>
+              </div>
+
+              <div className="bg-[#180e07] border border-amber-500/30 p-4 rounded-xl shadow-lg">
+                <span className="text-[10px] font-bold text-amber-300/70 uppercase block">💡 Sugerencias</span>
+                <span className="text-2xl font-black text-amber-300 mt-1 block">
+                  {feedbacks.filter(f => f.category === "Sugerencia").length}
+                </span>
+                <p className="text-[10px] text-amber-200/50 mt-1">Ideas para nuevas funciones</p>
+              </div>
+
+              <div className="bg-[#180e07] border border-amber-500/30 p-4 rounded-xl shadow-lg">
+                <span className="text-[10px] font-bold text-amber-300/70 uppercase block">⭐ Testimonios Destacados</span>
+                <span className="text-2xl font-black text-emerald-400 mt-1 block">
+                  {feedbacks.filter(f => f.isFeatured).length}
+                </span>
+                <p className="text-[10px] text-amber-200/50 mt-1">Visibles en página web</p>
+              </div>
+            </div>
+
+            {/* Barra de Filtros */}
+            <div className="flex flex-wrap items-center justify-between gap-3 bg-[#180e07] border border-amber-500/20 p-3.5 rounded-xl">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-xs text-amber-200/60 font-bold mr-1">Filtrar por:</span>
+                {["ALL", "Sugerencia", "Experiencia", "Reglas", "Recargas", "General"].map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setFeedbackCategoryFilter(cat)}
+                    className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                      feedbackCategoryFilter === cat
+                        ? "bg-amber-500 text-stone-950 shadow"
+                        : "bg-[#24140a] text-amber-200/70 hover:text-white hover:bg-[#301b0f]"
+                    }`}
+                  >
+                    {cat === "ALL" ? "Todas" : cat}
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <select
+                  value={feedbackRatingFilter}
+                  onChange={(e) => setFeedbackRatingFilter(parseInt(e.target.value) || 0)}
+                  className="bg-[#24140a] border border-amber-500/30 text-amber-200 text-xs rounded-lg px-2.5 py-1.5 outline-none focus:border-amber-400"
+                >
+                  <option value={0}>Todas las estrellas</option>
+                  <option value={5}>⭐⭐⭐⭐⭐ (5 estrellas)</option>
+                  <option value={4}>⭐⭐⭐⭐ (4 estrellas)</option>
+                  <option value={3}>⭐⭐⭐ (3 estrellas)</option>
+                  <option value={2}>⭐⭐ (2 estrellas)</option>
+                  <option value={1}>⭐ (1 estrella)</option>
+                </select>
+              </div>
+            </div>
+
+            {/* Listado de Opiniones */}
+            <div className="space-y-3">
+              {feedbacks
+                .filter((f) => {
+                  const matchCat = feedbackCategoryFilter === "ALL" || f.category.toLowerCase() === feedbackCategoryFilter.toLowerCase();
+                  const matchRating = feedbackRatingFilter === 0 || f.rating === feedbackRatingFilter;
+                  return matchCat && matchRating;
+                })
+                .length === 0 ? (
+                <div className="text-center py-12 bg-[#180e07] border border-amber-500/20 rounded-2xl text-amber-200/60">
+                  <span className="text-4xl block mb-2">📭</span>
+                  <p className="text-sm font-bold text-amber-300">No hay opiniones en esta categoría todavía.</p>
+                  <p className="text-xs text-amber-200/50 mt-1">Los comentarios enviados por los jugadores desde el lobby aparecerán aquí.</p>
+                </div>
+              ) : (
+                feedbacks
+                  .filter((f) => {
+                    const matchCat = feedbackCategoryFilter === "ALL" || f.category.toLowerCase() === feedbackCategoryFilter.toLowerCase();
+                    const matchRating = feedbackRatingFilter === 0 || f.rating === feedbackRatingFilter;
+                    return matchCat && matchRating;
+                  })
+                  .map((f) => {
+                    const cleanPhone = f.userPhone ? f.userPhone.replace(/[^0-9]/g, "").replace(/^0/, "58") : null;
+                    const waLink = cleanPhone
+                      ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(
+                          `¡Hola ${f.username}! 🤠 Te escribe la administración de El Pericón. Leímos tu ${f.category === "Sugerencia" ? "sugerencia" : "opinión"} sobre "${f.category}" y queremos agradecerte tu valioso aporte.`
+                        )}`
+                      : null;
+
+                    return (
+                      <div
+                        key={f.id}
+                        className={`bg-[#180e07] border p-4 sm:p-5 rounded-2xl shadow-xl transition-all ${
+                          f.isFeatured ? "border-amber-400 bg-amber-950/20 shadow-amber-500/10" : "border-amber-500/20 hover:border-amber-500/40"
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 pb-3 border-b border-amber-500/15">
+                          <div>
+                            <div className="flex flex-wrap items-center gap-2">
+                              {/* Estrellas */}
+                              <div className="flex text-yellow-400 text-sm tracking-widest font-black">
+                                {"★".repeat(f.rating)}
+                                {"☆".repeat(5 - f.rating)}
+                              </div>
+                              <span className="text-xs font-bold text-white">{f.username}</span>
+                              {f.userEmail && (
+                                <span className="text-[11px] text-amber-200/50">({f.userEmail})</span>
+                              )}
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#24140a] text-amber-300 border border-amber-500/30">
+                                {f.category}
+                              </span>
+                              {f.isFeatured && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-stone-950 shadow-sm animate-pulse">
+                                  ⭐ DESTACADO
+                                </span>
+                              )}
+                              {f.canPublish && !f.isFeatured && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-emerald-950/60 text-emerald-400 border border-emerald-500/30">
+                                  ✓ Autoriza publicar
+                                </span>
+                              )}
+                            </div>
+                            <span className="text-[10px] text-amber-200/40 block mt-1">
+                              Recibido el {new Date(f.createdAt).toLocaleString()}
+                            </span>
+                          </div>
+
+                          {/* Acciones */}
+                          <div className="flex items-center gap-2 shrink-0">
+                            {waLink && (
+                              <a
+                                href={waLink}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition flex items-center gap-1.5 shadow"
+                                title="Responder directamente al jugador por WhatsApp"
+                              >
+                                <span>📱</span>
+                                <span>WhatsApp</span>
+                              </a>
+                            )}
+                            <button
+                              onClick={() => handleToggleFeaturedFeedback(f.id)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition border ${
+                                f.isFeatured
+                                  ? "bg-amber-950/80 hover:bg-amber-900/80 text-amber-300 border-amber-500/40"
+                                  : "bg-[#24140a] hover:bg-[#301b0f] text-amber-300/80 border-amber-500/30"
+                              }`}
+                              title={f.isFeatured ? "Quitar de testimonios destacados" : "Marcar como testimonio destacado"}
+                            >
+                              {f.isFeatured ? "⭐ Desmarcar" : "⭐ Destacar"}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteFeedback(f.id)}
+                              className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-950/40 rounded-xl transition text-xs border border-red-500/20"
+                              title="Eliminar opinión"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Contenido del Mensaje */}
+                        <div className="mt-3 bg-[#24140a]/70 p-3.5 rounded-xl border border-amber-500/15 text-xs sm:text-sm text-stone-200 leading-relaxed font-sans">
+                          &ldquo;{f.message}&rdquo;
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
             </div>
           </div>
         )}

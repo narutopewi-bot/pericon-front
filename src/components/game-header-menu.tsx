@@ -22,6 +22,7 @@ interface GameHeaderMenuProps {
   onOpenWallet: () => void;
   onOpenTutorial: () => void;
   onOpenLeaderboard?: () => void;
+  onOpenFeedback?: () => void;
 }
 
 export default function GameHeaderMenu({
@@ -30,6 +31,7 @@ export default function GameHeaderMenu({
   onOpenWallet,
   onOpenTutorial,
   onOpenLeaderboard,
+  onOpenFeedback,
 }: GameHeaderMenuProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const router = useRouter();
@@ -126,6 +128,18 @@ export default function GameHeaderMenu({
             <span className="hidden md:inline">¿Cómo Jugar?</span>
           </button>
 
+          {/* Botón ¿Qué tal el juego? / Tu Opinión */}
+          {onOpenFeedback && (
+            <button
+              onClick={onOpenFeedback}
+              title="¿Qué te parece el juego? Comparte tu experiencia o sugerencias"
+              className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500/25 to-yellow-500/25 hover:from-amber-500/40 hover:to-yellow-500/40 text-amber-300 border border-amber-400/60 rounded-full py-1 px-2.5 text-xs font-bold transition shadow-sm cursor-pointer"
+            >
+              <span>⭐</span>
+              <span className="hidden lg:inline">Tu Opinión</span>
+            </button>
+          )}
+
           {/* Botón de Menú Hamburguesa para Móvil y Opciones */}
           <button
             onClick={() => setMenuOpen(!menuOpen)}
@@ -194,6 +208,19 @@ export default function GameHeaderMenu({
             <span>🐐</span>
             <span>Tutorial de Reglas (La Cabrita)</span>
           </button>
+
+          {onOpenFeedback && (
+            <button
+              onClick={() => {
+                setMenuOpen(false);
+                onOpenFeedback();
+              }}
+              className="w-full text-left px-3 py-2 text-xs rounded-xl bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 flex items-center gap-2 font-bold transition border border-amber-500/30"
+            >
+              <span>⭐</span>
+              <span>¿Qué tal el juego? / Tu Opinión</span>
+            </button>
+          )}
 
           <button
             onClick={() => {

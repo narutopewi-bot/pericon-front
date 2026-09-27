@@ -19,6 +19,7 @@ import WalletModal from "@/components/wallet-modal";
 import PericonTutorialModal from "@/components/pericon-tutorial-modal";
 import LeaderboardModal from "@/components/leaderboard-modal";
 import MoneyTutorialModal from "@/components/money-tutorial-modal";
+import FeedbackModal from "@/components/feedback-modal";
 import { playChatPopSound } from "@/lib/soundEffects";
 import Swal from "sweetalert2";
 
@@ -210,6 +211,7 @@ export default function Desk() {
   const [tutorialOpen, setTutorialOpen] = useState(false);
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [moneyTutorialOpen, setMoneyTutorialOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
 
   interface AnnouncementPayload {
     id?: number;
@@ -515,6 +517,7 @@ export default function Desk() {
         }}
         onOpenTutorial={() => setTutorialOpen(true)}
         onOpenLeaderboard={() => setLeaderboardOpen(true)}
+        onOpenFeedback={() => setFeedbackOpen(true)}
       />
 
       {/* Banner de Anuncio Global en Vivo y Persistente */}
@@ -696,6 +699,14 @@ export default function Desk() {
               >
                 📖 Tutorial y Reglas
               </button>
+              <button
+                onClick={() => setFeedbackOpen(true)}
+                className="text-amber-300 hover:text-amber-200 font-extrabold flex items-center gap-1.5 bg-gradient-to-r from-amber-500/20 to-yellow-500/20 hover:from-amber-500/35 hover:to-yellow-500/35 border border-amber-400/50 px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs transition shadow-sm hover:scale-105 cursor-pointer"
+                title="¿Qué te parece el juego? Comparte tu experiencia o sugerencias"
+              >
+                <span>⭐</span>
+                <span>¿Qué tal el juego? / Tu Opinión</span>
+              </button>
             </div>
           </div>
 
@@ -748,6 +759,28 @@ export default function Desk() {
         isOpen={moneyTutorialOpen}
         onClose={() => setMoneyTutorialOpen(false)}
       />
+
+      {/* Modal de Opiniones, Sugerencias y Experiencias del Jugador */}
+      <FeedbackModal
+        isOpen={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
+        player={{
+          id: dataplayer.id,
+          name: dataplayer.name,
+          email: dataplayer.email,
+        }}
+      />
+
+      {/* Botón Flotante Permanente de Opinión y Sugerencias */}
+      <button
+        onClick={() => setFeedbackOpen(true)}
+        className="fixed bottom-4 right-4 z-30 flex items-center gap-2 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 hover:from-amber-400 hover:to-yellow-400 text-stone-950 font-black px-4 py-2.5 rounded-full shadow-2xl shadow-amber-500/40 border-2 border-amber-300/80 transition transform hover:scale-105 active:scale-95 group text-xs sm:text-sm cursor-pointer"
+        title="Danos tu opinión o cuéntanos qué te gustaría agregar al juego"
+      >
+        <span className="text-base sm:text-lg group-hover:rotate-12 transition-transform">⭐</span>
+        <span className="hidden sm:inline font-extrabold">¿Qué tal el juego? / Sugerencias</span>
+        <span className="sm:hidden font-extrabold">Opinar ⭐</span>
+      </button>
     </React.Fragment>
   )
 }
