@@ -4,6 +4,7 @@ import { useAppSelector, RootState } from "@/store/store";
 import MatchSingle from "./match-single";
 import { useRouter } from "next/navigation";
 import { useSignalRContext } from "@/lib/signalrcontext";
+import { safeSignalRInvoke } from "@/lib/safeSignalR";
 import { Trozo } from "@/lib/library";
 
 interface DuelMode {
@@ -96,11 +97,6 @@ const Duel = ({ open, duelToggle, }: any) => {
   }
 
   async function onSubmit({ mode, credits }: { mode: string; credits: string }) {
-    if (user.name?.startsWith("Invitado_") || user.id?.startsWith("guest_")) {
-      alert("El modo invitado únicamente puede participar en partidas amistosas (Crear o Unirse a Sala). Por favor regístrate para jugar duelos.");
-      return;
-    }
-
     const bet = parseInt(credits);
 
     if (!validateCredits(credits)) {
@@ -125,7 +121,7 @@ const Duel = ({ open, duelToggle, }: any) => {
         console.log(`Uniéndose al matchmaking para ${mode} con apuesta ${bet}...`);
         setOnQueue(true);
         setQueueCount(1);
-        await connection.invoke("JoinMatchmaking", mode, bet, user?.name || "", user?.id || "", user?.avatarUrl || "");
+        await safeSignalRInvoke(connection, "JoinMatchmaking", mode, bet, user?.name || "", user?.id || "", user?.avatarUrl || "");
       } catch (err) {
         console.error("Error al unirse al matchmaking:", err);
       }
@@ -135,7 +131,7 @@ const Duel = ({ open, duelToggle, }: any) => {
   const onDismiss = async () => {
     if (connection && onQueue) {
       try {
-        await connection.invoke("CancelMatchmaking");
+        await safeSignalRInvoke(connection, "CancelMatchmaking");
       } catch (err) {
         console.error("Error al cancelar matchmaking:", err);
       }

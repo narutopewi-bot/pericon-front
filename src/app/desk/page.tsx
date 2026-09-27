@@ -21,6 +21,7 @@ import LeaderboardModal from "@/components/leaderboard-modal";
 import MoneyTutorialModal from "@/components/money-tutorial-modal";
 import FeedbackModal from "@/components/feedback-modal";
 import { playChatPopSound } from "@/lib/soundEffects";
+import { safeSignalRInvoke } from "@/lib/safeSignalR";
 import Swal from "sweetalert2";
 
 export default function Desk() {
@@ -411,20 +412,32 @@ export default function Desk() {
 
   useEffect(() => {
     if (!connection) return;
-    if (hasConnected.current) return;
 
-    const runStart = async () => {
+    const runIdentify = async () => {
       try {
-        await connection.invoke("SetPlayer");
+        await safeSignalRInvoke(connection, "SetPlayer");
         if (gamep.name && gamep.name !== "nulo") {
-          await connection.invoke("IdentifyPlayer", gamep.name, gamep.email, gamep.coins);
+          await safeSignalRInvoke(connection, "IdentifyPlayer", gamep.name, gamep.email, gamep.coins);
         }
-        hasConnected.current = true;
       } catch (error) {
-        console.error("Error al iniciar el juego en desk:", error);
+        console.error("Error al identificar jugador en desk:", error);
       }
     };
-    runStart();
+
+    if (!hasConnected.current) {
+      runIdentify();
+      hasConnected.current = true;
+    }
+
+    const handleRestored = () => {
+      console.log("[Desk] Conexión restablecida. Re-identificando jugador...");
+      runIdentify();
+    };
+
+    window.addEventListener("pericon:signalr:restored", handleRestored);
+    return () => {
+      window.removeEventListener("pericon:signalr:restored", handleRestored);
+    };
   }, [connection, gamep]); 
 
   return (

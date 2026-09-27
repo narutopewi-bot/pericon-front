@@ -450,6 +450,7 @@ export default function GameTwoVsTwo() {
       syncJoinRoom();
     };
     connection.onreconnected(handleReconnected);
+    window.addEventListener('pericon:signalr:restored', handleReconnected);
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
@@ -774,6 +775,7 @@ export default function GameTwoVsTwo() {
     });
 
     return () => {
+      window.removeEventListener('pericon:signalr:restored', handleReconnected);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleVisibilityChange);
       connection.off('RoomUpdate2v2');

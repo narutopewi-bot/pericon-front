@@ -237,6 +237,7 @@ export default function Duel1vs1() {
   const handWatchdogTimerRef = useRef<any>(null);
   const oppTumbaWatchdogRef = useRef<any>(null);
   const processingWatchdogRef = useRef<any>(null);
+  const disconnectDebounceTimerRef = useRef<any>(null);
 
   // Watchdog de seguridad anti-bloqueo: si isProcessingMove permanece true por más de 6 segundos, auto-desbloquear mesa
   useEffect(() => {
@@ -1101,15 +1102,28 @@ export default function Duel1vs1() {
     const handleReconnected = async (newConnectionId?: string) => {
       console.log("[SignalR 1v1] Reconexión exitosa. Nuevo ID:", newConnectionId);
       setIsReconnecting(false);
-      if (newConnectionId) playerown.current = newConnectionId;
+      const activeId = newConnectionId || connection.connectionId;
+      if (activeId) playerown.current = activeId;
       if (connection && idGame.current > 0) {
         try {
+          const myName = user?.name && user.name !== 'nulo'
+            ? user.name
+            : (datos.current.flag ? datos.current.nameone : datos.current.nametwo);
+          if (myName) {
+            safeSignalRInvoke(connection, "IdentifyPlayer", myName, user?.email || "", user?.coins || 0).catch(() => {});
+          }
           await safeSignalRInvoke(connection, "RejoinGame1vs1", idGame.current, datos.current.flag);
           await safeSignalRInvoke(connection, "SyncTable1vs1", idGame.current);
+          setRivalTimeoutData(prev => prev.isOpen ? { ...prev, isOpen: false } : prev);
         } catch (err: any) {
           console.error("Error en RejoinGame1vs1 / SyncTable1vs1 tras reconexión:", err);
         }
       }
+    };
+
+    const handleGlobalRestored = (e: any) => {
+      console.log("[SignalR 1v1] Evento global pericon:signalr:restored capturado:", e.detail);
+      handleReconnected(e.detail?.connectionId);
     };
 
     const handleVisibilityChange = () => {
@@ -1123,8 +1137,28 @@ export default function Duel1vs1() {
 
     connection.onreconnecting(handleReconnecting);
     connection.onreconnected(handleReconnected);
+    window.addEventListener("pericon:signalr:restored", handleGlobalRestored);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("focus", handleVisibilityChange);
+
+    connection.on('GameStateSync1vs1', (state: any) => {
+      console.log("[GameStateSync1vs1] Sincronización autoritativa recibida:", state);
+      if (!state) return;
+      if (typeof state.pointsOwn === 'number' && typeof state.pointsOpp === 'number') {
+        updatePointsAndTumba(state.pointsOwn, state.pointsOpp);
+      }
+      if (typeof state.isMyTurn === 'boolean') {
+        setIsMyTurn(state.isMyTurn);
+        switchturn.current = state.isMyTurn;
+      }
+      if (typeof state.currentStake === 'number' && state.currentStake > 0) {
+        setCurrentStake(state.currentStake);
+        currentStakeRef.current = state.currentStake;
+      }
+      setRivalTimeoutData(prev => prev.isOpen ? { ...prev, isOpen: false } : prev);
+      setIsProcessingMove(false);
+      isProcessingRef.current = false;
+    });
 
     connection.on('OpponentConnectionUpdated', (data: any) => {
       console.log("[OpponentConnectionUpdated] Socket del rival actualizado:", data);
@@ -1135,6 +1169,10 @@ export default function Duel1vs1() {
 
     connection.on('OpponentReconnected1vs1', (data: any) => {
       console.log("[OpponentReconnected1vs1] El rival reconectó:", data);
+      if (disconnectDebounceTimerRef.current) {
+        clearTimeout(disconnectDebounceTimerRef.current);
+        disconnectDebounceTimerRef.current = null;
+      }
       if (data?.opponentConnectionId) {
         playeropp.current = data.opponentConnectionId;
       }
@@ -1142,16 +1180,19 @@ export default function Duel1vs1() {
     });
 
     connection.on('OpponentDisconnectedNotice1vs1', (data: any) => {
-      console.log("[OpponentDisconnectedNotice1vs1] El rival se desconectó del servidor:", data);
-      playSynthSound?.('tumba');
-      const oppName = data?.disconnectedPlayerName || oponent.username || 'Rival';
-      setRivalTimeoutData({
-        isOpen: true,
-        rivalName: oppName,
-        rivalAvatar: oponent.avatar || '/avatar.png',
-        reason: 'disconnect',
-        isClaiming: false,
-      });
+      console.log("[OpponentDisconnectedNotice1vs1] El rival se desconectó. Iniciando gracia...", data);
+      if (disconnectDebounceTimerRef.current) clearTimeout(disconnectDebounceTimerRef.current);
+      disconnectDebounceTimerRef.current = setTimeout(() => {
+        playSynthSound?.('tumba');
+        const oppName = data?.disconnectedPlayerName || oponent.username || 'Rival';
+        setRivalTimeoutData({
+          isOpen: true,
+          rivalName: oppName,
+          rivalAvatar: oponent.avatar || '/avatar.png',
+          reason: 'disconnect',
+          isClaiming: false,
+        });
+      }, 4000);
     });
 
     // Inicio de partida 1vs1 desde salas privadas o emparejamiento
@@ -1247,11 +1288,14 @@ export default function Duel1vs1() {
     });
 
     return () => {
+      if (disconnectDebounceTimerRef.current) clearTimeout(disconnectDebounceTimerRef.current);
+      window.removeEventListener("pericon:signalr:restored", handleGlobalRestored);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", handleVisibilityChange);
       connection.off('OpponentConnectionUpdated');
       connection.off('OpponentReconnected1vs1');
       connection.off('OpponentDisconnectedNotice1vs1');
+      connection.off('GameStateSync1vs1');
       connection.off('MatchFound');
       connection.off('setInitHand');
       connection.off('setChangeHand');
