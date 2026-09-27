@@ -515,6 +515,22 @@ export default function Duel1vs1() {
     };
   }, [roomName, user]);
 
+  // Protección contra recargas o cierres accidentales durante partidas activas
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (idGame.current > 0 && playerCards.length > 0) {
+        e.preventDefault();
+        e.returnValue = 'Tienes una partida activa en juego. Si sales o actualizas el navegador, perderás la partida y tus monedas.';
+        return e.returnValue;
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, [playerCards.length]);
+
   // El botón de Pedir solo debe habilitarse cuando sea tu turno, tengas cartas, no estés en Tumba,
   // la apuesta no haya llegado a 9 y no hayas pedido tú previamente sin que el rival revire.
   const canPedir = isMyTurn &&
@@ -2819,7 +2835,10 @@ export default function Duel1vs1() {
   };
 
   return (
-    <main className='grid h-screen overflow-auto space-y-0 bg-[#140a04] text-white'>
+    <main
+      className='grid h-screen overflow-auto space-y-0 bg-[#140a04] text-white'
+      style={{ overscrollBehaviorY: 'contain' }}
+    >
       <GameAnnouncement announcement={announcement} />
       {isReconnecting && (
         <div className="fixed top-4 left-1/2 -translate-x-1/2 z-50 bg-amber-600/95 text-white text-xs sm:text-sm font-bold px-5 py-2 rounded-full shadow-2xl backdrop-blur flex items-center gap-2.5 animate-pulse border-2 border-amber-300">
