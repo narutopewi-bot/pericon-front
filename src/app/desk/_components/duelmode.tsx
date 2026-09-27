@@ -17,9 +17,9 @@ const Duelmode: React.FC<DuelmodeProps> = ({ onMode, duelToggle }) => {
 
   const betOptions = [
     { value: "100", label: "100", badge: "Bronce" },
-    { value: "150", label: "150", badge: "Plata" },
-    { value: "200", label: "200", badge: "Oro" },
-    { value: "500", label: "500", badge: "Élite" },
+    { value: "200", label: "200", badge: "Plata" },
+    { value: "500", label: "500", badge: "Oro" },
+    { value: "1000", label: "1000", badge: "Diamante" },
   ];
 
   return (

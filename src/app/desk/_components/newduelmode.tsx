@@ -43,7 +43,7 @@ const NewDuelmode = ({ onMode, duelToggle, }: any) => {
   
   // Esto ha de cambiarse a futuro
 
-  const creditOptions = ["100", "150", "200", "500"];
+  const creditOptions = ["100", "200", "500", "1000"];
   const filteredCreditOptions = creditOptions.filter(option => option !== selectedCredits);
 
   const [player, setPlayer] = React.useState<Players[]>([]);
