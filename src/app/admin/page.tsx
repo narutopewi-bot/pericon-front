@@ -203,6 +203,8 @@ export default function AdminPage() {
   const [users, setUsers] = useState<UserRow[]>([]);
   const [matches, setMatches] = useState<MatchRow[]>([]);
   const [matchesSubTab, setMatchesSubTab] = useState<"pvp" | "bot">("pvp");
+  const [playerMatchSearch, setPlayerMatchSearch] = useState("");
+  const [playerMatchFilter, setPlayerMatchFilter] = useState<"all" | "won" | "lost">("all");
   const [botMatches, setBotMatches] = useState<BotMatchRow[]>([]);
   const [botSummary, setBotSummary] = useState<BotSummary>({
     totalBotMatches: 0,
@@ -1210,6 +1212,68 @@ export default function AdminPage() {
       return true;
     });
   }, [botMatches, botSearch, botResultFilter]);
+
+  // Partidas Multijugador (PvP) filtradas y análisis estadístico por jugador
+  const { filteredPvpMatches, searchedPlayerSummary } = useMemo(() => {
+    const q = playerMatchSearch.toLowerCase().trim();
+    if (!q) {
+      return { filteredPvpMatches: matches, searchedPlayerSummary: null };
+    }
+
+    const filtered = matches.filter((m) => {
+      const p1 = m.playerOneName.toLowerCase();
+      const p2 = m.playerTwoName.toLowerCase();
+      const winner = m.winnerUsername.toLowerCase();
+      const loser = m.loserUsername.toLowerCase();
+      const matchesSearch =
+        p1.includes(q) ||
+        p2.includes(q) ||
+        winner.includes(q) ||
+        loser.includes(q) ||
+        String(m.id).includes(q) ||
+        String(m.gameId).includes(q);
+
+      if (!matchesSearch) return false;
+
+      if (playerMatchFilter === "won") return winner.includes(q);
+      if (playerMatchFilter === "lost") return loser.includes(q);
+      return true;
+    });
+
+    // Detectar si la búsqueda coincide con un jugador para generar su ficha estadística
+    const exactMatches = matches.filter(
+      (m) => m.playerOneName.toLowerCase() === q || m.playerTwoName.toLowerCase() === q
+    );
+    const targetMatches = exactMatches.length > 0 ? exactMatches : filtered;
+    const targetPlayerName = exactMatches.length > 0
+      ? (exactMatches[0].playerOneName.toLowerCase() === q ? exactMatches[0].playerOneName : exactMatches[0].playerTwoName)
+      : playerMatchSearch.trim();
+
+    let summary = null;
+    if (targetMatches.length > 0) {
+      const wins = targetMatches.filter((m) => m.winnerUsername.toLowerCase() === q).length;
+      const losses = targetMatches.filter((m) => m.loserUsername.toLowerCase() === q).length;
+      const coinsWon = targetMatches
+        .filter((m) => m.winnerUsername.toLowerCase() === q)
+        .reduce((sum, m) => sum + m.winnerPrize, 0);
+      const coinsBet = targetMatches
+        .filter((m) => m.playerOneName.toLowerCase() === q || m.playerTwoName.toLowerCase() === q)
+        .reduce((sum, m) => sum + m.betPerPlayer, 0);
+
+      summary = {
+        name: targetPlayerName,
+        totalMatches: targetMatches.length,
+        wins,
+        losses,
+        winRate: targetMatches.length > 0 ? Math.round((wins / targetMatches.length) * 100) : 0,
+        coinsWon,
+        coinsBet,
+        netProfit: coinsWon - coinsBet,
+      };
+    }
+
+    return { filteredPvpMatches: filtered, searchedPlayerSummary: summary };
+  }, [matches, playerMatchSearch, playerMatchFilter]);
 
   // Cálculos para reportes financieros
   const financialSummary = useMemo(() => {
@@ -3037,6 +3101,105 @@ export default function AdminPage() {
               </button>
             </div>
 
+            {/* Buscador de Jugadores y Filtro de Partidas */}
+            <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-4 shadow-lg space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 flex-1">
+                  <span className="text-base">🔍</span>
+                  <input
+                    type="text"
+                    placeholder="Escribe el nombre del jugador para ver su historial, victorias y derrotas..."
+                    value={playerMatchSearch}
+                    onChange={(e) => setPlayerMatchSearch(e.target.value)}
+                    className="w-full bg-[#24140a] border border-amber-500/40 rounded-xl px-3.5 py-2 text-xs text-white placeholder-amber-200/40 focus:outline-none focus:border-amber-400 font-medium"
+                  />
+                  {playerMatchSearch && (
+                    <button
+                      onClick={() => setPlayerMatchSearch("")}
+                      className="px-2.5 py-2 rounded-xl bg-red-950/60 hover:bg-red-900 text-red-200 text-xs font-bold border border-red-500/30 transition flex-shrink-0"
+                      title="Limpiar búsqueda"
+                    >
+                      ✕ Limpiar
+                    </button>
+                  )}
+                </div>
+
+                <div className="flex rounded-xl bg-[#24140a] border border-amber-500/30 p-0.5 text-xs font-bold self-start sm:self-auto flex-shrink-0">
+                  <button
+                    onClick={() => setPlayerMatchFilter("all")}
+                    className={`px-3 py-1.5 rounded-lg transition-all ${
+                      playerMatchFilter === "all" ? "bg-amber-500 text-amber-950" : "text-amber-200/60 hover:text-white"
+                    }`}
+                  >
+                    Todas ({filteredPvpMatches.length})
+                  </button>
+                  <button
+                    onClick={() => setPlayerMatchFilter("won")}
+                    className={`px-3 py-1.5 rounded-lg transition-all ${
+                      playerMatchFilter === "won" ? "bg-emerald-600 text-white" : "text-amber-200/60 hover:text-white"
+                    }`}
+                  >
+                    🏆 Victorias
+                  </button>
+                  <button
+                    onClick={() => setPlayerMatchFilter("lost")}
+                    className={`px-3 py-1.5 rounded-lg transition-all ${
+                      playerMatchFilter === "lost" ? "bg-red-800 text-white" : "text-amber-200/60 hover:text-white"
+                    }`}
+                  >
+                    💀 Derrotas
+                  </button>
+                </div>
+              </div>
+
+              {/* Ficha Estadística del Jugador Encontrado */}
+              {searchedPlayerSummary && (
+                <div className="bg-gradient-to-r from-amber-950/40 via-black/60 to-amber-950/40 border border-amber-500/50 rounded-xl p-3.5 shadow-md">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-full bg-amber-500/20 border border-amber-400/40 flex items-center justify-center text-lg">
+                        👤
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-black text-amber-300">
+                            Historial de: {searchedPlayerSummary.name}
+                          </span>
+                          <span className="text-[10px] bg-amber-500/20 text-amber-200 px-2 py-0.5 rounded-full border border-amber-500/30 font-bold">
+                            Efectividad: {searchedPlayerSummary.winRate}%
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-amber-200/60">
+                          Resumen global de duelos multijugador disputados en la plataforma.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                      <div className="bg-black/50 p-2 rounded-lg border border-amber-500/20">
+                        <span className="text-[10px] text-amber-200/60 block uppercase font-bold">Partidas</span>
+                        <span className="font-black text-white text-sm">{searchedPlayerSummary.totalMatches}</span>
+                      </div>
+                      <div className="bg-black/50 p-2 rounded-lg border border-emerald-500/30">
+                        <span className="text-[10px] text-emerald-400 block uppercase font-bold">Victorias</span>
+                        <span className="font-black text-emerald-300 text-sm">🏆 {searchedPlayerSummary.wins}</span>
+                      </div>
+                      <div className="bg-black/50 p-2 rounded-lg border border-red-500/30">
+                        <span className="text-[10px] text-red-400 block uppercase font-bold">Derrotas</span>
+                        <span className="font-black text-red-300 text-sm">💀 {searchedPlayerSummary.losses}</span>
+                      </div>
+                      <div className="bg-black/50 p-2 rounded-lg border border-amber-500/20">
+                        <span className="text-[10px] text-amber-200/60 block uppercase font-bold">Balance Neto</span>
+                        <span className={`font-black text-sm ${searchedPlayerSummary.netProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {searchedPlayerSummary.netProfit >= 0 ? `+🪙 ${searchedPlayerSummary.netProfit.toLocaleString()}` : `-🪙 ${Math.abs(searchedPlayerSummary.netProfit).toLocaleString()}`}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
             <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
@@ -3053,21 +3216,53 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-amber-500/10">
-                    {matches.length === 0 ? (
+                    {filteredPvpMatches.length === 0 ? (
                       <tr>
                         <td colSpan={8} className="text-center py-10 text-amber-200/40">
-                          No hay registros de partidas multijugador finalizadas aún (Panel en Cero).
+                          {playerMatchSearch
+                            ? `No se encontraron partidas para "${playerMatchSearch}".`
+                            : "No hay registros de partidas multijugador finalizadas aún (Panel en Cero)."}
                         </td>
                       </tr>
                     ) : (
-                      matches.map((m) => {
+                      filteredPvpMatches.map((m) => {
                         const isSalaMatch = m.houseCommission === m.totalPot || m.endReason?.includes("[SALA") || (m.winnerPrize === 0 && m.totalPot > 0);
+                        const q = playerMatchSearch.trim().toLowerCase();
+                        const isPlayerWon = q && m.winnerUsername.toLowerCase() === q;
+                        const isPlayerLost = q && m.loserUsername.toLowerCase() === q;
+
                         return (
                           <tr key={m.id} className="hover:bg-amber-500/5 transition-colors">
                             <td className="p-3.5 font-mono text-amber-200/50">#{m.id}</td>
                             <td className="p-3.5">
-                              <span className="font-bold text-white">{m.playerOneName}</span> vs{" "}
-                              <span className="font-bold text-white">{m.playerTwoName}</span>
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <button
+                                  onClick={() => setPlayerMatchSearch(m.playerOneName)}
+                                  className="font-bold text-white hover:text-amber-300 hover:underline transition"
+                                  title="Filtrar partidas de este jugador"
+                                >
+                                  {m.playerOneName}
+                                </button>
+                                <span className="text-amber-200/40 text-[10px]">vs</span>
+                                <button
+                                  onClick={() => setPlayerMatchSearch(m.playerTwoName)}
+                                  className="font-bold text-white hover:text-amber-300 hover:underline transition"
+                                  title="Filtrar partidas de este jugador"
+                                >
+                                  {m.playerTwoName}
+                                </button>
+
+                                {isPlayerWon && (
+                                  <span className="ml-1 text-[9.5px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.5 rounded font-black">
+                                    ✓ VICTORIA
+                                  </span>
+                                )}
+                                {isPlayerLost && (
+                                  <span className="ml-1 text-[9.5px] bg-red-500/20 text-red-300 border border-red-500/40 px-1.5 py-0.5 rounded font-black">
+                                    ✕ DERROTA
+                                  </span>
+                                )}
+                              </div>
                             </td>
                             <td className="p-3.5 font-semibold text-amber-200">🪙 {m.betPerPlayer}</td>
                             <td className="p-3.5 font-black text-amber-300">🪙 {m.totalPot}</td>
@@ -3087,9 +3282,13 @@ export default function AdminPage() {
                               )}
                             </td>
                             <td className="p-3.5">
-                              <span className="inline-flex items-center gap-1 font-bold text-amber-300">
+                              <button
+                                onClick={() => setPlayerMatchSearch(m.winnerUsername)}
+                                className="inline-flex items-center gap-1 font-bold text-amber-300 hover:underline transition"
+                                title="Filtrar partidas del ganador"
+                              >
                                 🏆 {m.winnerUsername}
-                              </span>
+                              </button>
                               {isSalaMatch && (
                                 <span className="block text-[10px] text-amber-200/60 font-semibold">Tarifa Abonada a Casa</span>
                               )}
