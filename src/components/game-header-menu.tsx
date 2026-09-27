@@ -136,7 +136,7 @@ export default function GameHeaderMenu({
               className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500/25 to-yellow-500/25 hover:from-amber-500/40 hover:to-yellow-500/40 text-amber-300 border border-amber-400/60 rounded-full py-1 px-2.5 text-xs font-bold transition shadow-sm cursor-pointer"
             >
               <span>⭐</span>
-              <span className="hidden lg:inline">Tu Opinión</span>
+              <span className="hidden sm:inline">Tu Opinión</span>
             </button>
           )}
 
