@@ -12,8 +12,15 @@ interface AdminStats {
   totalApprovedCount: number;
   totalBsApproved: number;
   totalCoinsApproved: number;
+  totalBsPending?: number;
+  totalCoinsPending?: number;
+  todayRechargesCount?: number;
+  todayRechargesBs?: number;
+  todayApprovedBs?: number;
+  todayPendingBs?: number;
   totalPaidWithdrawalsCount: number;
   totalBsWithdrawn: number;
+  totalBsPendingWithdrawals?: number;
   totalHouseCommissions?: number;
   totalMatchesFinished?: number;
   totalCoinsWagered?: number;
@@ -181,9 +188,11 @@ export default function AdminPage() {
   const [activeTab, setActiveTab] = useState<TabType>("dashboard");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Filtros de estado
+  // Filtros de estado y búsquedas
   const [rechargeStatusFilter, setRechargeStatusFilter] = useState<string>("PENDIENTE");
+  const [rechargeSearch, setRechargeSearch] = useState("");
   const [withdrawalStatusFilter, setWithdrawalStatusFilter] = useState<string>("PENDIENTE");
+  const [withdrawalSearch, setWithdrawalSearch] = useState("");
   const [userStatusFilter, setUserStatusFilter] = useState<"all" | "active" | "banned">("all");
   const [userSearch, setUserSearch] = useState("");
 
@@ -367,8 +376,8 @@ export default function AdminPage() {
     try {
       const [resStats, resRecharges, resWithdrawals, resUsers, resMatches, resPromos, resAnnounce, resBot] = await Promise.all([
         adminFetch(`${apiUrl}/api/admin/stats`),
-        adminFetch(`${apiUrl}/api/admin/recharges?status=${rechargeStatusFilter}`),
-        adminFetch(`${apiUrl}/api/admin/withdrawals?status=${withdrawalStatusFilter}`),
+        adminFetch(`${apiUrl}/api/admin/recharges?status=ALL`),
+        adminFetch(`${apiUrl}/api/admin/withdrawals?status=ALL`),
         adminFetch(`${apiUrl}/api/admin/users`),
         adminFetch(`${apiUrl}/api/admin/matches`),
         adminFetch(`${apiUrl}/api/admin/promos`),
@@ -650,13 +659,24 @@ export default function AdminPage() {
   const exportFinancialReportCSV = () => {
     const headers = ["Metrica Financiera", "Valor"];
     const rows = [
-      ["Total Ingresos por Recargas (Bs.)", `Bs. ${financialSummary.totalDeposits.toLocaleString()}`],
-      ["Total Pagos por Retiros (Bs.)", `Bs. ${financialSummary.totalWithdrawalsPaid.toLocaleString()}`],
-      ["Balance Neto en Caja (Bs.)", `Bs. ${financialSummary.netBsBalance.toLocaleString()}`],
+      ["Ingresos por Recargas Confirmados/Aprobados (Bs.)", `Bs. ${financialSummary.totalDeposits.toLocaleString()}`],
+      ["Cantidad de Recargas Aprobadas", String(financialSummary.approvedCount)],
+      ["Recargas Pendientes por Validar (Bs.)", `Bs. ${financialSummary.pendingDepositsBs.toLocaleString()}`],
+      ["Cantidad de Recargas Pendientes", String(financialSummary.pendingCount)],
+      ["Total Recargas Registradas Hoy (Bs.)", `Bs. ${financialSummary.todayRechargesBs.toLocaleString()}`],
+      ["Cantidad de Recargas Hoy", String(financialSummary.todayRechargesCount)],
+      ["Pagos por Retiros Realizados (Bs.)", `Bs. ${financialSummary.totalWithdrawalsPaid.toLocaleString()}`],
+      ["Cantidad de Retiros Pagados", String(financialSummary.paidWithdrawalsCount)],
+      ["Retiros Pendientes por Procesar (Bs.)", `Bs. ${financialSummary.pendingWithdrawalsBs.toLocaleString()}`],
+      ["Cantidad de Retiros Pendientes", String(financialSummary.pendingWithdrawalsCount)],
+      ["Balance Neto Confirmado en Caja (Bs.)", `Bs. ${financialSummary.netBsBalance.toLocaleString()}`],
+      ["Balance Neto Proyectado con Pendientes (Bs.)", `Bs. ${financialSummary.netBsBalanceWithPending.toLocaleString()}`],
       ["Comisión de Sala Acumulada (Monedas)", `🪙 ${financialSummary.totalCommissions.toLocaleString()}`],
+      ["Balance de la Casa en Bot (Monedas)", `🪙 ${financialSummary.totalBotHouseProfit.toLocaleString()}`],
+      ["Ganancia Neta Total Casa (Monedas)", `🪙 ${financialSummary.totalCombinedProfit.toLocaleString()}`],
       ["Monedas en Manos de Jugadores", `🪙 ${financialSummary.totalCoinsInUsers.toLocaleString()}`],
-      ["Volumen Total Apostado en Duelos", `🪙 ${financialSummary.totalWagered.toLocaleString()}`],
-      ["Total Partidas Registradas", String(financialSummary.totalMatches)],
+      ["Volumen Total Apostado Global", `🪙 ${(financialSummary.totalWagered + financialSummary.totalBotCoinsWagered).toLocaleString()}`],
+      ["Total Partidas Registradas", String(financialSummary.totalMatches + financialSummary.totalBotMatches)],
       ["Total Usuarios Registrados", String(users.length)],
       ["Fecha de Generación del Reporte", new Date().toLocaleString()],
     ];
@@ -923,7 +943,7 @@ export default function AdminPage() {
     if (isAuthenticated) {
       loadData();
     }
-  }, [isAuthenticated, rechargeStatusFilter, withdrawalStatusFilter]);
+  }, [isAuthenticated]);
 
   const copyToClipboard = (text: string, label: string) => {
     if (navigator.clipboard) {
@@ -1275,11 +1295,79 @@ export default function AdminPage() {
     return { filteredPvpMatches: filtered, searchedPlayerSummary: summary };
   }, [matches, playerMatchSearch, playerMatchFilter]);
 
-  // Cálculos para reportes financieros
+  // Filtrado en memoria de recargas por estado y búsqueda
+  const filteredRecharges = useMemo(() => {
+    return recharges.filter((r) => {
+      const matchesStatus = rechargeStatusFilter === "ALL" ? true : r.status === rechargeStatusFilter;
+      if (!matchesStatus) return false;
+      if (!rechargeSearch.trim()) return true;
+      const q = rechargeSearch.toLowerCase().trim();
+      return (
+        r.username.toLowerCase().includes(q) ||
+        r.reference.toLowerCase().includes(q) ||
+        (r.userEmail && r.userEmail.toLowerCase().includes(q)) ||
+        (r.userPhone && r.userPhone.includes(q))
+      );
+    });
+  }, [recharges, rechargeStatusFilter, rechargeSearch]);
+
+  // Filtrado en memoria de retiros por estado y búsqueda
+  const filteredWithdrawals = useMemo(() => {
+    return withdrawals.filter((w) => {
+      const matchesStatus = withdrawalStatusFilter === "ALL" ? true : w.status === withdrawalStatusFilter;
+      if (!matchesStatus) return false;
+      if (!withdrawalSearch.trim()) return true;
+      const q = withdrawalSearch.toLowerCase().trim();
+      return (
+        w.username.toLowerCase().includes(q) ||
+        (w.bankName && w.bankName.toLowerCase().includes(q)) ||
+        (w.phoneNumber && w.phoneNumber.includes(q)) ||
+        (w.idCard && w.idCard.toLowerCase().includes(q)) ||
+        (w.adminReference && w.adminReference.toLowerCase().includes(q))
+      );
+    });
+  }, [withdrawals, withdrawalStatusFilter, withdrawalSearch]);
+
+  // Cálculos para reportes financieros integrales y balances
   const financialSummary = useMemo(() => {
-    const totalDeposits = recharges.filter((r) => r.status === "APROBADO").reduce((sum, r) => sum + r.amountBs, 0);
-    const totalWithdrawalsPaid = withdrawals.filter((w) => w.status === "PAGADO").reduce((sum, w) => sum + w.amountBs, 0);
+    const approvedRecharges = recharges.filter((r) => r.status === "APROBADO");
+    const pendingRecharges = recharges.filter((r) => r.status === "PENDIENTE");
+    const rejectedRecharges = recharges.filter((r) => r.status === "RECHAZADO");
+
+    const paidWithdrawals = withdrawals.filter((w) => w.status === "PAGADO");
+    const pendingWithdrawals = withdrawals.filter((w) => w.status === "PENDIENTE");
+
+    // Ingresos aprobados y pendientes
+    const totalDeposits = stats?.totalBsApproved ?? approvedRecharges.reduce((sum, r) => sum + r.amountBs, 0);
+    const approvedCount = stats?.totalApprovedCount ?? approvedRecharges.length;
+
+    const pendingDepositsBs = stats?.totalBsPending ?? pendingRecharges.reduce((sum, r) => sum + r.amountBs, 0);
+    const pendingCount = stats?.pendingRecharges ?? pendingRecharges.length;
+
+    // Retiros pagados y pendientes
+    const totalWithdrawalsPaid = stats?.totalBsWithdrawn ?? paidWithdrawals.reduce((sum, w) => sum + w.amountBs, 0);
+    const paidWithdrawalsCount = stats?.totalPaidWithdrawalsCount ?? paidWithdrawals.length;
+
+    const pendingWithdrawalsBs = stats?.totalBsPendingWithdrawals ?? pendingWithdrawals.reduce((sum, w) => sum + w.amountBs, 0);
+    const pendingWithdrawalsCount = stats?.pendingWithdrawals ?? pendingWithdrawals.length;
+
+    // Balances netos
     const netBsBalance = totalDeposits - totalWithdrawalsPaid;
+    const netBsBalanceWithPending = (totalDeposits + pendingDepositsBs) - (totalWithdrawalsPaid + pendingWithdrawalsBs);
+
+    // Métricas del día de hoy
+    const todayStr = new Date().toDateString();
+    const todayRechargesList = recharges.filter((r) => {
+      try {
+        return new Date(r.createdAt).toDateString() === todayStr;
+      } catch {
+        return false;
+      }
+    });
+    const todayRechargesCount = stats?.todayRechargesCount ?? todayRechargesList.length;
+    const todayRechargesBs = stats?.todayRechargesBs ?? todayRechargesList.reduce((sum, r) => sum + r.amountBs, 0);
+    const todayApprovedBs = stats?.todayApprovedBs ?? todayRechargesList.filter((r) => r.status === "APROBADO").reduce((sum, r) => sum + r.amountBs, 0);
+    const todayPendingBs = stats?.todayPendingBs ?? todayRechargesList.filter((r) => r.status === "PENDIENTE").reduce((sum, r) => sum + r.amountBs, 0);
 
     const totalCoinsInUsers = users.reduce((sum, u) => sum + u.coins, 0);
     const totalCommissions = matches.reduce((sum, m) => sum + m.houseCommission, 0);
@@ -1291,8 +1379,20 @@ export default function AdminPage() {
 
     return {
       totalDeposits,
+      approvedCount,
+      pendingDepositsBs,
+      pendingCount,
+      rejectedCount: rejectedRecharges.length,
+      todayRechargesCount,
+      todayRechargesBs,
+      todayApprovedBs,
+      todayPendingBs,
       totalWithdrawalsPaid,
+      paidWithdrawalsCount,
+      pendingWithdrawalsBs,
+      pendingWithdrawalsCount,
       netBsBalance,
+      netBsBalanceWithPending,
       totalCoinsInUsers,
       totalCommissions,
       totalWagered,
@@ -1302,7 +1402,7 @@ export default function AdminPage() {
       totalBotHouseProfit,
       totalCombinedProfit,
     };
-  }, [recharges, withdrawals, users, matches, botMatches]);
+  }, [recharges, withdrawals, users, matches, botMatches, stats]);
 
   // ----------------------------------------------------
   // PANTALLA DE LOGIN GUARDIAN
@@ -1800,11 +1900,11 @@ export default function AdminPage() {
                   <span className="text-xs font-bold uppercase tracking-wider">Recargas Pendientes</span>
                   <span className="text-xl">📥</span>
                 </div>
-                <div className={`text-2xl font-black ${stats?.pendingRecharges ? "text-red-400" : "text-white"}`}>
-                  {stats?.pendingRecharges ?? 0}
+                <div className={`text-2xl font-black ${financialSummary.pendingCount > 0 ? "text-amber-400" : "text-white"}`}>
+                  {financialSummary.pendingCount}
                 </div>
                 <div className="text-[11px] text-amber-200/60 mt-1">
-                  Bs. {(stats?.totalBsApproved ?? 0).toLocaleString()} aprobados
+                  Bs. {financialSummary.pendingDepositsBs.toLocaleString()} por validar · Bs. {financialSummary.totalDeposits.toLocaleString()} aprobados
                 </div>
               </div>
 
@@ -1813,11 +1913,11 @@ export default function AdminPage() {
                   <span className="text-xs font-bold uppercase tracking-wider">Retiros Pendientes</span>
                   <span className="text-xl">📤</span>
                 </div>
-                <div className={`text-2xl font-black ${stats?.pendingWithdrawals ? "text-amber-400" : "text-white"}`}>
-                  {stats?.pendingWithdrawals ?? 0}
+                <div className={`text-2xl font-black ${financialSummary.pendingWithdrawalsCount > 0 ? "text-amber-400" : "text-white"}`}>
+                  {financialSummary.pendingWithdrawalsCount}
                 </div>
                 <div className="text-[11px] text-amber-200/60 mt-1">
-                  Bs. {(stats?.totalBsWithdrawn ?? 0).toLocaleString()} pagados
+                  Bs. {financialSummary.pendingWithdrawalsBs.toLocaleString()} por pagar · Bs. {financialSummary.totalWithdrawalsPaid.toLocaleString()} pagados
                 </div>
               </div>
 
@@ -2765,17 +2865,27 @@ export default function AdminPage() {
               {/* Filtro de Estado y Exportación */}
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex rounded-xl bg-[#1e1008] border border-amber-500/30 p-0.5 text-xs font-bold">
-                  {["PENDIENTE", "APROBADO", "RECHAZADO", "ALL"].map((st) => (
+                  {[
+                    { key: "PENDIENTE", label: "Pendientes", count: recharges.filter((r) => r.status === "PENDIENTE").length },
+                    { key: "APROBADO", label: "Aprobadas", count: recharges.filter((r) => r.status === "APROBADO").length },
+                    { key: "RECHAZADO", label: "Rechazadas", count: recharges.filter((r) => r.status === "RECHAZADO").length },
+                    { key: "ALL", label: "Todas", count: recharges.length },
+                  ].map((st) => (
                     <button
-                      key={st}
-                      onClick={() => setRechargeStatusFilter(st)}
-                      className={`px-3 py-1.5 rounded-lg transition-all ${
-                        rechargeStatusFilter === st
-                          ? "bg-amber-500 text-amber-950"
+                      key={st.key}
+                      onClick={() => setRechargeStatusFilter(st.key)}
+                      className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                        rechargeStatusFilter === st.key
+                          ? "bg-amber-500 text-amber-950 font-black shadow"
                           : "text-amber-200/60 hover:text-white"
                       }`}
                     >
-                      {st === "ALL" ? "Todas" : st}
+                      <span>{st.label}</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                        rechargeStatusFilter === st.key ? "bg-amber-950/40 text-amber-950 font-black" : "bg-black/40 text-amber-300/80"
+                      }`}>
+                        {st.count}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -2788,6 +2898,31 @@ export default function AdminPage() {
                   <span>📥</span>
                   <span>Exportar Excel</span>
                 </button>
+              </div>
+            </div>
+
+            {/* Barra de Búsqueda de Recargas */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#180e07] border border-amber-500/30 p-3 rounded-2xl">
+              <div className="relative w-full sm:w-80">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500/60 text-sm">🔍</span>
+                <input
+                  type="text"
+                  placeholder="Buscar por usuario, referencia o teléfono..."
+                  value={rechargeSearch}
+                  onChange={(e) => setRechargeSearch(e.target.value)}
+                  className="w-full bg-[#1e1008] border border-amber-500/30 rounded-xl pl-9 pr-7 py-2 text-xs text-white placeholder-amber-200/30 focus:outline-none focus:border-amber-400"
+                />
+                {rechargeSearch && (
+                  <button
+                    onClick={() => setRechargeSearch("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-amber-200/40 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              <div className="text-xs text-amber-200/60 self-start sm:self-auto">
+                Mostrando <strong className="text-amber-300">{filteredRecharges.length}</strong> de {recharges.length} recargas
               </div>
             </div>
 
@@ -2809,14 +2944,16 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-amber-500/10">
-                    {recharges.length === 0 ? (
+                    {filteredRecharges.length === 0 ? (
                       <tr>
                         <td colSpan={9} className="text-center py-10 text-amber-200/40">
-                          No hay solicitudes de recarga en esta categoría.
+                          {rechargeSearch
+                            ? `No se encontraron recargas que coincidan con "${rechargeSearch}".`
+                            : "No hay solicitudes de recarga en esta categoría."}
                         </td>
                       </tr>
                     ) : (
-                      recharges.map((r) => (
+                      filteredRecharges.map((r) => (
                         <tr key={r.id} className="hover:bg-amber-500/5 transition-colors">
                           <td className="p-3.5 font-mono text-amber-200/50">#{r.id}</td>
                           <td className="p-3.5">
@@ -2922,17 +3059,27 @@ export default function AdminPage() {
               {/* Filtro de Estado y Exportación */}
               <div className="flex flex-wrap items-center gap-3">
                 <div className="flex rounded-xl bg-[#1e1008] border border-amber-500/30 p-0.5 text-xs font-bold">
-                  {["PENDIENTE", "PAGADO", "RECHAZADO", "ALL"].map((st) => (
+                  {[
+                    { key: "PENDIENTE", label: "Pendientes", count: withdrawals.filter((w) => w.status === "PENDIENTE").length },
+                    { key: "PAGADO", label: "Pagados", count: withdrawals.filter((w) => w.status === "PAGADO").length },
+                    { key: "RECHAZADO", label: "Rechazados", count: withdrawals.filter((w) => w.status === "RECHAZADO").length },
+                    { key: "ALL", label: "Todos", count: withdrawals.length },
+                  ].map((st) => (
                     <button
-                      key={st}
-                      onClick={() => setWithdrawalStatusFilter(st)}
-                      className={`px-3 py-1.5 rounded-lg transition-all ${
-                        withdrawalStatusFilter === st
-                          ? "bg-amber-500 text-amber-950"
+                      key={st.key}
+                      onClick={() => setWithdrawalStatusFilter(st.key)}
+                      className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                        withdrawalStatusFilter === st.key
+                          ? "bg-amber-500 text-amber-950 font-black shadow"
                           : "text-amber-200/60 hover:text-white"
                       }`}
                     >
-                      {st === "ALL" ? "Todas" : st}
+                      <span>{st.label}</span>
+                      <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                        withdrawalStatusFilter === st.key ? "bg-amber-950/40 text-amber-950 font-black" : "bg-black/40 text-amber-300/80"
+                      }`}>
+                        {st.count}
+                      </span>
                     </button>
                   ))}
                 </div>
@@ -2945,6 +3092,31 @@ export default function AdminPage() {
                   <span>📥</span>
                   <span>Exportar Excel</span>
                 </button>
+              </div>
+            </div>
+
+            {/* Barra de Búsqueda de Retiros */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#180e07] border border-amber-500/30 p-3 rounded-2xl">
+              <div className="relative w-full sm:w-80">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-amber-500/60 text-sm">🔍</span>
+                <input
+                  type="text"
+                  placeholder="Buscar por usuario, banco, teléfono o cédula..."
+                  value={withdrawalSearch}
+                  onChange={(e) => setWithdrawalSearch(e.target.value)}
+                  className="w-full bg-[#1e1008] border border-amber-500/30 rounded-xl pl-9 pr-7 py-2 text-xs text-white placeholder-amber-200/30 focus:outline-none focus:border-amber-400"
+                />
+                {withdrawalSearch && (
+                  <button
+                    onClick={() => setWithdrawalSearch("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-amber-200/40 hover:text-white"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+              <div className="text-xs text-amber-200/60 self-start sm:self-auto">
+                Mostrando <strong className="text-amber-300">{filteredWithdrawals.length}</strong> de {withdrawals.length} retiros
               </div>
             </div>
 
@@ -2965,14 +3137,16 @@ export default function AdminPage() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-amber-500/10">
-                    {withdrawals.length === 0 ? (
+                    {filteredWithdrawals.length === 0 ? (
                       <tr>
                         <td colSpan={8} className="text-center py-10 text-amber-200/40">
-                          No hay solicitudes de retiro en esta categoría.
+                          {withdrawalSearch
+                            ? `No se encontraron retiros que coincidan con "${withdrawalSearch}".`
+                            : "No hay solicitudes de retiro en esta categoría."}
                         </td>
                       </tr>
                     ) : (
-                      withdrawals.map((w) => (
+                      filteredWithdrawals.map((w) => (
                         <tr key={w.id} className="hover:bg-amber-500/5 transition-colors">
                           <td className="p-3.5 font-mono text-amber-200/50">#{w.id}</td>
                           <td className="p-3.5">
@@ -3558,38 +3732,109 @@ export default function AdminPage() {
               </button>
             </div>
 
-            {/* Cuadrícula de Balances */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
-              {/* Entradas */}
-              <div className="bg-[#180e07] border border-green-500/40 rounded-2xl p-5 shadow-lg">
+            {/* Alerta de Recargas Pendientes por Validar */}
+            {financialSummary.pendingCount > 0 && (
+              <div className="bg-amber-950/60 border border-amber-500/50 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 shadow-lg">
+                <div className="flex items-center gap-3">
+                  <span className="text-3xl">⚠️</span>
+                  <div>
+                    <div className="text-sm font-black text-amber-300 flex items-center gap-2">
+                      <span>Hay {financialSummary.pendingCount} recarga(s) pendiente(s) por validar</span>
+                      <span className="bg-amber-500 text-amber-950 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+                        Acción Requerida
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-200/80 mt-0.5">
+                      Monto total en espera de aprobación: <strong className="text-white">Bs. {financialSummary.pendingDepositsBs.toLocaleString()}</strong>. Al aprobarlas, se acreditarán automáticamente las monedas a los jugadores y se sumarán a la caja confirmada.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => {
+                    setRechargeStatusFilter("PENDIENTE");
+                    setActiveTab("recharges");
+                  }}
+                  className="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-xs rounded-xl transition shadow flex items-center gap-1.5 whitespace-nowrap self-end sm:self-auto"
+                >
+                  <span>👉 Validar Recargas Ahora</span>
+                </button>
+              </div>
+            )}
+
+            {/* Cuadrícula de Balances en Bolívares */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {/* Recargas Aprobadas */}
+              <div className="bg-[#180e07] border border-green-500/40 rounded-2xl p-4 shadow-lg">
                 <div className="flex items-center justify-between text-green-400 mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider">Ingresos por Recargas</span>
-                  <span className="text-xl">📈</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">Ingresos Confirmados</span>
+                  <span className="text-xl">✅</span>
                 </div>
                 <div className="text-2xl font-black text-white">
                   Bs. {financialSummary.totalDeposits.toLocaleString()}
                 </div>
                 <p className="text-[11px] text-green-300/70 mt-1">
-                  Total depositado por jugadores en Pago Móvil
+                  {financialSummary.approvedCount} recargas aprobadas y acreditadas en caja
                 </p>
               </div>
 
-              {/* Salidas */}
-              <div className="bg-[#180e07] border border-red-500/40 rounded-2xl p-5 shadow-lg">
+              {/* Recargas Pendientes */}
+              <div className="bg-[#180e07] border border-amber-500/40 rounded-2xl p-4 shadow-lg">
+                <div className="flex items-center justify-between text-amber-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">Recargas por Validar</span>
+                  <span className="text-xl">⏳</span>
+                </div>
+                <div className={`text-2xl font-black ${financialSummary.pendingCount > 0 ? "text-amber-300" : "text-white"}`}>
+                  Bs. {financialSummary.pendingDepositsBs.toLocaleString()}
+                </div>
+                <p className="text-[11px] text-amber-200/70 mt-1">
+                  {financialSummary.pendingCount} comprobantes en cola esperando verificación
+                </p>
+              </div>
+
+              {/* Recargas Registradas Hoy */}
+              <div className="bg-[#180e07] border border-cyan-500/40 rounded-2xl p-4 shadow-lg">
+                <div className="flex items-center justify-between text-cyan-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">Recargas de Hoy (24h)</span>
+                  <span className="text-xl">📅</span>
+                </div>
+                <div className="text-2xl font-black text-white">
+                  Bs. {financialSummary.todayRechargesBs.toLocaleString()}
+                </div>
+                <p className="text-[11px] text-cyan-200/70 mt-1">
+                  {financialSummary.todayRechargesCount} solicitudes hoy ({financialSummary.todayApprovedBs.toLocaleString()} Bs. aprobadas · {financialSummary.todayPendingBs.toLocaleString()} Bs. pendientes)
+                </p>
+              </div>
+
+              {/* Pagos por Retiros Realizados */}
+              <div className="bg-[#180e07] border border-red-500/40 rounded-2xl p-4 shadow-lg">
                 <div className="flex items-center justify-between text-red-400 mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider">Pagos por Retiros</span>
-                  <span className="text-xl">📉</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">Retiros Pagados</span>
+                  <span className="text-xl">📤</span>
                 </div>
                 <div className="text-2xl font-black text-white">
                   Bs. {financialSummary.totalWithdrawalsPaid.toLocaleString()}
                 </div>
                 <p className="text-[11px] text-red-300/70 mt-1">
-                  Total transferido a jugadores ganadores
+                  {financialSummary.paidWithdrawalsCount} transferencias completadas a ganadores
                 </p>
               </div>
 
-              {/* Balance Neto */}
-              <div className="bg-[#180e07] border border-amber-500/50 rounded-2xl p-5 shadow-lg">
+              {/* Retiros Pendientes */}
+              <div className="bg-[#180e07] border border-orange-500/40 rounded-2xl p-4 shadow-lg">
+                <div className="flex items-center justify-between text-orange-400 mb-2">
+                  <span className="text-xs font-bold uppercase tracking-wider">Retiros por Pagar</span>
+                  <span className="text-xl">⌛</span>
+                </div>
+                <div className={`text-2xl font-black ${financialSummary.pendingWithdrawalsCount > 0 ? "text-orange-300" : "text-white"}`}>
+                  Bs. {financialSummary.pendingWithdrawalsBs.toLocaleString()}
+                </div>
+                <p className="text-[11px] text-orange-200/70 mt-1">
+                  {financialSummary.pendingWithdrawalsCount} solicitudes de cobro pendientes
+                </p>
+              </div>
+
+              {/* Balance Neto en Caja */}
+              <div className="bg-[#180e07] border border-amber-500/50 rounded-2xl p-4 shadow-lg">
                 <div className="flex items-center justify-between text-amber-400 mb-2">
                   <span className="text-xs font-bold uppercase tracking-wider">Balance Neto en Caja</span>
                   <span className="text-xl">🏦</span>
@@ -3602,7 +3847,7 @@ export default function AdminPage() {
                   Bs. {financialSummary.netBsBalance.toLocaleString()}
                 </div>
                 <p className="text-[11px] text-amber-200/70 mt-1">
-                  Saldo neto restante (Depósitos - Retiros)
+                  Caja confirmada (Aprobadas - Pagados). Con pendientes: Bs. {financialSummary.netBsBalanceWithPending.toLocaleString()}
                 </p>
               </div>
             </div>
