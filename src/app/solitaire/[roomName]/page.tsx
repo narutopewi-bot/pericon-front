@@ -1274,7 +1274,7 @@ export default function Duel() {
     hasAiAskedThisHand.current = false;
     if (connection) {
       const numberGame : number = idGameRef.current || played?.game || 0;
-      const numberCard : string = "";
+      const numberCard : string = `${pointsownRef.current}-${pointsoppRef.current}-${partownRef.current}-${partoppRef.current}`;
       const dato : Message = { game: numberGame, order: 105, content: numberCard };
       try {
         await new Promise(resolve => setTimeout(resolve, 800));
