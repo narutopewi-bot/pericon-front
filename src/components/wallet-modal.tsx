@@ -65,9 +65,52 @@ const VENEZUELAN_BANKS = [
 // Variable configurable para el monto mínimo de retiro en monedas (1 moneda = 1 Bs.)
 export const MIN_WITHDRAWAL_COINS = 1500;
 
+// Horario estipulado para recargas y retiros: 6:00 AM a 9:30 PM (Hora de Venezuela, UTC-4)
+export function isWithinVenezuelaOperatingHours(): { isOpen: boolean; formattedVzlaTime: string } {
+  try {
+    const now = new Date();
+    const vzlaStr = now.toLocaleString("en-US", { timeZone: "America/Caracas" });
+    const vzlaDate = new Date(vzlaStr);
+    const hours = vzlaDate.getHours();
+    const minutes = vzlaDate.getMinutes();
+    const totalMinutes = hours * 60 + minutes;
+
+    // Horario: 6:00 AM (360 min) a 9:30 PM (1290 min)
+    const isOpen = totalMinutes >= 360 && totalMinutes <= 1290;
+
+    const ampm = hours >= 12 ? "PM" : "AM";
+    const displayHours = hours % 12 || 12;
+    const displayMinutes = minutes < 10 ? `0${minutes}` : minutes;
+    const formattedVzlaTime = `${displayHours}:${displayMinutes} ${ampm}`;
+
+    return { isOpen, formattedVzlaTime };
+  } catch {
+    const now = new Date();
+    const utcHours = now.getUTCHours();
+    const utcMinutes = now.getUTCMinutes();
+    let vzlaHours = utcHours - 4;
+    if (vzlaHours < 0) vzlaHours += 24;
+    const totalMinutes = vzlaHours * 60 + utcMinutes;
+    const isOpen = totalMinutes >= 360 && totalMinutes <= 1290;
+    const ampm = vzlaHours >= 12 ? "PM" : "AM";
+    const displayHours = vzlaHours % 12 || 12;
+    const displayMinutes = utcMinutes < 10 ? `0${utcMinutes}` : utcMinutes;
+    return { isOpen, formattedVzlaTime: `${displayHours}:${displayMinutes} ${ampm}` };
+  }
+}
+
 export default function WalletModal({ isOpen, onClose, userId, coins: propCoins }: WalletModalProps) {
   const dispatch = useDispatch();
   const reduxPlayer = useSelector((state: RootState) => state.gameplayer);
+
+  const [operatingStatus, setOperatingStatus] = useState(() => isWithinVenezuelaOperatingHours());
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setOperatingStatus(isWithinVenezuelaOperatingHours());
+    }, 10000);
+    return () => clearInterval(timer);
+  }, []);
 
   const [activeTab, setActiveTab] = useState<"recharge" | "withdraw" | "promo" | "history">("recharge");
   const [historyTab, setHistoryTab] = useState<"recharges" | "withdrawals">("recharges");
@@ -409,6 +452,14 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
     setSubmitError(null);
     setSubmitSuccess(null);
 
+    const { isOpen, formattedVzlaTime } = isWithinVenezuelaOperatingHours();
+    if (!isOpen) {
+      setSubmitError(
+        `Por políticas de la plataforma, el horario para recargas y retiros es de 6:00 AM a 9:30 PM (Hora de Venezuela). Hora actual: ${formattedVzlaTime}. Por favor, intenta de nuevo dentro del horario estipulado.`
+      );
+      return;
+    }
+
     const validId = getValidNumericUserId();
     if (!validId) {
       setSubmitError("No se pudo identificar tu cuenta. Por favor vuelve a iniciar sesión.");
@@ -474,6 +525,14 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
     e.preventDefault();
     setWithdrawError(null);
     setWithdrawSuccess(null);
+
+    const { isOpen, formattedVzlaTime } = isWithinVenezuelaOperatingHours();
+    if (!isOpen) {
+      setWithdrawError(
+        `Por políticas de la plataforma, el horario para recargas y retiros es de 6:00 AM a 9:30 PM (Hora de Venezuela). Hora actual: ${formattedVzlaTime}. Por favor, intenta de nuevo dentro del horario estipulado.`
+      );
+      return;
+    }
 
     const validId = getValidNumericUserId();
     if (!validId) {
@@ -774,6 +833,36 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
         {/* PESTAÑA 1: RECARGAR MONEDAS */}
         {activeTab === "recharge" && (
           <div className="w-full flex flex-col gap-3">
+            {/* Banner de Horario de Recargas y Retiros */}
+            {!operatingStatus.isOpen ? (
+              <div className="w-full bg-gradient-to-r from-rose-950/90 to-[#220707] border-2 border-rose-500/70 rounded-2xl p-3 flex items-start gap-2.5 shadow-lg animate-in fade-in">
+                <span className="text-xl shrink-0">⛔</span>
+                <div className="flex-1 text-left">
+                  <span className="text-xs font-black text-rose-300 block uppercase">
+                    Recargas Cerradas Fuera de Horario
+                  </span>
+                  <p className="text-[11px] text-rose-100/90 leading-tight mt-0.5">
+                    Por normativas operativas, las recargas y retiros están disponibles únicamente en el horario de <strong>6:00 AM a 9:30 PM</strong> (Hora de Venezuela).
+                  </p>
+                  <div className="flex items-center gap-2 mt-1.5 text-[10px] text-rose-300 font-bold">
+                    <span>🕒 Hora actual en Venezuela: {operatingStatus.formattedVzlaTime}</span>
+                    <span>•</span>
+                    <span>Apertura: 6:00 AM</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="w-full bg-emerald-950/40 border border-emerald-500/40 rounded-xl py-1.5 px-3 flex items-center justify-between text-[11px] text-emerald-300 font-bold">
+                <span className="flex items-center gap-1.5">
+                  <span>🕒</span>
+                  <span>Horario de Recargas y Retiros: 6:00 AM a 9:30 PM (Hora Vzla)</span>
+                </span>
+                <span className="text-emerald-400 bg-emerald-900/60 px-2 py-0.5 rounded-full text-[10px] border border-emerald-500/30">
+                  ● En servicio ({operatingStatus.formattedVzlaTime})
+                </span>
+              </div>
+            )}
+
             {/* Tarjeta con los Datos Bancarios Oficiales */}
             <div className="w-full bg-gradient-to-b from-[#1f1105] to-[#120802] border-2 border-amber-400/60 rounded-2xl p-3.5 shadow-lg flex flex-col gap-2">
               <div className="flex justify-between items-center border-b border-amber-500/20 pb-1.5">
@@ -919,10 +1008,14 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
 
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full py-2.5 mt-1 bg-gradient-to-r from-amber-500 to-yellow-500 hover:brightness-110 text-black font-extrabold text-xs rounded-xl shadow-lg transition disabled:opacity-50"
+                disabled={loading || !operatingStatus.isOpen}
+                className="w-full py-2.5 mt-1 bg-gradient-to-r from-amber-500 to-yellow-500 hover:brightness-110 text-black font-extrabold text-xs rounded-xl shadow-lg transition disabled:opacity-50 disabled:grayscale cursor-pointer"
               >
-                {loading ? "Enviando comprobante..." : "Enviar Comprobante al Administrador 📤"}
+                {!operatingStatus.isOpen
+                  ? "⛔ Recargas cerradas (Horario: 6:00 AM a 9:30 PM Vzla)"
+                  : loading
+                  ? "Enviando comprobante..."
+                  : "Enviar Comprobante al Administrador 📤"}
               </button>
             </form>
           </div>
@@ -931,6 +1024,36 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
         {/* PESTAÑA 2: RETIRAR A PAGO MÓVIL */}
         {activeTab === "withdraw" && (
           <div className="w-full flex flex-col gap-3">
+            {/* Banner de Horario de Recargas y Retiros */}
+            {!operatingStatus.isOpen ? (
+              <div className="w-full bg-gradient-to-r from-rose-950/90 to-[#220707] border-2 border-rose-500/70 rounded-2xl p-3 flex items-start gap-2.5 shadow-lg animate-in fade-in">
+                <span className="text-xl shrink-0">⛔</span>
+                <div className="flex-1 text-left">
+                  <span className="text-xs font-black text-rose-300 block uppercase">
+                    Retiros Cerrados Fuera de Horario
+                  </span>
+                  <p className="text-[11px] text-rose-100/90 leading-tight mt-0.5">
+                    Por normativas operativas, las recargas y retiros están disponibles únicamente en el horario de <strong>6:00 AM a 9:30 PM</strong> (Hora de Venezuela).
+                  </p>
+                  <div className="flex items-center gap-2 mt-1.5 text-[10px] text-rose-300 font-bold">
+                    <span>🕒 Hora actual en Venezuela: {operatingStatus.formattedVzlaTime}</span>
+                    <span>•</span>
+                    <span>Apertura: 6:00 AM</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="w-full bg-emerald-950/40 border border-emerald-500/40 rounded-xl py-1.5 px-3 flex items-center justify-between text-[11px] text-emerald-300 font-bold">
+                <span className="flex items-center gap-1.5">
+                  <span>🕒</span>
+                  <span>Horario de Recargas y Retiros: 6:00 AM a 9:30 PM (Hora Vzla)</span>
+                </span>
+                <span className="text-emerald-400 bg-emerald-900/60 px-2 py-0.5 rounded-full text-[10px] border border-emerald-500/30">
+                  ● En servicio ({operatingStatus.formattedVzlaTime})
+                </span>
+              </div>
+            )}
+
             <div className="w-full bg-gradient-to-b from-[#121c10] to-[#0a1208] border-2 border-emerald-500/60 rounded-2xl p-3.5 shadow-lg flex flex-col gap-2">
               <div className="flex justify-between items-center border-b border-emerald-500/20 pb-1.5">
                 <span className="text-[11px] font-black text-emerald-300 uppercase tracking-wider flex items-center gap-1.5">
@@ -1096,10 +1219,14 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
 
               <button
                 type="submit"
-                disabled={loading || currentCoins <= 0}
-                className="w-full py-2.5 mt-1 bg-gradient-to-r from-emerald-600 to-teal-500 hover:brightness-110 text-white font-extrabold text-xs rounded-xl shadow-lg transition disabled:opacity-50"
+                disabled={loading || currentCoins <= 0 || !operatingStatus.isOpen}
+                className="w-full py-2.5 mt-1 bg-gradient-to-r from-emerald-600 to-teal-500 hover:brightness-110 text-white font-extrabold text-xs rounded-xl shadow-lg transition disabled:opacity-50 disabled:grayscale cursor-pointer"
               >
-                {loading ? "Procesando retiro..." : "Solicitar Retiro de Bolívares 💸"}
+                {!operatingStatus.isOpen
+                  ? "⛔ Retiros cerrados (Horario: 6:00 AM a 9:30 PM Vzla)"
+                  : loading
+                  ? "Procesando retiro..."
+                  : "Solicitar Retiro de Bolívares 💸"}
               </button>
             </form>
           </div>
