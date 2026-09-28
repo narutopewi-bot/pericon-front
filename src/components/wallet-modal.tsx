@@ -41,6 +41,27 @@ interface WithdrawalItem {
   processedAt?: string;
 }
 
+interface UserMatchItem {
+  id: number;
+  type: "BOT" | "PVP";
+  rival: string;
+  betAmount: number;
+  won: boolean;
+  coinsDelta: number;
+  userCoinsBefore?: number;
+  userCoinsAfter?: number;
+  endReason?: string;
+  createdAt: string;
+}
+
+interface MatchSummary {
+  totalMatches: number;
+  totalWins: number;
+  totalLosses: number;
+  winRate: number;
+  netCoinsGained: number;
+}
+
 const VENEZUELAN_BANKS = [
   "0191 - BNC (Banco Nacional de Crédito)",
   "0102 - Banco de Venezuela",
@@ -113,7 +134,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
   }, []);
 
   const [activeTab, setActiveTab] = useState<"recharge" | "withdraw" | "promo" | "history">("recharge");
-  const [historyTab, setHistoryTab] = useState<"recharges" | "withdrawals">("recharges");
+  const [historyTab, setHistoryTab] = useState<"recharges" | "withdrawals" | "matches">("recharges");
   const [loading, setLoading] = useState(false);
   const [bonusMessage, setBonusMessage] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
@@ -152,6 +173,8 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
   // Historiales
   const [recharges, setRecharges] = useState<RechargeItem[]>([]);
   const [withdrawals, setWithdrawals] = useState<WithdrawalItem[]>([]);
+  const [userMatches, setUserMatches] = useState<UserMatchItem[]>([]);
+  const [matchSummary, setMatchSummary] = useState<MatchSummary | null>(null);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -189,10 +212,11 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
 
     setLoadingHistory(true);
     try {
-      const [resRec, resWit, resProf] = await Promise.all([
+      const [resRec, resWit, resProf, resMatches] = await Promise.all([
         fetch(`${apiUrl}/api/payment/user/${validId}`),
         fetch(`${apiUrl}/api/payment/user/${validId}/withdrawals`),
-        fetch(`${apiUrl}/api/user/${validId}/profile`)
+        fetch(`${apiUrl}/api/user/${validId}/profile`),
+        fetch(`${apiUrl}/api/user/${validId}/matches?limit=40`)
       ]);
 
       if (resRec.ok) {
@@ -202,6 +226,13 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
       if (resWit.ok) {
         const dataWit = await resWit.json();
         setWithdrawals(Array.isArray(dataWit) ? dataWit : []);
+      }
+      if (resMatches.ok) {
+        const dataMatches = await resMatches.json();
+        if (dataMatches && Array.isArray(dataMatches.matches)) {
+          setUserMatches(dataMatches.matches);
+          setMatchSummary(dataMatches.summary || null);
+        }
       }
       if (resProf.ok) {
         const profile = await resProf.json();
@@ -1301,9 +1332,9 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
               </div>
             )}
 
-            {/* Sub-selector: Recargas vs Retiros */}
+            {/* Sub-selector: Recargas vs Retiros vs Partidas */}
             <div className="flex items-center justify-between gap-2 border-b border-amber-500/20 pb-2">
-              <div className="flex gap-1.5 bg-black/40 p-1 rounded-xl border border-amber-500/20 text-xs">
+              <div className="flex flex-wrap gap-1.5 bg-black/40 p-1 rounded-xl border border-amber-500/20 text-xs">
                 <button
                   onClick={() => {
                     setHistoryTab("recharges");
@@ -1330,6 +1361,19 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
                 >
                   📤 Retiros ({withdrawals.length})
                 </button>
+                <button
+                  onClick={() => {
+                    setHistoryTab("matches");
+                    fetchHistory();
+                  }}
+                  className={`px-3 py-1 rounded-lg font-bold transition text-[11px] ${
+                    historyTab === "matches"
+                      ? "bg-blue-600 text-white shadow"
+                      : "text-blue-200/70 hover:text-white"
+                  }`}
+                >
+                  🎮 Partidas ({userMatches.length})
+                </button>
               </div>
 
               <button
@@ -1341,7 +1385,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
               </button>
             </div>
 
-            {loadingHistory && recharges.length === 0 && withdrawals.length === 0 ? (
+            {loadingHistory && recharges.length === 0 && withdrawals.length === 0 && userMatches.length === 0 ? (
               <div className="flex items-center justify-center h-36 text-amber-200/70 text-xs">
                 Cargando solicitudes...
               </div>
@@ -1399,7 +1443,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
                   ))}
                 </div>
               )
-            ) : (
+            ) : historyTab === "withdrawals" ? (
               /* Lista de Retiros */
               withdrawals.length === 0 ? (
                 <div className="bg-black/40 border border-emerald-500/20 rounded-2xl p-6 text-center text-xs text-emerald-200/60 flex flex-col items-center gap-2">
@@ -1469,6 +1513,99 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
                   ))}
                 </div>
               )
+            ) : (
+              /* Lista de Partidas Jugadas */
+              <div className="flex flex-col gap-2">
+                {matchSummary && (
+                  <div className="grid grid-cols-3 gap-2 bg-gradient-to-r from-blue-950/70 to-purple-950/70 border border-blue-500/40 rounded-xl p-2.5 text-center shadow">
+                    <div>
+                      <span className="text-[10px] text-blue-200/70 block uppercase font-bold">Récord</span>
+                      <span className="text-xs font-black text-white">
+                        <span className="text-emerald-400">{matchSummary.totalWins}V</span>
+                        {" - "}
+                        <span className="text-rose-400">{matchSummary.totalLosses}D</span>
+                        <span className="text-[10px] text-white/50 ml-1">({matchSummary.winRate}%)</span>
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-blue-200/70 block uppercase font-bold">Partidas</span>
+                      <span className="text-xs font-black text-amber-300">
+                        {matchSummary.totalMatches} jugadas
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-[10px] text-blue-200/70 block uppercase font-bold">Balance Monedas</span>
+                      <span className={`text-xs font-black ${matchSummary.netCoinsGained >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                        {matchSummary.netCoinsGained >= 0 ? `+${matchSummary.netCoinsGained.toLocaleString()}` : matchSummary.netCoinsGained.toLocaleString()} 🪙
+                      </span>
+                    </div>
+                  </div>
+                )}
+
+                {userMatches.length === 0 ? (
+                  <div className="bg-black/40 border border-blue-500/20 rounded-2xl p-6 text-center text-xs text-blue-200/60 flex flex-col items-center gap-2">
+                    <span>🎮</span>
+                    <span>Aún no tienes registro de partidas jugadas.</span>
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2 max-h-[290px] overflow-y-auto pr-1">
+                    {userMatches.map((m) => {
+                      const isWin = m.won;
+                      const isBot = m.type === "BOT";
+                      return (
+                        <div
+                          key={`${m.type}-${m.id}-${m.createdAt}`}
+                          className="bg-black/50 border border-white/10 hover:border-white/20 transition rounded-xl p-2.5 flex items-center justify-between gap-2 shadow-sm text-xs"
+                        >
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <span className="text-xl shrink-0">
+                              {isBot ? "🤖" : "⚔️"}
+                            </span>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="font-bold text-white text-xs truncate">
+                                  {m.rival}
+                                </span>
+                                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded border ${
+                                  isBot
+                                    ? "bg-purple-900/60 text-purple-200 border-purple-500/30"
+                                    : "bg-amber-900/60 text-amber-200 border-amber-500/30"
+                                }`}>
+                                  {isBot ? "Bot IA" : "1 vs 1"}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2 text-[10px] text-white/50 mt-0.5">
+                                <span>Apuesta: <strong className="text-amber-300 font-bold">{m.betAmount.toLocaleString()} 🪙</strong></span>
+                                <span>•</span>
+                                <span>{m.createdAt}</span>
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <div className="text-right">
+                              <span className={`text-xs font-black block ${
+                                m.coinsDelta > 0
+                                  ? "text-emerald-400"
+                                  : m.coinsDelta < 0
+                                  ? "text-rose-400"
+                                  : "text-gray-300"
+                              }`}>
+                                {m.coinsDelta > 0 ? `+${m.coinsDelta.toLocaleString()}` : m.coinsDelta.toLocaleString()} 🪙
+                              </span>
+                              <span className={`text-[9px] font-bold uppercase tracking-wider block ${
+                                isWin ? "text-emerald-400/90" : "text-rose-400/90"
+                              }`}>
+                                {isWin ? "Victoria 🏆" : "Derrota"}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             )}
           </div>
         )}
