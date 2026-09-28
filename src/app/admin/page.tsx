@@ -2012,6 +2012,81 @@ export default function AdminPage() {
               </div>
             </div>
 
+            {/* Banner de Calibración Rápida de Dificultad del Bot (Solitario) */}
+            <div className="bg-[#1c0f08] border border-amber-500/40 rounded-2xl p-4 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-2xl shadow-inner shrink-0">
+                  ⚙️
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-black text-amber-300">Calibración de Dificultad del Bot (Solitario)</span>
+                    <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border ${
+                      botDifficultyMode === 'facil'
+                        ? 'bg-green-950/80 text-green-300 border-green-500/50'
+                        : botDifficultyMode === 'dificil'
+                        ? 'bg-red-950/80 text-red-300 border-red-500/50'
+                        : 'bg-amber-950/80 text-amber-300 border-amber-500/50'
+                    }`}>
+                      Modo Actual: {botDifficultyMode.toUpperCase()}
+                    </span>
+                  </div>
+                  <p className="text-xs text-amber-200/70 mt-1">
+                    {botDifficultyMode === 'facil' && "🟢 Modo Fácil: 50% Casa / 50% Jugador. El usuario gana ~5 de cada 10 partidas. Calibrado para fluidez de jugadores."}
+                    {botDifficultyMode === 'medio' && "🟡 Modo Medio: 60% Casa / 40% Jugador. Balance estándar recomendado para ventaja moderada."}
+                    {botDifficultyMode === 'dificil' && "🔴 Modo Difícil: 65% Casa / 35% Jugador. Mayor probabilidad para la casa."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-start md:self-auto shrink-0 flex-wrap">
+                <button
+                  type="button"
+                  disabled={botDifficultyLoading || botDifficultyMode === "facil"}
+                  onClick={() => handleSetBotDifficulty("facil")}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow ${
+                    botDifficultyMode === "facil"
+                      ? "bg-green-600 text-white ring-2 ring-green-400"
+                      : "bg-[#24140a] text-green-400 border border-green-500/40 hover:bg-green-950/40"
+                  }`}
+                  title="50% Casa / 50% Jugador - Permite ganar más seguido al usuario"
+                >
+                  <span>🟢</span>
+                  <span>Fácil (50%)</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={botDifficultyLoading || botDifficultyMode === "medio"}
+                  onClick={() => handleSetBotDifficulty("medio")}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow ${
+                    botDifficultyMode === "medio"
+                      ? "bg-amber-500 text-black ring-2 ring-amber-300"
+                      : "bg-[#24140a] text-amber-300 border border-amber-500/40 hover:bg-amber-950/40"
+                  }`}
+                  title="60% Casa / 40% Jugador - Balance estándar"
+                >
+                  <span>🟡</span>
+                  <span>Medio (60%)</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={botDifficultyLoading || botDifficultyMode === "dificil"}
+                  onClick={() => handleSetBotDifficulty("dificil")}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow ${
+                    botDifficultyMode === "dificil"
+                      ? "bg-red-600 text-white ring-2 ring-red-400"
+                      : "bg-[#24140a] text-red-400 border border-red-500/40 hover:bg-red-950/40"
+                  }`}
+                  title="65% Casa / 35% Jugador - Mayor dificultad"
+                >
+                  <span>🔴</span>
+                  <span>Difícil (65%)</span>
+                </button>
+              </div>
+            </div>
+
             {/* Tarjetas KPI */}
             <div className="grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3.5">
               <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-4 shadow-lg">
