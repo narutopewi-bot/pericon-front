@@ -81,16 +81,21 @@ export async function safeSignalRInvoke(
     } catch (err: any) {
       lastError = err;
       const errMsg = err?.message || String(err || "");
+      const lowerErr = errMsg.toLowerCase();
       const isTransientConnectionIssue =
-        errMsg.includes("Cannot send data") ||
-        errMsg.includes("WebSocket closed") ||
-        errMsg.includes("not in the 'Connected' State") ||
-        errMsg.includes("estado no conectado") ||
-        errMsg.includes("Reconnecting") ||
-        errMsg.includes("Connecting") ||
-        errMsg.includes("Server timeout") ||
-        errMsg.includes("negotiate") ||
-        errMsg.includes("1006");
+        lowerErr.includes("cannot send data") ||
+        lowerErr.includes("websocket closed") ||
+        lowerErr.includes("not in the 'connected' state") ||
+        lowerErr.includes("not in the connected state") ||
+        lowerErr.includes("estado no conectado") ||
+        lowerErr.includes("reconnecting") ||
+        lowerErr.includes("connecting") ||
+        lowerErr.includes("server timeout") ||
+        lowerErr.includes("negotiate") ||
+        lowerErr.includes("1006") ||
+        lowerErr.includes("underlying connection") ||
+        lowerErr.includes("invocation canceled") ||
+        lowerErr.includes("connection disconnected");
 
       if (isTransientConnectionIssue && attempt < maxAttempts) {
         console.warn(

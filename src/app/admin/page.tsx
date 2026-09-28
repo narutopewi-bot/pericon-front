@@ -4,6 +4,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import Image from "next/image";
 import * as fonts from "@/components/fonts";
 import { useRouter } from "next/navigation";
+import Swal from "sweetalert2";
 
 interface AdminStats {
   totalUsers: number;
@@ -242,6 +243,8 @@ export default function AdminPage() {
   });
   const [botSearch, setBotSearch] = useState("");
   const [botResultFilter, setBotResultFilter] = useState<"all" | "user_won" | "bot_won">("all");
+  const [botDifficultyMode, setBotDifficultyMode] = useState<"facil" | "medio" | "dificil">("medio");
+  const [botDifficultyLoading, setBotDifficultyLoading] = useState(false);
   const [promos, setPromos] = useState<PromoCodeRow[]>([]);
   const [feedbacks, setFeedbacks] = useState<FeedbackRow[]>([]);
   const [feedbackStats, setFeedbackStats] = useState<{ total: number; averageRating: number }>({ total: 0, averageRating: 5.0 });
@@ -288,6 +291,14 @@ export default function AdminPage() {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
   const [adminToken, setAdminToken] = useState<string>("");
 
+  const getFullReceiptUrl = (url: string | null) => {
+    if (!url) return "";
+    if (url.startsWith("http://") || url.startsWith("https://") || url.startsWith("data:")) return url;
+    const cleanBase = apiUrl.replace(/\/+$/, "");
+    const cleanPath = url.startsWith("/") ? url : `/${url}`;
+    return `${cleanBase}${cleanPath}`;
+  };
+
   const getAdminHeaders = (extraHeaders: Record<string, string> = {}) => {
     const t = adminToken || (typeof window !== "undefined" ? sessionStorage.getItem("guardian_admin_token") : "") || "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela";
     return {
@@ -302,6 +313,53 @@ export default function AdminPage() {
       ...init,
       headers,
     });
+  };
+
+  const fetchBotDifficulty = async () => {
+    try {
+      const res = await adminFetch(`${apiUrl}/api/admin/bot-difficulty`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.mode) setBotDifficultyMode(data.mode);
+      }
+    } catch (err) {
+      console.error("Error al obtener dificultad del bot:", err);
+    }
+  };
+
+  const handleSetBotDifficulty = async (mode: "facil" | "medio" | "dificil") => {
+    setBotDifficultyLoading(true);
+    try {
+      const res = await adminFetch(`${apiUrl}/api/admin/bot-difficulty`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode })
+      });
+      if (res.ok) {
+        setBotDifficultyMode(mode);
+        Swal.fire({
+          icon: "success",
+          title: "Dificultad Actualizada",
+          text: `El bot ahora está en Modo ${mode.toUpperCase()} (${mode === "facil" ? "50% Casa / 50% Jugador - El jugador gana con mayor frecuencia" : mode === "dificil" ? "65% Casa / 35% Jugador - Mayor dificultad para la casa" : "60% Casa / 40% Jugador - Balance estándar"}).`,
+          background: "#180e07",
+          color: "#fef3c7",
+          confirmButtonColor: "#f59e0b"
+        });
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: errData.message || "No se pudo actualizar la dificultad del bot.",
+          background: "#180e07",
+          color: "#fef3c7"
+        });
+      }
+    } catch (err) {
+      console.error("Error setting bot difficulty:", err);
+    } finally {
+      setBotDifficultyLoading(false);
+    }
   };
 
   // Verificar sesión existente en sessionStorage
@@ -422,6 +480,7 @@ export default function AdminPage() {
         if (botData.summary) setBotSummary(botData.summary);
       }
       await fetchErrorLogs();
+      await fetchBotDifficulty();
     } catch (err) {
       console.error("Error loading admin data:", err);
     } finally {
@@ -3605,6 +3664,81 @@ export default function AdminPage() {
               </div>
             )}
 
+            {/* Control Interactivo de Dificultad del Bot */}
+            <div className="bg-[#180e07] border-2 border-amber-500/50 rounded-2xl p-4 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-xl bg-amber-500/20 border border-amber-500/40 flex items-center justify-center text-2xl shadow-inner shrink-0">
+                  ⚙️
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-black text-amber-300">Calibración de Dificultad del Bot (Solitario)</span>
+                    <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border ${
+                      botDifficultyMode === 'facil'
+                        ? 'bg-green-950/80 text-green-300 border-green-500/50'
+                        : botDifficultyMode === 'dificil'
+                        ? 'bg-red-950/80 text-red-300 border-red-500/50'
+                        : 'bg-amber-950/80 text-amber-300 border-amber-500/50'
+                    }`}>
+                      Modo Actual: {botDifficultyMode.toUpperCase()}
+                    </span>
+                  </div>
+                  <p className="text-xs text-amber-200/70 mt-1">
+                    {botDifficultyMode === 'facil' && "🟢 Modo Fácil: 50% Casa / 50% Jugador. El usuario gana ~5 de cada 10 partidas. Calibrado para los órdenes 82 y 83."}
+                    {botDifficultyMode === 'medio' && "🟡 Modo Medio: 60% Casa / 40% Jugador. Balance estándar recomendado para ventaja moderada."}
+                    {botDifficultyMode === 'dificil' && "🔴 Modo Difícil: 65% Casa / 35% Jugador. Mayor probabilidad para la casa."}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 self-start md:self-auto shrink-0 flex-wrap">
+                <button
+                  type="button"
+                  disabled={botDifficultyLoading || botDifficultyMode === "facil"}
+                  onClick={() => handleSetBotDifficulty("facil")}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow ${
+                    botDifficultyMode === "facil"
+                      ? "bg-green-600 text-white ring-2 ring-green-400"
+                      : "bg-[#24140a] text-green-400 border border-green-500/40 hover:bg-green-950/40"
+                  }`}
+                  title="50% Casa / 50% Jugador - Permite ganar más seguido al usuario"
+                >
+                  <span>🟢</span>
+                  <span>Fácil (50%)</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={botDifficultyLoading || botDifficultyMode === "medio"}
+                  onClick={() => handleSetBotDifficulty("medio")}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow ${
+                    botDifficultyMode === "medio"
+                      ? "bg-amber-500 text-black ring-2 ring-amber-300"
+                      : "bg-[#24140a] text-amber-300 border border-amber-500/40 hover:bg-amber-950/40"
+                  }`}
+                  title="60% Casa / 40% Jugador - Balance estándar"
+                >
+                  <span>🟡</span>
+                  <span>Medio (60%)</span>
+                </button>
+
+                <button
+                  type="button"
+                  disabled={botDifficultyLoading || botDifficultyMode === "dificil"}
+                  onClick={() => handleSetBotDifficulty("dificil")}
+                  className={`px-3.5 py-2 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow ${
+                    botDifficultyMode === "dificil"
+                      ? "bg-red-600 text-white ring-2 ring-red-400"
+                      : "bg-[#24140a] text-red-400 border border-red-500/40 hover:bg-red-950/40"
+                  }`}
+                  title="65% Casa / 35% Jugador - Mayor dificultad"
+                >
+                  <span>🔴</span>
+                  <span>Difícil (65%)</span>
+                </button>
+              </div>
+            </div>
+
             {/* Tarjetas Resumen de Rendimiento del Bot */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-4 shadow-lg">
@@ -4868,46 +5002,95 @@ export default function AdminPage() {
       {/* ========================================================================= */}
       {/* MODAL DE ZOOM DE COMPROBANTE */}
       {/* ========================================================================= */}
-      {viewingReceipt && (
-        <div
-          className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
-          onClick={() => setViewingReceipt(null)}
-        >
+      {viewingReceipt && (() => {
+        const fullUrl = getFullReceiptUrl(viewingReceipt);
+        return (
           <div
-            className="bg-[#180e07] border-2 border-amber-500/60 rounded-3xl p-4 max-w-lg w-full text-white shadow-2xl relative"
-            onClick={(e) => e.stopPropagation()}
+            className="fixed inset-0 z-50 bg-black/90 backdrop-blur-md flex items-center justify-center p-4"
+            onClick={(e) => {
+              if (e.target === e.currentTarget) setViewingReceipt(null);
+            }}
           >
-            <div className="flex items-center justify-between mb-3">
-              <span className="text-xs font-bold text-amber-300">Comprobante de Pago Móvil</span>
-              <button
-                onClick={() => setViewingReceipt(null)}
-                className="text-amber-400 hover:text-white text-base font-bold"
-              >
-                ✕
-              </button>
-            </div>
+            <div
+              className="bg-[#180e07] border-2 border-amber-500/60 rounded-3xl p-5 max-w-2xl w-full text-white shadow-2xl relative flex flex-col max-h-[92vh]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-4 border-b border-amber-500/20 pb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-bold text-amber-300">📄 Comprobante de Pago Móvil</span>
+                  <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-mono border border-amber-500/30">
+                    Imagen Oficial
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={fullUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold rounded-lg border border-amber-500/30 flex items-center gap-1 transition-all"
+                    title="Abrir imagen original en nueva pestaña"
+                  >
+                    ↗ Abrir pestaña
+                  </a>
+                  <button
+                    onClick={() => setViewingReceipt(null)}
+                    className="w-8 h-8 rounded-full bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 flex items-center justify-center text-sm font-bold transition-all"
+                  >
+                    ✕
+                  </button>
+                </div>
+              </div>
 
-            <div className="relative w-full h-96 bg-black/40 rounded-2xl overflow-hidden border border-amber-500/20">
-              <Image
-                src={viewingReceipt}
-                alt="Comprobante"
-                fill
-                className="object-contain"
-                unoptimized
-              />
-            </div>
+              <div className="relative flex-1 w-full min-h-[320px] max-h-[65vh] bg-black/60 rounded-2xl overflow-auto border border-amber-500/20 p-2 flex items-center justify-center">
+                {/* Usamos etiqueta <img> estándar para máxima compatibilidad con URLs externas de Railway */}
+                <img
+                  src={fullUrl}
+                  alt="Comprobante Pago Móvil"
+                  className="max-h-[60vh] w-auto max-w-full object-contain mx-auto rounded-lg shadow-xl"
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    target.style.display = 'none';
+                    const parent = target.parentElement;
+                    if (parent && !parent.querySelector('.error-fallback')) {
+                      const div = document.createElement('div');
+                      div.className = 'error-fallback text-center p-6 text-amber-200/80';
+                      div.innerHTML = `
+                        <div class="text-3xl mb-2">⚠️</div>
+                        <div class="font-bold text-sm text-amber-300 mb-1">No se pudo cargar la vista previa directa</div>
+                        <div class="text-xs text-amber-200/60 mb-4 max-w-md break-all">${fullUrl}</div>
+                        <a href="${fullUrl}" target="_blank" rel="noopener noreferrer" class="px-4 py-2 bg-amber-500 text-amber-950 font-bold text-xs rounded-xl inline-block hover:bg-amber-400">
+                          ↗ Intentar abrir directamente en el navegador
+                        </a>
+                      `;
+                      parent.appendChild(div);
+                    }
+                  }}
+                />
+              </div>
 
-            <div className="mt-4 flex justify-end">
-              <button
-                onClick={() => setViewingReceipt(null)}
-                className="px-4 py-2 bg-amber-500 text-amber-950 font-bold text-xs rounded-xl hover:bg-amber-400"
-              >
-                Cerrar Visor
-              </button>
+              <div className="mt-4 flex flex-wrap items-center justify-between gap-2 pt-3 border-t border-amber-500/20">
+                <div className="text-[11px] text-amber-200/60 truncate max-w-xs font-mono">
+                  {viewingReceipt}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => copyToClipboard(fullUrl, "receipt_url")}
+                    className="px-3 py-1.5 bg-[#24140a] hover:bg-[#341d0f] text-amber-300 font-bold text-xs rounded-xl border border-amber-500/30 flex items-center gap-1 transition-colors"
+                  >
+                    {copiedText === "receipt_url" ? "✓ ¡Link Copiado!" : "📋 Copiar Link"}
+                  </button>
+                  <button
+                    onClick={() => setViewingReceipt(null)}
+                    className="px-4 py-1.5 bg-amber-500 text-amber-950 font-bold text-xs rounded-xl hover:bg-amber-400 shadow-md"
+                  >
+                    Cerrar Visor
+                  </button>
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ========================================================================= */}
       {/* MODAL PARA CAMBIAR O RESETEAR CONTRASEÑA */}

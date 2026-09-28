@@ -8,6 +8,8 @@ export interface AppErrorReport {
   userId?: number | string;
   stackTrace?: string;
   extraData?: Record<string, any> | string;
+  screenshotUrl?: string;
+  captureUrl?: string;
 }
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
@@ -28,8 +30,14 @@ export async function reportAppError(report: AppErrorReport): Promise<void> {
       lowerMsg.includes('reconnecting') ||
       lowerMsg.includes('server timeout elapsed without receiving a message') ||
       lowerMsg.includes("not in the 'connected' state") ||
+      lowerMsg.includes("not in the connected state") ||
       lowerMsg.includes('estado no conectado') ||
-      lowerMsg.includes('websocket closed with status code: 1006') ||
+      lowerMsg.includes('websocket closed') ||
+      lowerMsg.includes('1006') ||
+      lowerMsg.includes('cannot send data') ||
+      lowerMsg.includes('underlying connection was closed') ||
+      lowerMsg.includes('invocation canceled') ||
+      lowerMsg.includes('connection disconnected') ||
       lowerMsg.includes('failed to fetch') ||
       lowerMsg.includes('networkerror') ||
       lowerMsg.includes('aborted');
@@ -55,6 +63,16 @@ export async function reportAppError(report: AppErrorReport): Promise<void> {
       if (!isNaN(num) && num > 0) parsedUserId = num;
     }
 
+    const capture = report.screenshotUrl || report.captureUrl;
+    let serializedExtra: string | null = null;
+    if (typeof report.extraData === 'object' && report.extraData !== null) {
+      serializedExtra = JSON.stringify({ ...report.extraData, ...(capture ? { screenshotUrl: capture } : {}) });
+    } else if (capture) {
+      serializedExtra = JSON.stringify({ extra: report.extraData, screenshotUrl: capture });
+    } else if (typeof report.extraData === 'string') {
+      serializedExtra = report.extraData;
+    }
+
     const payload = {
       source: report.source || 'Client',
       roomName: report.roomName || null,
@@ -62,7 +80,7 @@ export async function reportAppError(report: AppErrorReport): Promise<void> {
       userId: parsedUserId,
       errorMessage: rawMsg,
       stackTrace: report.stackTrace || (new Error().stack) || null,
-      extraData: typeof report.extraData === 'object' ? JSON.stringify(report.extraData) : (report.extraData || null)
+      extraData: serializedExtra
     };
 
     await fetch(`${API_URL}/api/admin/errors/report`, {

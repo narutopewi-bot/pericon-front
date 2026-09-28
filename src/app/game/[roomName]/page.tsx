@@ -296,26 +296,26 @@ export default function Duel1vs1() {
     stakeCoins: 10,
   });
 
-  const triggerEpicVictorySequence = (payoutData?: any) => {
-    // 1. Primero la locución y voz triunfal solicitada
-    playVoiceAudio('victoria_partida', "¡Ganaste la partida, fuiste victorioso!");
-    playSynthSound?.('win');
-    vibrateDevice('winMatch');
+  // Guardia estricta de deduplicación para locuciones de final de partida (evita que se repita la voz)
+  const hasPlayedGameOverVoiceRef = useRef<boolean>(false);
+  const hasPaidOutRef = useRef<boolean>(false);
+  const isGameOverRef = useRef<boolean>(false);
 
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      try {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance("¡Ganaste la partida, fuiste victorioso!");
-        utterance.lang = 'es-ES';
-        utterance.rate = 1.0;
-        utterance.pitch = 1.05;
-        const voices = window.speechSynthesis.getVoices();
-        const esVoice = voices.find(v => v.lang.startsWith('es'));
-        if (esVoice) utterance.voice = esVoice;
-        window.speechSynthesis.speak(utterance);
-      } catch (err) {
-        console.warn("[SpeechSynthesis] Error al narrar victoria:", err);
-      }
+  const triggerEpicVictorySequence = (payoutData?: any) => {
+    hasPaidOutRef.current = true;
+    isGameOverRef.current = true;
+    setRivalTimeoutData(prev => ({ ...prev, isOpen: false, isClaiming: false }));
+
+    if (idGame.current && typeof window !== 'undefined' && window.sessionStorage) {
+      sessionStorage.setItem(`pericon_finished_game_${idGame.current}`, "true");
+    }
+
+    // 1. Narración y efectos de victoria única por partida
+    if (!hasPlayedGameOverVoiceRef.current) {
+      hasPlayedGameOverVoiceRef.current = true;
+      playVoiceAudio('victoria_partida', "¡Ganaste la partida, fuiste victorioso!");
+      playSynthSound?.('win');
+      vibrateDevice('winMatch');
     }
 
     const myName = user?.name && user.name !== 'nulo' ? user.name : 'Tú';
@@ -377,25 +377,20 @@ export default function Duel1vs1() {
   });
 
   const triggerEpicDefeatSequence = (payoutData?: any) => {
-    // 1. Primero la locución y voz de derrota solicitada
-    playVoiceAudio('derrota_partida', "Partida finalizada. Tu oponente se llevó la victoria.");
-    playSynthSound?.('reject');
-    vibrateDevice('tumba');
+    hasPaidOutRef.current = true;
+    isGameOverRef.current = true;
+    setRivalTimeoutData(prev => ({ ...prev, isOpen: false, isClaiming: false }));
 
-    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-      try {
-        window.speechSynthesis.cancel();
-        const utterance = new SpeechSynthesisUtterance("Partida finalizada. Tu oponente se llevó la victoria.");
-        utterance.lang = 'es-ES';
-        utterance.rate = 1.0;
-        utterance.pitch = 0.95;
-        const voices = window.speechSynthesis.getVoices();
-        const esVoice = voices.find(v => v.lang.startsWith('es'));
-        if (esVoice) utterance.voice = esVoice;
-        window.speechSynthesis.speak(utterance);
-      } catch (err) {
-        console.warn("[SpeechSynthesis] Error al narrar derrota:", err);
-      }
+    if (idGame.current && typeof window !== 'undefined' && window.sessionStorage) {
+      sessionStorage.setItem(`pericon_finished_game_${idGame.current}`, "true");
+    }
+
+    // 1. Narración y efectos de derrota única por partida
+    if (!hasPlayedGameOverVoiceRef.current) {
+      hasPlayedGameOverVoiceRef.current = true;
+      playVoiceAudio('derrota_partida', "Partida finalizada. Tu oponente se llevó la victoria.");
+      playSynthSound?.('reject');
+      vibrateDevice('tumba');
     }
 
     const myName = user?.name && user.name !== 'nulo' ? user.name : 'Tú';
@@ -424,6 +419,11 @@ export default function Duel1vs1() {
   const handleClaimRivalTimeout = async () => {
     if (rivalTimeoutData.isClaiming) return;
     if (!idGame.current || idGame.current <= 0) return;
+    if (hasPaidOutRef.current || isGameOverRef.current) {
+      console.warn("[ClaimTimeout] Reclamo rechazado en cliente: la partida ya concluyó o fue liquidada.");
+      setRivalTimeoutData(prev => ({ ...prev, isOpen: false, isClaiming: false }));
+      return;
+    }
     if (isWaitingOppTumba || tumbaCountdown !== null || isWaitingHandChange1v1 || playerCards.length === 0) {
       console.warn("[ClaimTimeout] Reclamo rechazado en cliente: la mesa está en fase de tumba, reparto o cambio de manos.");
       setRivalTimeoutData(prev => ({ ...prev, isOpen: false }));
@@ -443,6 +443,8 @@ export default function Duel1vs1() {
 
   const handleRivalTimeoutDetected = () => {
     if (
+      hasPaidOutRef.current ||
+      isGameOverRef.current ||
       hasTimedOut.current ||
       isWaitingHandChange1v1 ||
       isWaitingOppTumba ||
@@ -532,6 +534,21 @@ export default function Duel1vs1() {
     };
   }, [playerCards.length]);
 
+  // Blindaje contra el botón Atrás del navegador o gestos móviles
+  useEffect(() => {
+    const handlePopState = () => {
+      if (hasPaidOutRef.current || isGameOverRef.current) {
+        console.warn("[Game1v1] Botón Atrás presionado en partida ya finalizada. Redirigiendo al escritorio...");
+        router.replace('/desk');
+      }
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, [router]);
+
   // El botón de Pedir solo debe habilitarse cuando sea tu turno, tengas cartas, no estés en Tumba,
   // la apuesta no haya llegado a 9 y no hayas pedido tú previamente sin que el rival revire.
   const canPedir = isMyTurn &&
@@ -614,7 +631,9 @@ export default function Duel1vs1() {
             console.error("Error al enviar rendición:", error);
           }
         }
-        router.push("/desk");
+        hasPaidOutRef.current = true;
+        isGameOverRef.current = true;
+        router.replace("/desk");
       }
     });
   };
@@ -931,6 +950,20 @@ export default function Duel1vs1() {
       if (connection && !hasConnected.current && deserialized) {
         try {
           const obj = JSON.parse(decodeURIComponent(deserialized));
+
+          // Blindaje contra reingreso a partidas ya concluidas
+          if (typeof window !== 'undefined' && window.sessionStorage) {
+            if (sessionStorage.getItem(`pericon_finished_game_${obj.id}`)) {
+              console.warn("[Game1v1] Intento de reingresar a partida ya finalizada:", obj.id);
+              router.replace('/desk');
+              return;
+            }
+            // Sanitizar la URL para remover los datos del historial
+            if (window.history && window.history.replaceState) {
+              window.history.replaceState(null, '', `/game/${roomName}`);
+            }
+          }
+
           datos.current = obj;
           const turny: string = obj.flag == true ? "1" : "0";
           playerturn.current = turny;
@@ -1081,7 +1114,7 @@ export default function Duel1vs1() {
         confirmButtonColor: '#f59e0b',
         background: '#1a0e06',
         color: '#fff',
-      }).then(() => router.push('/desk'));
+      }).then(() => router.replace('/desk'));
     });
 
     return () => {
@@ -1155,6 +1188,28 @@ export default function Duel1vs1() {
         setCurrentStake(state.currentStake);
         currentStakeRef.current = state.currentStake;
       }
+
+      // Sincronización autoritativa de la mesa y el rol de tiro (Mano vs Pie)
+      if (state.hasLeadMove && state.leadMove?.content) {
+        const oppParts = state.leadMove.content.split(' ');
+        const oppSocket = oppParts[0] || '';
+        const oppCardId = parseInt(oppParts[2] || '-1');
+        if (oppSocket) playeropp.current = oppSocket;
+        if (!isNaN(oppCardId) && oppCardId >= 0) {
+          const oppCard = Baraja(oppCardId, 0);
+          cpoppRef.current = oppCard;
+          setTableCards([cpEightRef.current, oppCard]);
+        }
+        roundturn.current = false; // Hay carta del rival en mesa: me toca responder (Pie)
+      } else {
+        cpoppRef.current = { id: -1, position: -1, suit: "", number: -1, image: "" };
+        cpownRef.current = { id: -1, position: -1, suit: "", number: -1, image: "" };
+        setTableCards([cpEightRef.current]);
+        if (state.isMyTurn) {
+          roundturn.current = true; // Si es mi turno y la mesa está vacía, soy Mano (Orden 82)
+        }
+      }
+
       setRivalTimeoutData(prev => prev.isOpen ? { ...prev, isOpen: false } : prev);
       setIsProcessingMove(false);
       isProcessingRef.current = false;
@@ -1655,57 +1710,78 @@ export default function Duel1vs1() {
       let dato: Message = { game: 0, order: 0, content: "" };
       let numOrder: number = 0;
       let strMessage: string = "";
-      let flagTurn: string = (!roundturn.current == true ? " 1" : " 0");
       cpownRef.current = cardZero;
       if (connection?.connectionId) {
         playerown.current = connection.connectionId;
       }
-      if (roundturn.current == true && switchturn.current == true) {
-        numOrder = 82;
-        strMessage = playerown.current + " " + playeropp.current + " " + cardZero.id.toString() + flagTurn;
-        dato = { game: idGame.current, order: numOrder, content: strMessage };
-        setTableCards([cpEightRef.current, cpownRef.current]);
-        switchturn.current = false;
-        setIsMyTurn(false);
-        setTimeLeft(30);
-        hasTimedOut.current = false;
-      } else if (roundturn.current == false && switchturn.current == true) {
-        // Regla del Pelao: Si el rival salió con triunfo y tenemos triunfos, obligatorio tirar triunfo (salvo excepción del 5 de Oro en 1ra baza)
-        const currentLifeId = cpEightRef.current?.id ?? -1;
-        const isOppTrump = (cpoppRef.current?.id !== undefined && cpoppRef.current.id !== -1)
-          ? isTrumpCard(cpoppRef.current.id, currentLifeId)
-          : false;
-        const playerHasTrump = playerCards.some(c => isTrumpCard(c.id, currentLifeId));
-        const isFirstBaza = playerCards.length === 3;
-        const hasCincoDeOro = playerCards.some(c => c.id === 4);
-        const trumpsCount = playerCards.filter(c => isTrumpCard(c.id, currentLifeId)).length;
-        const canDenyCinco = isFirstBaza && hasCincoDeOro && trumpsCount === 1;
 
-        if (isOppTrump && playerHasTrump && !canDenyCinco && !isTrumpCard(cardZero.id, currentLifeId)) {
-          playVoiceAudio('regla_del_pelao', "¡Regla del Pelao! Debes lanzar un triunfo.");
-          vibrateDevice('reject');
-          playSynthSound('reject');
-          Swal.fire({
-            title: "¡REGLA DEL PELAO!",
-            text: "Salieron con un triunfo. ¡Estás obligado a lanzar un triunfo de tu mano!",
-            icon: "warning",
-            confirmButtonText: "Entendido",
-            confirmButtonColor: "#f59e0b"
-          });
-          isProcessingRef.current = false;
-          setIsProcessingMove(false);
-          return;
+      const activeOwnId = (connection?.connectionId || playerown.current || "p1").trim();
+      const activeOppId = (playeropp.current || "p2").trim();
+      const currentLifeId = (cpEightRef.current?.id !== undefined && cpEightRef.current.id >= 0)
+        ? cpEightRef.current.id
+        : (tableCards.length > 0 && tableCards[0]?.id !== undefined && tableCards[0].id >= 0 ? tableCards[0].id : 0);
+      const turnFlagStr = (!roundturn.current == true ? "1" : "0");
+
+      // DETERMINACIÓN INFALIBLE: ¿Es jugada de salida (Mano/82) o de respuesta (Pie/83)?
+      // Solo es respuesta si realmente existe una carta del rival sobre la mesa, o si roundturn es explícitamente false
+      const hasOppCardOnTable = (cpoppRef.current?.id !== undefined && cpoppRef.current.id >= 0) &&
+                                (tableCards.length > 1 && tableCards[1]?.id !== undefined && tableCards[1].id >= 0);
+      const isResponding = hasOppCardOnTable || (roundturn.current === false);
+
+      if (switchturn.current == true) {
+        if (!isResponding) {
+          // JUGADA DE SALIDA (MANO - ORDEN 82)
+          numOrder = 82;
+          roundturn.current = true;
+          strMessage = `${activeOwnId} ${activeOppId} ${cardZero.id} ${turnFlagStr}`;
+          dato = { game: idGame.current, order: numOrder, content: strMessage };
+          setTableCards([cpEightRef.current, cpownRef.current]);
+          switchturn.current = false;
+          setIsMyTurn(false);
+          setTimeLeft(30);
+          hasTimedOut.current = false;
+        } else {
+          // JUGADA DE RESPUESTA (PIE - ORDEN 83)
+          const leadCardId = (cpoppRef.current?.id !== undefined && cpoppRef.current.id >= 0)
+            ? cpoppRef.current.id
+            : (tableCards.length > 1 && tableCards[1]?.id !== undefined && tableCards[1].id >= 0 ? tableCards[1].id : 0);
+
+          // Regla del Pelao: Si el rival salió con triunfo y tenemos triunfos, obligatorio tirar triunfo (salvo excepción del 5 de Oro en 1ra baza)
+          const isOppTrump = (leadCardId >= 0)
+            ? isTrumpCard(leadCardId, currentLifeId)
+            : false;
+          const playerHasTrump = playerCards.some(c => isTrumpCard(c.id, currentLifeId));
+          const isFirstBaza = playerCards.length === 3;
+          const hasCincoDeOro = playerCards.some(c => c.id === 4);
+          const trumpsCount = playerCards.filter(c => isTrumpCard(c.id, currentLifeId)).length;
+          const canDenyCinco = isFirstBaza && hasCincoDeOro && trumpsCount === 1;
+
+          if (isOppTrump && playerHasTrump && !canDenyCinco && !isTrumpCard(cardZero.id, currentLifeId)) {
+            playVoiceAudio('regla_del_pelao', "¡Regla del Pelao! Debes lanzar un triunfo.");
+            vibrateDevice('reject');
+            playSynthSound('reject');
+            Swal.fire({
+              title: "¡REGLA DEL PELAO!",
+              text: "Salieron con un triunfo. ¡Estás obligado a lanzar un triunfo de tu mano!",
+              icon: "warning",
+              confirmButtonText: "Entendido",
+              confirmButtonColor: "#f59e0b"
+            });
+            isProcessingRef.current = false;
+            setIsProcessingMove(false);
+            return;
+          }
+
+          numOrder = 83;
+          roundturn.current = false;
+          strMessage = `${activeOppId} ${leadCardId} ${activeOwnId} ${cardZero.id} ${currentLifeId} ${turnFlagStr}`;
+          setTableCards([cpEightRef.current, cpoppRef.current, cpownRef.current]);
+          dato = { game: idGame.current, order: numOrder, content: strMessage };
+          switchturn.current = false;
+          setIsMyTurn(false);
+          setTimeLeft(30);
+          hasTimedOut.current = false;
         }
-
-        numOrder = 83;
-        strMessage = playeropp.current + " " + cpoppRef.current.id.toString() + " ";
-        strMessage += playerown.current + " " + cardZero.id.toString() + " " + cpEightRef.current.id.toString() + flagTurn;
-        setTableCards([cpEightRef.current, cpoppRef.current, cpownRef.current]);
-        dato = { game: idGame.current, order: numOrder, content: strMessage };
-        switchturn.current = false;
-        setIsMyTurn(false);
-        setTimeLeft(30);
-        hasTimedOut.current = false;
       }
 
       if (numOrder === 0) {
@@ -1736,14 +1812,24 @@ export default function Duel1vs1() {
         isProcessingRef.current = false;
         setIsProcessingMove(false);
 
-        reportAppError({
-          source: 'Game1v1',
-          errorMessage: `Error al enviar carta (orden ${numOrder}): ${error?.message || error}`,
-          roomName: typeof roomName === 'string' ? roomName : undefined,
-          username: user?.name,
-          userId: user?.id,
-          extraData: { dato }
-        });
+        const isConnErr = error?.message && (
+          error.message.includes('estado no conectado') ||
+          error.message.includes('not in the') ||
+          error.message.includes('WebSocket') ||
+          error.message.includes('Cannot send') ||
+          error.message.includes('underlying')
+        );
+
+        if (!isConnErr) {
+          reportAppError({
+            source: 'Game1v1',
+            errorMessage: `Error al enviar carta (orden ${numOrder}): ${error?.message || error}`,
+            roomName: typeof roomName === 'string' ? roomName : undefined,
+            username: user?.name,
+            userId: user?.id,
+            extraData: { dato }
+          });
+        }
 
         Swal.fire({
           title: "Microcorte de Red",
@@ -2028,18 +2114,22 @@ export default function Duel1vs1() {
       const isDuplicate = (lastProcessedCardRef.current === cardMsgKey);
 
       if (modelo.order == 84) {
-        if (!isDuplicate) {
-          lastProcessedCardRef.current = cardMsgKey;
-          oponentCards.current = Math.max(0, oponentCards.current - 1);
+        if (isDuplicate) {
+          console.warn("[ResponseCard1vs1] Descartando mensaje orden 84 duplicado:", cardMsgKey);
+          return;
         }
+        lastProcessedCardRef.current = cardMsgKey;
+        oponentCards.current = Math.max(0, oponentCards.current - 1);
         const cardZero: Card = Baraja(parseInt(Trozo(modelo.content, 2)), 0);
         const turnZero: boolean = (Trozo(modelo.content, 3) == "1" ? false : true);
         playCardSound();
         switchturn.current = true;
         setIsMyTurn(true);
         setTimeLeft(30);
-        hasTimedOut.current = false;
         cpoppRef.current = cardZero;
+        roundturn.current = false;
+        const oppConnId = Trozo(modelo.content, 0);
+        if (oppConnId) playeropp.current = oppConnId;
         setTableCards(prev => [cpEightRef.current, cpoppRef.current]);
         isProcessingRef.current = false;
         setIsProcessingMove(false);
@@ -2128,7 +2218,9 @@ export default function Duel1vs1() {
                 setIsMyTurn(true);
                 setTimeLeft(30);
                 hasTimedOut.current = false;
-                setTableCards(prev => [cpEightRef.current]);
+                cpoppRef.current = { id: -1, position: -1, suit: "", number: -1, image: "" };
+                cpownRef.current = { id: -1, position: -1, suit: "", number: -1, image: "" };
+                setTableCards([cpEightRef.current]);
                 isProcessingRef.current = false;
                 setIsProcessingMove(false);
               } else if (Orden == "3") {
@@ -2195,6 +2287,7 @@ export default function Duel1vs1() {
                 setIsMyTurn(false);
                 // Mantener las cartas sobre el tapete para que el jugador vea claramente la jugada final
                 setTableCards([cpEightRef.current, cpownRef.current, cardZero]);
+                hasPlayedGameOverVoiceRef.current = true;
                 playVoiceAudio('tumba_completada', "¡Ganaste la partida! Tumba completada.");
                 vibrateDevice('winMatch');
                 playSynthSound('win');
@@ -2216,7 +2309,9 @@ export default function Duel1vs1() {
                 setIsMyTurn(false);
                 setTimeLeft(30);
                 hasTimedOut.current = false;
-                setTableCards(prev => [cpEightRef.current]);
+                cpoppRef.current = { id: -1, position: -1, suit: "", number: -1, image: "" };
+                cpownRef.current = { id: -1, position: -1, suit: "", number: -1, image: "" };
+                setTableCards([cpEightRef.current]);
                 isProcessingRef.current = false;
                 setIsProcessingMove(false);
               } else if (Orden == "2") {
@@ -2269,6 +2364,7 @@ export default function Duel1vs1() {
                 setIsMyTurn(false);
                 // Mantener las cartas sobre el tapete para que el jugador vea claramente la jugada final
                 setTableCards([cpEightRef.current, cpownRef.current, cardZero]);
+                hasPlayedGameOverVoiceRef.current = true;
                 playVoiceAudio('derrota_partida', "Partida terminada. Los rivales se llevaron la victoria.");
                 vibrateDevice('reject');
                 playSynthSound('reject');
@@ -2293,7 +2389,7 @@ export default function Duel1vs1() {
                     if (result.isDenied) {
                       handleRequestRevancha1vs1();
                     } else {
-                      router.push("/desk");
+                      router.replace("/desk");
                     }
                   });
                 }, 3500);
@@ -2387,8 +2483,9 @@ export default function Duel1vs1() {
               switchturn.current = true;
               setIsMyTurn(true);
               setTimeLeft(30);
-              hasTimedOut.current = false;
-              setTableCards(prev => [cpEightRef.current]);
+              cpoppRef.current = { id: -1, position: -1, suit: "", number: -1, image: "" };
+              cpownRef.current = { id: -1, position: -1, suit: "", number: -1, image: "" };
+              setTableCards([cpEightRef.current]);
               isProcessingRef.current = false;
               setIsProcessingMove(false);
             } else if (Orden == "2") {
@@ -2455,6 +2552,7 @@ export default function Duel1vs1() {
               setIsMyTurn(false);
               // Mantener las cartas sobre el tapete
               setTableCards([cpEightRef.current, cpoppRef.current, cpownRef.current]);
+              hasPlayedGameOverVoiceRef.current = true;
               playVoiceAudio('tumba_completada', "¡Ganaste la partida! Tumba completada.");
               vibrateDevice('winMatch');
               playSynthSound('win');
@@ -2475,8 +2573,9 @@ export default function Duel1vs1() {
               switchturn.current = false;
               setIsMyTurn(false);
               setTimeLeft(30);
-              hasTimedOut.current = false;
-              setTableCards(prev => [cpEightRef.current]);
+              cpoppRef.current = { id: -1, position: -1, suit: "", number: -1, image: "" };
+              cpownRef.current = { id: -1, position: -1, suit: "", number: -1, image: "" };
+              setTableCards([cpEightRef.current]);
               isProcessingRef.current = false;
               setIsProcessingMove(false);
             } else if (Orden == "3") {
@@ -2529,6 +2628,7 @@ export default function Duel1vs1() {
               setIsMyTurn(false);
               // Mantener las cartas sobre el tapete
               setTableCards([cpEightRef.current, cpoppRef.current, cpownRef.current]);
+              hasPlayedGameOverVoiceRef.current = true;
               playVoiceAudio('derrota_partida', "Partida terminada. Los rivales se llevaron la victoria.");
               vibrateDevice('reject');
               playSynthSound('reject');
@@ -2553,7 +2653,7 @@ export default function Duel1vs1() {
                   if (result.isDenied) {
                     handleRequestRevancha1vs1();
                   } else {
-                    router.push("/desk");
+                    router.replace("/desk");
                   }
                 });
               }, 3500);
@@ -2684,13 +2784,55 @@ export default function Duel1vs1() {
     if (!connection) return;
     connection.on('YouSurrendered', (data: any) => {
       console.log("[YouSurrendered] Confirmación de rendición:", data);
-      router.push("/desk");
+      hasPaidOutRef.current = true;
+      isGameOverRef.current = true;
+      router.replace("/desk");
+    });
+
+    connection.on('GameAlreadyFinished', (data: any) => {
+      console.warn("[GameAlreadyFinished] Partida ya concluida:", data);
+      hasPaidOutRef.current = true;
+      isGameOverRef.current = true;
+      setRivalTimeoutData(prev => ({ ...prev, isOpen: false, isClaiming: false }));
+      if (idGame.current && typeof window !== 'undefined' && window.sessionStorage) {
+        sessionStorage.setItem(`pericon_finished_game_${idGame.current}`, "true");
+      }
+      Swal.fire({
+        title: "Partida Concluida",
+        text: data?.message || "Esta partida ya ha concluido y fue liquidada.",
+        icon: "info",
+        confirmButtonText: "Regresar al Menú",
+        confirmButtonColor: "#f59e0b",
+        background: "#180e07",
+        color: "#fef3c7",
+        allowOutsideClick: false,
+      }).then(() => {
+        router.replace('/desk');
+      });
+    });
+
+    connection.on('ClaimRejected', (data: any) => {
+      console.warn("[ClaimRejected] Reclamo rechazado:", data);
+      setRivalTimeoutData(prev => ({ ...prev, isOpen: false, isClaiming: false }));
+      Swal.fire({
+        title: "Reclamo No Válido",
+        text: data?.message || "Esta partida ya concluyó y no admite más reclamos.",
+        icon: "warning",
+        confirmButtonText: "Entendido",
+        confirmButtonColor: "#f59e0b",
+        background: "#180e07",
+        color: "#fef3c7",
+      }).then(() => {
+        router.replace('/desk');
+      });
     });
 
     return () => {
       connection.off('YouSurrendered');
+      connection.off('GameAlreadyFinished');
+      connection.off('ClaimRejected');
     };
-  }, [connection]);
+  }, [connection, router]);
 
   // Listener para la liquidación de apuestas (Premio 80%, Comisión 20% del árbitro)
   useEffect(() => {
@@ -2778,7 +2920,7 @@ export default function Duel1vs1() {
           } catch (e) {
             console.error("Error al rechazar revancha 1vs1:", e);
           }
-          router.push("/desk");
+          router.replace("/desk");
         }
       });
     });
@@ -2786,6 +2928,7 @@ export default function Duel1vs1() {
     connection.on('RevanchaAccepted1vs1', (data: { responderName: string; gameId: number }) => {
       console.log("[RevanchaAccepted1vs1] Revancha aceptada:", data);
       Swal.close();
+      hasPlayedGameOverVoiceRef.current = false;
       updatePointsAndTumba(0, 0);
       pointOne.current = 0;
       pointTwo.current = 0;
@@ -2823,7 +2966,7 @@ export default function Duel1vs1() {
           popup: styles.custompopup
         }
       }).then(() => {
-        router.push("/desk");
+        router.replace("/desk");
       });
     });
 
@@ -2875,7 +3018,9 @@ export default function Duel1vs1() {
     // if (x == 9) setMessage("GANASTE EL JUEGO!!!");
     // else setMessage("PERDISTE EL JUEGO!!!");
     delay(1500);
-    router.push("/desk");
+    hasPaidOutRef.current = true;
+    isGameOverRef.current = true;
+    router.replace("/desk");
   };
 
   return (
@@ -2906,8 +3051,10 @@ export default function Duel1vs1() {
           handleRequestRevancha1vs1();
         }}
         onExitLobby={() => {
+          hasPaidOutRef.current = true;
+          isGameOverRef.current = true;
           setVictoryModalData(prev => ({ ...prev, isOpen: false }));
-          router.push("/desk");
+          router.replace("/desk");
         }}
       />
 
@@ -2929,8 +3076,10 @@ export default function Duel1vs1() {
           handleRequestRevancha1vs1();
         }}
         onExitLobby={() => {
+          hasPaidOutRef.current = true;
+          isGameOverRef.current = true;
           setDefeatModalData(prev => ({ ...prev, isOpen: false }));
-          router.push("/desk");
+          router.replace("/desk");
         }}
       />
 
