@@ -17,6 +17,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useAppDispatch } from "@/store/store"
 import { setGamePlayer } from "@/store/slices/gameplayerSlice"
+import { getDeviceFingerprint } from "@/lib/fingerprint";
 
 type FormMessageProps = {
   error?: FieldError;
@@ -60,13 +61,17 @@ export default function SignIn() {
     setServerError(null);
     setLoading(true);
     try {
+      const deviceFingerprint = await getDeviceFingerprint();
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
       const response = await fetch(`${apiUrl}/api/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(data),
+        body: JSON.stringify({
+          ...data,
+          deviceFingerprint,
+        }),
       });
 
       const result = await response.json();

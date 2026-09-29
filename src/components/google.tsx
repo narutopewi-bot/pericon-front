@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useAppDispatch } from "@/store/store";
 import { setGamePlayer } from "@/store/slices/gameplayerSlice";
 import Swal from "sweetalert2";
+import { getDeviceFingerprint } from "@/lib/fingerprint";
 
 declare global {
   interface Window {
@@ -38,11 +39,15 @@ export default function GoogleButton({ onLoading }: GoogleButtonProps) {
     setLoading(true);
     if (onLoading) onLoading(true);
     try {
+      const deviceFingerprint = await getDeviceFingerprint();
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
       const response = await fetch(`${apiUrl}/api/auth/google`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ...payload,
+          deviceFingerprint,
+        }),
       });
 
       const result = await response.json();
