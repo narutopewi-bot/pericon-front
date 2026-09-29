@@ -337,6 +337,15 @@ export default function AdminPage() {
       });
       if (res.ok) {
         setBotDifficultyMode(mode);
+        setStats((prev: any) => prev ? {
+          ...prev,
+          botDifficulty: {
+            ...prev.botDifficulty,
+            mode: mode,
+            housePercent: mode === "facil" ? 50 : mode === "dificil" ? 65 : 60,
+            userPercent: mode === "facil" ? 50 : mode === "dificil" ? 35 : 40,
+          }
+        } : prev);
         Swal.fire({
           icon: "success",
           title: "Dificultad Actualizada",
@@ -462,7 +471,13 @@ export default function AdminPage() {
         adminFetch(`${apiUrl}/api/admin/feedbacks`),
       ]);
 
-      if (resStats.ok) setStats(await resStats.json());
+      if (resStats.ok) {
+        const statsData = await resStats.json();
+        setStats(statsData);
+        if (statsData.botDifficulty?.mode) {
+          setBotDifficultyMode(statsData.botDifficulty.mode);
+        }
+      }
       if (resRecharges.ok) setRecharges(await resRecharges.json());
       if (resWithdrawals.ok) setWithdrawals(await resWithdrawals.json());
       if (resUsers.ok) setUsers(await resUsers.json());
