@@ -398,10 +398,14 @@ export default function Desk() {
       }));
     });
 
-    connection.on('GlobalAnnouncement', (data: AnnouncementPayload) => {
+    connection.on('GlobalAnnouncement', (data: AnnouncementPayload | null) => {
       console.log('[GlobalAnnouncement recibido]', data);
-      setGlobalAnnouncement(data);
-      playChatPopSound();
+      if (!data || !data.message) {
+        setGlobalAnnouncement(null);
+      } else {
+        setGlobalAnnouncement(data);
+        playChatPopSound();
+      }
     });
 
     return () => {

@@ -840,18 +840,18 @@ export default function AdminPage() {
   // Activar o Pausar Comunicado
   const handleToggleAnnouncement = async (id: number) => {
     try {
-      const res = await adminFetch(`${apiUrl}/api/admin/announcement/${id}/toggle`, {
+      const res = await adminFetch(`${apiUrl}/api/admin/announcements/${id}/toggle`, {
         method: "POST",
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setActionMessage(`📢 ${data.message}`);
+        setActionMessage(`📢 ${data.message || "Estado de comunicado actualizado."}`);
         loadAnnouncements();
       } else {
-        alert(data.message || "Error al cambiar estado del comunicado.");
+        alert(data.message || `Error del servidor (${res.status}) al cambiar estado del comunicado.`);
       }
-    } catch {
-      alert("Error al conectar con el servidor.");
+    } catch (err: any) {
+      alert(`Error al conectar con el servidor: ${err?.message || "fallo de red"}`);
     }
   };
 
@@ -859,18 +859,18 @@ export default function AdminPage() {
   const handleDeleteAnnouncement = async (id: number) => {
     if (!confirm("¿Deseas eliminar este comunicado permanentemente?")) return;
     try {
-      const res = await adminFetch(`${apiUrl}/api/admin/announcement/${id}`, {
+      const res = await adminFetch(`${apiUrl}/api/admin/announcements/${id}`, {
         method: "DELETE",
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        setActionMessage(`🗑️ ${data.message}`);
+        setActionMessage(`🗑️ ${data.message || "Comunicado eliminado exitosamente."}`);
         loadAnnouncements();
       } else {
-        alert(data.message || "Error al eliminar comunicado.");
+        alert(data.message || `Error del servidor (${res.status}) al eliminar comunicado.`);
       }
-    } catch {
-      alert("Error al conectar con el servidor.");
+    } catch (err: any) {
+      alert(`Error al conectar con el servidor: ${err?.message || "fallo de red"}`);
     }
   };
 
