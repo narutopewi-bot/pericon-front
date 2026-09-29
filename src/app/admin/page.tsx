@@ -2048,8 +2048,8 @@ export default function AdminPage() {
                   </div>
                   <p className="text-xs text-amber-200/70 mt-1">
                     {botDifficultyMode === 'facil' && "🟢 Modo Fácil: 50% Casa / 50% Jugador. El usuario gana ~5 de cada 10 partidas. Calibrado para fluidez de jugadores."}
-                    {botDifficultyMode === 'medio' && "🟡 Modo Medio: 60% Casa / 40% Jugador. Balance estándar recomendado para ventaja moderada."}
-                    {botDifficultyMode === 'dificil' && "🔴 Modo Difícil: 65% Casa / 35% Jugador. Mayor probabilidad para la casa."}
+                    {botDifficultyMode === 'medio' && "🟡 Modo Medio: 55% Casa / 45% Jugador. Ventaja gradual y balanceada con antirachas (máx 2 victorias del bot seguidas)."}
+                    {botDifficultyMode === 'dificil' && "🔴 Modo Difícil: 62% Casa / 38% Jugador. Mayor ventaja para la casa con antirachas activas."}
                   </p>
                 </div>
               </div>
@@ -2079,10 +2079,10 @@ export default function AdminPage() {
                       ? "bg-amber-500 text-black ring-2 ring-amber-300"
                       : "bg-[#24140a] text-amber-300 border border-amber-500/40 hover:bg-amber-950/40"
                   }`}
-                  title="60% Casa / 40% Jugador - Balance estándar"
+                  title="55% Casa / 45% Jugador - Balance gradual recomendado"
                 >
                   <span>🟡</span>
-                  <span>Medio (60%)</span>
+                  <span>Medio (55%)</span>
                 </button>
 
                 <button
@@ -2094,10 +2094,10 @@ export default function AdminPage() {
                       ? "bg-red-600 text-white ring-2 ring-red-400"
                       : "bg-[#24140a] text-red-400 border border-red-500/40 hover:bg-red-950/40"
                   }`}
-                  title="65% Casa / 35% Jugador - Mayor dificultad"
+                  title="62% Casa / 38% Jugador - Mayor dificultad"
                 >
                   <span>🔴</span>
-                  <span>Difícil (65%)</span>
+                  <span>Difícil (62%)</span>
                 </button>
               </div>
             </div>
@@ -3775,8 +3775,8 @@ export default function AdminPage() {
                   </div>
                   <p className="text-xs text-amber-200/70 mt-1">
                     {botDifficultyMode === 'facil' && "🟢 Modo Fácil: 50% Casa / 50% Jugador. El usuario gana ~5 de cada 10 partidas. Calibrado para los órdenes 82 y 83."}
-                    {botDifficultyMode === 'medio' && "🟡 Modo Medio: 60% Casa / 40% Jugador. Balance estándar recomendado para ventaja moderada."}
-                    {botDifficultyMode === 'dificil' && "🔴 Modo Difícil: 65% Casa / 35% Jugador. Mayor probabilidad para la casa."}
+                    {botDifficultyMode === 'medio' && "🟡 Modo Medio: 55% Casa / 45% Jugador. Ventaja gradual y balanceada con antirachas (máx 2 victorias del bot seguidas)."}
+                    {botDifficultyMode === 'dificil' && "🔴 Modo Difícil: 62% Casa / 38% Jugador. Mayor ventaja para la casa con antirachas activas."}
                   </p>
                 </div>
               </div>
@@ -3806,10 +3806,10 @@ export default function AdminPage() {
                       ? "bg-amber-500 text-black ring-2 ring-amber-300"
                       : "bg-[#24140a] text-amber-300 border border-amber-500/40 hover:bg-amber-950/40"
                   }`}
-                  title="60% Casa / 40% Jugador - Balance estándar"
+                  title="55% Casa / 45% Jugador - Balance gradual recomendado"
                 >
                   <span>🟡</span>
-                  <span>Medio (60%)</span>
+                  <span>Medio (55%)</span>
                 </button>
 
                 <button
@@ -3821,10 +3821,10 @@ export default function AdminPage() {
                       ? "bg-red-600 text-white ring-2 ring-red-400"
                       : "bg-[#24140a] text-red-400 border border-red-500/40 hover:bg-red-950/40"
                   }`}
-                  title="65% Casa / 35% Jugador - Mayor dificultad"
+                  title="62% Casa / 38% Jugador - Mayor dificultad"
                 >
                   <span>🔴</span>
-                  <span>Difícil (65%)</span>
+                  <span>Difícil (62%)</span>
                 </button>
               </div>
             </div>
