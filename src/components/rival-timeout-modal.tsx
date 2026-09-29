@@ -19,7 +19,7 @@ export default function RivalTimeoutModal({
   rivalName,
   rivalAvatar,
   reason,
-  initialSeconds = 25,
+  initialSeconds = 30,
   onClaimVictory,
   onWait,
   isClaiming = false,
@@ -35,7 +35,7 @@ export default function RivalTimeoutModal({
     }
   }, [isOpen, initialSeconds]);
 
-  // Cuenta regresiva del tiempo de gracia por reconexión
+  // Cuenta regresiva del tiempo de gracia por reconexión (30s)
   useEffect(() => {
     if (!isOpen) return;
 
@@ -43,8 +43,6 @@ export default function RivalTimeoutModal({
       setSecondsRemaining((prev) => {
         if (prev <= 1) {
           clearInterval(timer);
-          // Si el tiempo de gracia se agota sin que el rival responda, reclamar la victoria automáticamente
-          onClaimVictory();
           return 0;
         }
         return prev - 1;
@@ -52,12 +50,13 @@ export default function RivalTimeoutModal({
     }, 1000);
 
     return () => clearInterval(timer);
-  }, [isOpen, onClaimVictory]);
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
   const displayRival = rivalName && rivalName !== 'nulo' ? rivalName : 'Tu rival';
   const progressPercent = Math.max(0, Math.min(100, (secondsRemaining / initialSeconds) * 100));
+  const isGracePeriodActive = secondsRemaining > 0;
 
   return (
     <div className="fixed inset-0 z-[9990] flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
@@ -77,17 +76,17 @@ export default function RivalTimeoutModal({
           </div>
 
           <h2 className="mt-3 text-xl sm:text-2xl font-black uppercase tracking-wide text-amber-200 drop-shadow">
-            {reason === 'disconnect' ? 'Rival Desconectado' : 'Tiempo del Rival Agotado'}
+            {reason === 'disconnect' ? 'Rival sin Internet' : 'Tiempo de Turno Agotado'}
           </h2>
 
           <p className="text-xs sm:text-sm font-semibold text-amber-300/80 mt-1 max-w-xs">
             {reason === 'disconnect' ? (
               <>
-                <span className="font-bold text-white">@{displayRival}</span> perdió su conexión a internet o cerró la partida.
+                <span className="font-bold text-white">@{displayRival}</span> se quedó sin conexión a internet. Se le han otorgado <span className="text-amber-400 font-extrabold">30 segundos de gracia</span> para reconectarse.
               </>
             ) : (
               <>
-                <span className="font-bold text-white">@{displayRival}</span> no lanzó cartas durante sus 30 segundos de turno.
+                <span className="font-bold text-white">@{displayRival}</span> agotó sus 30s de turno. Se le conceden <span className="text-amber-400 font-extrabold">30 segundos de gracia</span> por posible fallo de red.
               </>
             )}
           </p>
@@ -109,7 +108,7 @@ export default function RivalTimeoutModal({
               </span>
               <span className="text-[10px] text-amber-400 font-bold flex items-center gap-1">
                 <span className="inline-block h-2 w-2 rounded-full bg-amber-400 animate-ping" />
-                Esperando señal...
+                {isGracePeriodActive ? "Esperando reconexión..." : "Tiempo de gracia expirado"}
               </span>
             </div>
           </div>
@@ -118,22 +117,28 @@ export default function RivalTimeoutModal({
           <div className="mt-2 pt-2 border-t border-white/10">
             <div className="flex justify-between items-center text-xs font-bold mb-1.5">
               <span className="text-slate-300 flex items-center gap-1">
-                <Hourglass className="h-3.5 w-3.5 text-amber-400 animate-spin duration-3000" />
-                Tiempo de espera por reconexión:
+                <Hourglass className={`h-3.5 w-3.5 text-amber-400 ${isGracePeriodActive ? 'animate-spin duration-3000' : ''}`} />
+                Tiempo de gracia por reconexión:
               </span>
-              <span className="text-amber-300 font-mono font-black text-sm">
+              <span className={`font-mono font-black text-sm ${isGracePeriodActive ? 'text-amber-300' : 'text-emerald-400'}`}>
                 00:{secondsRemaining < 10 ? `0${secondsRemaining}` : secondsRemaining}
               </span>
             </div>
 
             <div className="h-2 w-full rounded-full bg-slate-800 overflow-hidden border border-white/10">
               <div 
-                className="h-full bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-400 transition-all duration-1000 ease-linear rounded-full"
+                className={`h-full transition-all duration-1000 ease-linear rounded-full ${
+                  isGracePeriodActive 
+                    ? 'bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-400' 
+                    : 'bg-emerald-500'
+                }`}
                 style={{ width: `${progressPercent}%` }}
               />
             </div>
-            <p className="text-[10px] text-slate-400 mt-1">
-              Al llegar a 0s, se te otorgará la victoria por abandono automáticamente.
+            <p className="text-[10px] text-slate-400 mt-1.5">
+              {isGracePeriodActive 
+                ? "El botón para reclamar la victoria se activará al cumplirse el minuto completo."
+                : "¡El minuto de espera concluyó! Ya puedes reclamar la victoria por abandono."}
             </p>
           </div>
         </div>
@@ -141,27 +146,31 @@ export default function RivalTimeoutModal({
         {/* 3. Botones de Acción */}
         <div className="relative z-10 flex flex-col gap-2.5 mt-4">
           
-          {/* Botón Principal: Reclamar Victoria Ahora */}
-          <button
-            onClick={onClaimVictory}
-            disabled={isClaiming}
-            className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-green-600 to-emerald-700 hover:from-emerald-500 hover:to-green-500 p-3.5 text-sm sm:text-base font-black uppercase tracking-wider text-white shadow-[0_6px_20px_rgba(16,185,129,0.4)] hover:shadow-[0_8px_25px_rgba(16,185,129,0.6)] active:scale-95 disabled:opacity-50 transition-all duration-200"
-          >
-            <Trophy className="h-5 w-5 text-yellow-300" />
-            <span>{isClaiming ? "Reclamando victoria..." : "🏆 Reclamar Victoria Ahora"}</span>
-          </button>
+          {/* Botón Principal: Bloqueado durante gracia, Habilitado al minuto (0s) */}
+          {isGracePeriodActive ? (
+            <button
+              disabled={true}
+              className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-slate-800/80 p-3.5 text-sm sm:text-base font-bold text-slate-400 border border-slate-700/60 cursor-not-allowed opacity-80 transition-all duration-200"
+            >
+              <Hourglass className="h-5 w-5 text-amber-400 animate-spin" />
+              <span>⏳ Esperando reconexión ({secondsRemaining}s)</span>
+            </button>
+          ) : (
+            <button
+              onClick={onClaimVictory}
+              disabled={isClaiming}
+              className="w-full flex items-center justify-center gap-2.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-green-600 to-emerald-700 hover:from-emerald-500 hover:to-green-500 p-3.5 text-sm sm:text-base font-black uppercase tracking-wider text-white shadow-[0_6px_20px_rgba(16,185,129,0.4)] hover:shadow-[0_8px_25px_rgba(16,185,129,0.6)] active:scale-95 disabled:opacity-50 transition-all duration-200 animate-bounce-subtle"
+            >
+              <Trophy className="h-5 w-5 text-yellow-300" />
+              <span>{isClaiming ? "Reclamando victoria..." : "🏆 Reclamar Victoria Ahora"}</span>
+            </button>
+          )}
 
-          {/* Botón Secundario: Esperar los segundos de gracia */}
-          <button
-            onClick={() => {
-              setIsWaitingMode(true);
-              onWait?.();
-            }}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-white/5 hover:bg-white/10 py-2.5 text-xs font-bold text-amber-200/90 border border-amber-500/30 transition-colors"
-          >
-            <Clock className="h-4 w-4 text-amber-400" />
-            <span>{isWaitingMode ? `Esperando reconexión (${secondsRemaining}s)...` : `Dar tiempo de reconexión (${secondsRemaining}s)`}</span>
-          </button>
+          {/* Información de Cortesía */}
+          <div className="flex items-center justify-center gap-1.5 text-[11px] text-amber-300/70 py-1">
+            <ShieldCheck className="h-3.5 w-3.5 text-amber-400" />
+            <span>Tolerancia justa anti-microcortes de conexión (60s total)</span>
+          </div>
 
         </div>
 

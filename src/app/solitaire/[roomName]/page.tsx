@@ -938,29 +938,54 @@ export default function Duel() {
   const evaluateAiAcceptance = (targetStake: number): boolean => {
     const currentLife = cpEightRef.current.id !== -1 ? cpEightRef.current : cpEight;
     const lifeId = currentLife.id;
-    if (lifeId === -1 || aiCardsRef.current.length === 0) return false;
+    if (lifeId === -1) return false;
+
+    // Recopilar cartas activas de la IA (en mano O ya jugada en mesa en la baza actual)
+    const availableCards: number[] = aiCardsRef.current.map(c => c.id);
+    
+    // Si la IA ya lanzó su carta a la mesa (jugada de salida), esa carta está activa en la mesa:
+    if (!roundturn && tableCards.length === 2 && tableCards[1]?.id !== undefined && tableCards[1].id >= 0) {
+      availableCards.push(tableCards[1].id);
+    }
+
+    if (availableCards.length === 0) return false;
 
     let highestPower = 0;
     let trumpsCount = 0;
+    let highestFace = 0;
 
-    for (const c of aiCardsRef.current) {
-      const p = getAiCardPower(c.id, lifeId);
+    for (const cId of availableCards) {
+      const p = getAiCardPower(cId, lifeId);
+      const f = NumCard(cId);
+      if (f > highestFace) highestFace = f;
       if (p >= 15) {
         trumpsCount++;
         if (p > highestPower) highestPower = p;
       }
     }
 
-    // Regla de Oro: La Casa acepta retos cuando tiene cartas decisivas
+    const isBazaTres = (pointOneRef.current === 1 && pointTwoRef.current === 1) || (playerCards.length === 1);
+
+    // En la tercera baza (baza decisiva, 1-1):
+    if (isBazaTres) {
+      // Si la carta jugada o en mano es un triunfo (>= 15), la IA acepta el reto SIEMPRE para pelear la victoria
+      if (highestPower >= 15) return true;
+      // Si es una figura o carta alta (As, Rey, Caballo, Sota), acepta con alta probabilidad (70%)
+      if (highestFace === 1 || highestFace >= 10) return Math.random() < 0.70;
+      // Solo rechaza si le quedó una carta blanca muy débil (2, 4, 5, 6 de palo común)
+      return Math.random() < 0.25;
+    }
+
+    // Regla estándar para Bazas 1 y 2:
     if (targetStake === 3) {
-      // Para 3 piedras: Acepta si tiene un triunfo de alta jerarquía (>= 20) O al menos 2 triunfos
-      return (highestPower >= 20) || (trumpsCount >= 2);
+      // Para 3 piedras: Acepta si tiene un triunfo de jerarquía (>= 17, ej: As de vida en adelante) O al menos 2 triunfos O un triunfo en baza 2
+      return (highestPower >= 17) || (trumpsCount >= 2) || (highestPower >= 15 && playerCards.length <= 2);
     } else if (targetStake === 6) {
-      // Para 6 piedras: Acepta si tiene triunfo superior (>= 25) O 2 triunfos con al menos uno >= 21
-      return (highestPower >= 25) || (trumpsCount >= 2 && highestPower >= 21);
+      // Para 6 piedras: Acepta si tiene triunfo superior (>= 22) O 2 triunfos con al menos uno >= 20
+      return (highestPower >= 22) || (trumpsCount >= 2 && highestPower >= 20);
     } else if (targetStake === 9) {
-      // Para 9 piedras: Acepta con triunfo supremo (>= 28) y respaldo
-      return (highestPower >= 28 && trumpsCount >= 2) || (highestPower === 30);
+      // Para 9 piedras: Acepta con triunfo supremo (>= 27) y respaldo
+      return (highestPower >= 27 && trumpsCount >= 2) || (highestPower >= 29);
     }
     return false;
   };

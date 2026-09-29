@@ -91,6 +91,10 @@ export async function safeSignalRInvoke(
         lowerErr.includes("reconnecting") ||
         lowerErr.includes("connecting") ||
         lowerErr.includes("server timeout") ||
+        lowerErr.includes("clienttimeoutinterval") ||
+        lowerErr.includes("hasn't sent a message/ping") ||
+        lowerErr.includes("operationcanceledexception") ||
+        lowerErr.includes("connection closed with an error") ||
         lowerErr.includes("negotiate") ||
         lowerErr.includes("1006") ||
         lowerErr.includes("underlying connection") ||

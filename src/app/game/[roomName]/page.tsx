@@ -1702,6 +1702,15 @@ export default function Duel1vs1() {
     isProcessingRef.current = true;
     setIsProcessingMove(true);
 
+    // Watchdog de seguridad anti-congelamiento: si en 4 segundos no hay respuesta del servidor, desbloquear UI
+    setTimeout(() => {
+      if (isProcessingRef.current) {
+        console.warn("[Anti-Freeze Watchdog] Liberando bloqueo isProcessingMove tras 4 segundos sin respuesta del servidor.");
+        isProcessingRef.current = false;
+        setIsProcessingMove(false);
+      }
+    }, 4000);
+
     try {
       playCardDropSound();
       playCardSound();
@@ -2489,6 +2498,8 @@ export default function Duel1vs1() {
               isProcessingRef.current = false;
               setIsProcessingMove(false);
             } else if (Orden == "2") {
+              isProcessingRef.current = false;
+              setIsProcessingMove(false);
               pointOne.current = 0;
               pointTwo.current = 0;
               switchturn.current = false;
@@ -2579,6 +2590,8 @@ export default function Duel1vs1() {
               isProcessingRef.current = false;
               setIsProcessingMove(false);
             } else if (Orden == "3") {
+              isProcessingRef.current = false;
+              setIsProcessingMove(false);
               pointOne.current = 0;
               pointTwo.current = 0;
               switchturn.current = false;
@@ -3089,7 +3102,7 @@ export default function Duel1vs1() {
         rivalName={rivalTimeoutData.rivalName}
         rivalAvatar={rivalTimeoutData.rivalAvatar}
         reason={rivalTimeoutData.reason}
-        initialSeconds={25}
+        initialSeconds={30}
         isClaiming={rivalTimeoutData.isClaiming}
         onClaimVictory={handleClaimRivalTimeout}
         onWait={() => {
