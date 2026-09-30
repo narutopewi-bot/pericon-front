@@ -1810,6 +1810,15 @@ export default function Duel1vs1() {
         if (numOrder === 82) {
           isProcessingRef.current = false;
           setIsProcessingMove(false);
+        } else {
+          // Watchdog para respuesta: si por cualquier microcorte o retraso el servidor no devuelve la resolución en 5s, auto-liberar mesa
+          setTimeout(() => {
+            if (isProcessingRef.current) {
+              console.warn("[CardClick Watchdog] Liberando isProcessingMove tras respuesta de orden 83.");
+              isProcessingRef.current = false;
+              setIsProcessingMove(false);
+            }
+          }, 5000);
         }
       } catch (error: any) {
         console.error("Error al enviar objeto al servidor tras reintentos:", error);
@@ -1820,6 +1829,11 @@ export default function Duel1vs1() {
         switchturn.current = true;
         isProcessingRef.current = false;
         setIsProcessingMove(false);
+
+        // Si falló el envío, verificar autoritativamente con el servidor si la partida ya concluyó
+        if (connection && idGame.current > 0) {
+          safeSignalRInvoke(connection, "SyncTable1vs1", idGame.current).catch(() => {});
+        }
 
         const isConnErr = error?.message && (
           error.message.includes('estado no conectado') ||
@@ -2371,6 +2385,8 @@ export default function Duel1vs1() {
               } else if (Orden == "4") {
                 switchturn.current = false;
                 setIsMyTurn(false);
+                isProcessingRef.current = false;
+                setIsProcessingMove(false);
                 // Mantener las cartas sobre el tapete para que el jugador vea claramente la jugada final
                 setTableCards([cpEightRef.current, cpownRef.current, cardZero]);
                 hasPlayedGameOverVoiceRef.current = true;
@@ -2384,24 +2400,11 @@ export default function Duel1vs1() {
                   badge: 'DERROTA'
                 }, 4000);
                 setTimeout(() => {
-                  Swal.fire({
-                    title: "JUEGO TERMINADO",
-                    text: "Tu rival ha ganado la partida.",
-                    icon: "error",
-                    confirmButtonText: "Ir al Lobby",
-                    confirmButtonColor: "#d97706",
-                    showDenyButton: true,
-                    denyButtonText: "🔄 Pedir Revancha",
-                    denyButtonColor: "#16a34a",
-                    allowOutsideClick: false,
-                  }).then((result) => {
-                    if (result.isDenied) {
-                      handleRequestRevancha1vs1();
-                    } else {
-                      router.replace("/desk");
-                    }
+                  triggerEpicDefeatSequence({
+                    bet: datos.current.coins,
+                    message: "Tu rival ha completado la tumba y ganado la partida."
                   });
-                }, 3500);
+                }, 1200);
               }
             }
           }, 850);
@@ -2639,6 +2642,8 @@ export default function Duel1vs1() {
             } else if (Orden == "5") {
               switchturn.current = false;
               setIsMyTurn(false);
+              isProcessingRef.current = false;
+              setIsProcessingMove(false);
               // Mantener las cartas sobre el tapete
               setTableCards([cpEightRef.current, cpoppRef.current, cpownRef.current]);
               hasPlayedGameOverVoiceRef.current = true;
@@ -2652,24 +2657,11 @@ export default function Duel1vs1() {
                 badge: 'DERROTA'
               }, 4000);
               setTimeout(() => {
-                Swal.fire({
-                  title: "JUEGO TERMINADO",
-                  text: "Tu rival ha ganado la partida.",
-                  icon: "error",
-                  confirmButtonText: "Ir al Lobby",
-                  confirmButtonColor: "#d97706",
-                  showDenyButton: true,
-                  denyButtonText: "🔄 Pedir Revancha",
-                  denyButtonColor: "#16a34a",
-                  allowOutsideClick: false,
-                }).then((result) => {
-                  if (result.isDenied) {
-                    handleRequestRevancha1vs1();
-                  } else {
-                    router.replace("/desk");
-                  }
+                triggerEpicDefeatSequence({
+                  bet: datos.current.coins,
+                  message: "Tu rival ha completado la tumba y ganado la partida."
                 });
-              }, 3500);
+              }, 1200);
             }
           }
         }, 850);
@@ -2799,28 +2791,36 @@ export default function Duel1vs1() {
       console.log("[YouSurrendered] Confirmación de rendición:", data);
       hasPaidOutRef.current = true;
       isGameOverRef.current = true;
-      router.replace("/desk");
+      isProcessingRef.current = false;
+      setIsProcessingMove(false);
+      setRivalTimeoutData(prev => ({ ...prev, isOpen: false, isClaiming: false }));
+      if (handWatchdogTimerRef.current) {
+        clearTimeout(handWatchdogTimerRef.current);
+        handWatchdogTimerRef.current = null;
+      }
+      triggerEpicDefeatSequence({
+        bet: datos.current.coins,
+        message: data?.message || "Has abandonado la partida. Tu contrincante fue declarado ganador."
+      });
     });
 
     connection.on('GameAlreadyFinished', (data: any) => {
       console.warn("[GameAlreadyFinished] Partida ya concluida:", data);
       hasPaidOutRef.current = true;
       isGameOverRef.current = true;
+      isProcessingRef.current = false;
+      setIsProcessingMove(false);
       setRivalTimeoutData(prev => ({ ...prev, isOpen: false, isClaiming: false }));
+      if (handWatchdogTimerRef.current) {
+        clearTimeout(handWatchdogTimerRef.current);
+        handWatchdogTimerRef.current = null;
+      }
       if (idGame.current && typeof window !== 'undefined' && window.sessionStorage) {
         sessionStorage.setItem(`pericon_finished_game_${idGame.current}`, "true");
       }
-      Swal.fire({
-        title: "Partida Concluida",
-        text: data?.message || "Esta partida ya ha concluido y fue liquidada.",
-        icon: "info",
-        confirmButtonText: "Regresar al Menú",
-        confirmButtonColor: "#f59e0b",
-        background: "#180e07",
-        color: "#fef3c7",
-        allowOutsideClick: false,
-      }).then(() => {
-        router.replace('/desk');
+      triggerEpicDefeatSequence({
+        bet: datos.current.coins,
+        message: data?.message || "Esta partida ya ha concluido y fue liquidada."
       });
     });
 
@@ -2851,25 +2851,52 @@ export default function Duel1vs1() {
   useEffect(() => {
     if (!connection) return;
 
-    connection.on('MatchFinishedPayout', (data: any) => {
+    const handlePayoutData = (data: any) => {
       console.log("[MatchFinishedPayout] Resumen de liquidación de monedas:", data);
+      if (!data) return;
+
+      let isWinner = !!data.isWinner;
+      let finalData = data;
+
+      // Si viene del broadcast grupal MatchFinishedPayoutNotice
+      if (data.winnerUsername !== undefined || data.loserUsername !== undefined) {
+        const currentUserName = (user?.name || "").toLowerCase().trim();
+        const currentConnId = connection.connectionId;
+        isWinner = (data.winnerUsername && data.winnerUsername.toLowerCase().trim() === currentUserName) ||
+                   (data.winnerConnectionId && data.winnerConnectionId === currentConnId);
+
+        finalData = {
+          isWinner: isWinner,
+          isSala: data.isSala,
+          bet: data.bet,
+          totalPot: data.totalPot,
+          houseCommission: data.houseCommission,
+          winnerPrize: data.winnerPrize,
+          netGain: isWinner ? (data.isSala ? -data.bet : (data.winnerPrize - data.bet)) : -data.bet,
+          newBalance: isWinner ? data.winnerNewBalance : data.loserNewBalance,
+          newWins: isWinner ? data.winnerWins : data.loserWins,
+          newLosses: isWinner ? data.winnerLosses : data.loserLosses,
+          level: isWinner ? data.winnerLevel : data.loserLevel,
+          message: isWinner ? data.winnerMessage : data.loserMessage
+        };
+      }
 
       // Actualizar inmediatamente saldo y estadísticas en localStorage y Redux del usuario
       try {
         const stored = localStorage.getItem("pericon_user");
         if (stored) {
           const userObj = JSON.parse(stored);
-          if (data.newBalance !== undefined && data.newBalance !== null) {
-            userObj.coins = data.newBalance;
+          if (finalData.newBalance !== undefined && finalData.newBalance !== null) {
+            userObj.coins = finalData.newBalance;
           }
-          if (data.newWins !== undefined && data.newWins !== null) {
-            userObj.wins = data.newWins;
+          if (finalData.newWins !== undefined && finalData.newWins !== null) {
+            userObj.wins = finalData.newWins;
           }
-          if (data.newLosses !== undefined && data.newLosses !== null) {
-            userObj.losses = data.newLosses;
+          if (finalData.newLosses !== undefined && finalData.newLosses !== null) {
+            userObj.losses = finalData.newLosses;
           }
-          if (data.level) {
-            userObj.level = data.level;
+          if (finalData.level) {
+            userObj.level = finalData.level;
           }
           localStorage.setItem("pericon_user", JSON.stringify(userObj));
           dispatch(setGamePlayer(userObj));
@@ -2879,19 +2906,25 @@ export default function Duel1vs1() {
       }
 
       setRivalTimeoutData(prev => ({ ...prev, isOpen: false }));
+      isProcessingRef.current = false;
+      setIsProcessingMove(false);
 
-      if (data.isWinner) {
+      if (finalData.isWinner) {
         playCoinWinSound();
-        triggerEpicVictorySequence(data);
+        triggerEpicVictorySequence(finalData);
         return;
       }
 
-      // Si no es ganador, activar la secuencia épica de derrota (primero locución, luego cuadro con cartas)
-      triggerEpicDefeatSequence(data);
-    });
+      // Si no es ganador, activar la secuencia épica de derrota
+      triggerEpicDefeatSequence(finalData);
+    };
+
+    connection.on('MatchFinishedPayout', handlePayoutData);
+    connection.on('MatchFinishedPayoutNotice', handlePayoutData);
 
     return () => {
-      connection.off('MatchFinishedPayout');
+      connection.off('MatchFinishedPayout', handlePayoutData);
+      connection.off('MatchFinishedPayoutNotice', handlePayoutData);
     };
   }, [connection, router]);
 
