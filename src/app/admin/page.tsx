@@ -330,6 +330,8 @@ export default function AdminPage() {
   const [viewingReceipt, setViewingReceipt] = useState<string | null>(null);
   const [adjustingUser, setAdjustingUser] = useState<UserRow | null>(null);
   const [adjustAmount, setAdjustAmount] = useState<number>(100);
+  const [adjustMode, setAdjustMode] = useState<"add" | "subtract">("add");
+  const [adjustReason, setAdjustReason] = useState<string>("");
   const [copiedText, setCopiedText] = useState<string | null>(null);
   const [resettingUser, setResettingUser] = useState<UserRow | null>(null);
   const [newPasswordInput, setNewPasswordInput] = useState<string>("");
@@ -1185,19 +1187,34 @@ export default function AdminPage() {
     }
   };
 
-  // AJUSTAR MONEDAS
+  // AJUSTAR MONEDAS (ACREDITAR O QUITAR)
   const handleSaveCoinsAdjustment = async () => {
     if (!adjustingUser) return;
+    const rawAmt = Math.abs(adjustAmount);
+    if (rawAmt <= 0) {
+      alert("Por favor ingresa una cantidad mayor a 0 monedas.");
+      return;
+    }
+
+    if (adjustMode === "subtract" && adjustingUser.coins <= 0) {
+      alert("El usuario ya tiene 0 monedas. No se le pueden restar más monedas.");
+      return;
+    }
+
+    const finalAmount = adjustMode === "subtract" ? -rawAmt : rawAmt;
+    const reasonText = adjustReason.trim() || (adjustMode === "subtract" ? "Deducción administrativa" : "Acreditación administrativa");
+
     try {
       const res = await adminFetch(`${apiUrl}/api/admin/user/${adjustingUser.id}/adjust-coins`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ amount: adjustAmount }),
+        body: JSON.stringify({ amount: finalAmount, reason: reasonText }),
       });
       const data = await res.json();
       if (res.ok) {
-        setActionMessage(`✅ ${data.message}`);
+        setActionMessage(`🛡️ ${data.message}`);
         setAdjustingUser(null);
+        setAdjustReason("");
         loadData();
         try {
           if (typeof window !== "undefined") {
@@ -2743,6 +2760,8 @@ export default function AdminPage() {
                                   onClick={() => {
                                     setAdjustingUser(u);
                                     setAdjustAmount(100);
+                                    setAdjustMode("add");
+                                    setAdjustReason("");
                                   }}
                                   title="Ajustar Monedas"
                                   className="px-2.5 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 rounded-lg text-xs font-bold border border-amber-500/40 transition-all"
@@ -5581,62 +5600,203 @@ export default function AdminPage() {
       )}
 
       {/* ========================================================================= */}
-      {/* MODAL DE AJUSTE DE MONEDAS */}
+      {/* MODAL DE AJUSTE DE MONEDAS (SUMAR Y QUITAR) */}
       {/* ========================================================================= */}
-      {adjustingUser && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#180e07] border-2 border-amber-500/60 rounded-3xl p-6 max-w-sm w-full text-white shadow-2xl">
-            <h3 className="text-base font-bold text-amber-400 mb-1">Ajustar Saldo de Monedas</h3>
-            <p className="text-xs text-amber-200/70 mb-4">
-              Usuario: <span className="font-bold text-white">{adjustingUser.username}</span> (Saldo actual:{" "}
-              <span className="font-bold text-amber-300">{adjustingUser.coins.toLocaleString()}</span>)
-            </p>
+      {adjustingUser && (() => {
+        const currentCoins = adjustingUser.coins || 0;
+        const absAmt = Math.abs(adjustAmount || 0);
+        const finalCoins = adjustMode === "add"
+          ? currentCoins + absAmt
+          : Math.max(0, currentCoins - absAmt);
+        const deductedCoins = Math.min(currentCoins, absAmt);
 
-            <div className="space-y-3 mb-6">
-              <div>
-                <label className="text-[11px] font-bold text-amber-300 uppercase block mb-1">
-                  Cantidad a Sumar o Restar
+        return (
+          <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4">
+            <div className="bg-gradient-to-b from-[#1c0f07] to-[#120803] border-2 border-amber-500/60 rounded-3xl p-5 sm:p-6 max-w-md w-full text-white shadow-2xl relative flex flex-col gap-4">
+              
+              {/* Encabezado */}
+              <div className="flex items-start justify-between border-b border-amber-500/20 pb-3">
+                <div>
+                  <h3 className="text-base sm:text-lg font-black text-amber-400 flex items-center gap-2">
+                    <span>🪙</span>
+                    <span>Gestionar Saldo de Monedas</span>
+                  </h3>
+                  <p className="text-xs text-amber-200/70 mt-0.5">
+                    Usuario: <span className="font-bold text-white">@{adjustingUser.username}</span> (ID #{adjustingUser.id})
+                  </p>
+                </div>
+                <button
+                  onClick={() => setAdjustingUser(null)}
+                  className="w-8 h-8 rounded-full bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 flex items-center justify-center text-sm font-bold transition"
+                  title="Cerrar modal"
+                >
+                  ✕
+                </button>
+              </div>
+
+              {/* Selector de Modo: SUMAR (Acreditar) vs RESTAR (Quitar) */}
+              <div className="grid grid-cols-2 gap-2 p-1 bg-black/50 border border-amber-500/30 rounded-2xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdjustMode("add");
+                    if (adjustAmount <= 0) setAdjustAmount(100);
+                  }}
+                  className={`py-2 px-3 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-1.5 ${
+                    adjustMode === "add"
+                      ? "bg-gradient-to-r from-emerald-600 to-emerald-700 text-white shadow-lg shadow-emerald-900/50 border border-emerald-400/60"
+                      : "text-emerald-300/70 hover:text-emerald-200 hover:bg-emerald-500/10"
+                  }`}
+                >
+                  <span>➕</span>
+                  <span>Acreditar (Sumar)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAdjustMode("subtract");
+                    if (adjustAmount <= 0) setAdjustAmount(100);
+                  }}
+                  className={`py-2 px-3 rounded-xl text-xs sm:text-sm font-black transition-all flex items-center justify-center gap-1.5 ${
+                    adjustMode === "subtract"
+                      ? "bg-gradient-to-r from-red-600 to-rose-700 text-white shadow-lg shadow-red-900/50 border border-red-400/60"
+                      : "text-red-300/70 hover:text-red-200 hover:bg-red-500/10"
+                  }`}
+                >
+                  <span>➖</span>
+                  <span>Quitar (Restar)</span>
+                </button>
+              </div>
+
+              {/* Tarjeta de Cálculo en Tiempo Real */}
+              <div className={`p-3.5 rounded-2xl border flex items-center justify-between text-xs sm:text-sm ${
+                adjustMode === "add"
+                  ? "bg-emerald-950/30 border-emerald-500/30"
+                  : "bg-red-950/30 border-red-500/30"
+              }`}>
+                <div className="flex flex-col">
+                  <span className="text-[10px] text-amber-200/60 uppercase font-bold">Saldo Actual</span>
+                  <span className="font-extrabold text-amber-300 text-sm">{currentCoins.toLocaleString()} 🪙</span>
+                </div>
+
+                <div className="text-center font-bold text-base">
+                  {adjustMode === "add" ? (
+                    <span className="text-emerald-400">+{absAmt.toLocaleString()}</span>
+                  ) : (
+                    <span className="text-red-400">-{deductedCoins.toLocaleString()}</span>
+                  )}
+                </div>
+
+                <div className="flex flex-col items-end">
+                  <span className="text-[10px] text-amber-200/60 uppercase font-bold">Saldo Final</span>
+                  <span className={`font-black text-sm ${adjustMode === "add" ? "text-emerald-300" : "text-amber-300"}`}>
+                    {finalCoins.toLocaleString()} 🪙
+                  </span>
+                </div>
+              </div>
+
+              {/* Campo de Entrada Numérica */}
+              <div className="space-y-1.5">
+                <label className="text-[11px] font-bold text-amber-300 uppercase block">
+                  {adjustMode === "add" ? "Cantidad a Sumar" : "Cantidad a Quitar / Deducir"}
+                </label>
+                <div className="relative">
+                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-sm font-bold text-amber-400/80">
+                    {adjustMode === "add" ? "➕" : "➖"}
+                  </span>
+                  <input
+                    type="number"
+                    min="1"
+                    value={adjustAmount === 0 ? "" : Math.abs(adjustAmount)}
+                    onChange={(e) => setAdjustAmount(Math.abs(parseInt(e.target.value) || 0))}
+                    className="w-full bg-black/60 border border-amber-500/40 rounded-xl pl-9 pr-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-400 font-bold"
+                    placeholder="Escribe la cantidad (ej: 500)"
+                  />
+                </div>
+              </div>
+
+              {/* Botones de Selección Rápida */}
+              <div className="space-y-1">
+                <span className="text-[10px] font-bold text-amber-200/60 uppercase block">Cantidades Rápidas:</span>
+                <div className="grid grid-cols-4 sm:grid-cols-5 gap-1.5">
+                  {(adjustMode === "add" ? [100, 500, 1000, 2000, 5000] : [100, 500, 1000, 2000]).map((amt) => (
+                    <button
+                      key={amt}
+                      type="button"
+                      onClick={() => setAdjustAmount(amt)}
+                      className={`py-1.5 px-1 rounded-lg text-xs font-bold border transition ${
+                        adjustMode === "add"
+                          ? "bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 border-emerald-500/30"
+                          : "bg-red-950/40 hover:bg-red-900/60 text-red-300 border-red-500/30"
+                      }`}
+                    >
+                      {adjustMode === "add" ? `+${amt}` : `-${amt}`}
+                    </button>
+                  ))}
+                  {adjustMode === "subtract" && (
+                    <button
+                      type="button"
+                      onClick={() => setAdjustAmount(currentCoins)}
+                      className="py-1.5 px-1 rounded-lg text-xs font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 transition"
+                      title="Dejar saldo del usuario en 0 monedas"
+                    >
+                      Vaciar a 0
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Motivo o Razón Opcional */}
+              <div className="space-y-1">
+                <label className="text-[11px] font-bold text-amber-300/80 uppercase block">
+                  Motivo / Nota Interna (Opcional):
                 </label>
                 <input
-                  type="number"
-                  value={adjustAmount}
-                  onChange={(e) => setAdjustAmount(parseInt(e.target.value) || 0)}
-                  className="w-full bg-[#24140a] border border-amber-500/40 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-amber-400"
-                  placeholder="Ej: 500 o -200"
+                  type="text"
+                  value={adjustReason}
+                  onChange={(e) => setAdjustReason(e.target.value)}
+                  className="w-full bg-black/60 border border-amber-500/30 rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-amber-400 placeholder:text-amber-200/30"
+                  placeholder={adjustMode === "add" ? "Ej: Recarga manual, Bono de cortesía..." : "Ej: Corrección de saldo, Penalización..."}
                 />
               </div>
 
-              <div className="flex gap-2">
-                {[100, 500, 1000, 5000].map((amt) => (
-                  <button
-                    key={amt}
-                    type="button"
-                    onClick={() => setAdjustAmount(amt)}
-                    className="flex-1 py-1.5 bg-[#24140a] hover:bg-amber-500/20 text-amber-300 rounded-lg text-xs font-bold border border-amber-500/30"
-                  >
-                    +{amt}
-                  </button>
-                ))}
+              {/* Botones de Guardar / Cancelar */}
+              <div className="flex gap-2.5 pt-2 border-t border-amber-500/20">
+                <button
+                  type="button"
+                  onClick={() => setAdjustingUser(null)}
+                  className="flex-1 py-2.5 bg-black/60 hover:bg-[#201108] text-amber-200/80 border border-amber-500/30 rounded-xl text-xs font-bold transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSaveCoinsAdjustment}
+                  className={`flex-[1.5] py-2.5 rounded-xl text-xs font-black shadow-lg transition-all active:scale-95 flex items-center justify-center gap-1.5 ${
+                    adjustMode === "add"
+                      ? "bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white shadow-emerald-900/40"
+                      : "bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white shadow-red-900/40"
+                  }`}
+                >
+                  {adjustMode === "add" ? (
+                    <>
+                      <span>➕</span>
+                      <span>Acreditar +{absAmt.toLocaleString()} Monedas</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>➖</span>
+                      <span>Quitar -{deductedCoins.toLocaleString()} Monedas</span>
+                    </>
+                  )}
+                </button>
               </div>
-            </div>
 
-            <div className="flex gap-3">
-              <button
-                onClick={() => setAdjustingUser(null)}
-                className="flex-1 py-2.5 bg-[#24140a] hover:bg-[#301b0f] text-amber-200/80 rounded-xl text-xs font-bold transition-all"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleSaveCoinsAdjustment}
-                className="flex-1 py-2.5 bg-amber-500 hover:bg-amber-400 text-amber-950 rounded-xl text-xs font-black transition-all"
-              >
-                Guardar Ajuste
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* ========================================================================= */}
       {/* MODAL DE ZOOM DE COMPROBANTE */}
