@@ -1720,13 +1720,6 @@ export default function Duel() {
                       <div className='text-center text-white font-bold text-xs sm:text-sm truncate max-w-[100px]'>
                         @{oponent.username}
                       </div>
-                      <div className='text-center mt-0.5'>
-                        <span className='inline-block text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-amber-950/80 text-amber-300 border border-amber-600/40 shadow-xs'>
-                          {user?.wins !== undefined && user.wins <= 10 ? "🌱 Fácil" :
-                           user?.wins !== undefined && user.wins <= 30 ? "⚖️ Normal" :
-                           user?.wins !== undefined && user.wins <= 100 ? "🔥 Experto" : "👑 Maestro"}
-                        </span>
-                      </div>
                     </div>
                     {!isUserTurn && (
                       <div className='mt-0.5 bg-yellow-400 text-black font-black text-[9px] sm:text-[10px] px-2 py-0.5 rounded-full uppercase tracking-wider shadow-md animate-pulse'>
