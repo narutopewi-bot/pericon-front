@@ -187,6 +187,49 @@ interface BotSummary {
   netHouseProfit: number;
 }
 
+interface BotDailyRow {
+  date: string;
+  totalMatches: number;
+  botWins: number;
+  userWins: number;
+  botWinRate: number;
+  userWinRate: number;
+  totalCoinsWagered: number;
+  coinsWonByUser: number;
+  coinsWonByHouse: number;
+  netHouseProfit: number;
+}
+
+interface BotTodaySummary {
+  date: string;
+  totalMatches: number;
+  botWins: number;
+  userWins: number;
+  botWinRate: number;
+  userWinRate: number;
+  totalCoinsWagered: number;
+  coinsWonByUser: number;
+  coinsWonByHouse: number;
+  netHouseProfit: number;
+  targetWinRate: number;
+}
+
+interface MatchesPeriodSummary {
+  totalMatches: number;
+  totalCoinsWagered: number;
+  totalHouseCommissions: number;
+  totalPrizesAwarded: number;
+  averageBet: number;
+}
+
+interface MatchesDailyActivity {
+  date: string;
+  count: number;
+  totalPot: number;
+  commission: number;
+  prizes: number;
+}
+
 type TabType = "dashboard" | "users" | "whatsapp" | "broadcast" | "recharges" | "withdrawals" | "matches" | "bot-matches" | "reports" | "promos" | "errors" | "feedbacks";
 
 export default function AdminPage() {
@@ -229,6 +272,9 @@ export default function AdminPage() {
   const [matchesSubTab, setMatchesSubTab] = useState<"pvp" | "bot">("pvp");
   const [playerMatchSearch, setPlayerMatchSearch] = useState("");
   const [playerMatchFilter, setPlayerMatchFilter] = useState<"all" | "won" | "lost">("all");
+  const [matchPeriodFilter, setMatchPeriodFilter] = useState<"dia" | "semana" | "mes" | "todo">("todo");
+  const [matchesPeriodSummary, setMatchesPeriodSummary] = useState<MatchesPeriodSummary | null>(null);
+  const [matchesDailyActivity, setMatchesDailyActivity] = useState<MatchesDailyActivity[]>([]);
   const [botMatches, setBotMatches] = useState<BotMatchRow[]>([]);
   const [botSummary, setBotSummary] = useState<BotSummary>({
     totalBotMatches: 0,
@@ -241,6 +287,8 @@ export default function AdminPage() {
     totalCoinsWonByHouse: 0,
     netHouseProfit: 0,
   });
+  const [botTodaySummary, setBotTodaySummary] = useState<BotTodaySummary | null>(null);
+  const [botDailyBreakdown, setBotDailyBreakdown] = useState<BotDailyRow[]>([]);
   const [botSearch, setBotSearch] = useState("");
   const [botResultFilter, setBotResultFilter] = useState<"all" | "user_won" | "bot_won">("all");
   const [botDifficultyMode, setBotDifficultyMode] = useState<"facil" | "medio" | "dificil">("medio");
@@ -464,7 +512,7 @@ export default function AdminPage() {
         adminFetch(`${apiUrl}/api/admin/recharges?status=ALL`),
         adminFetch(`${apiUrl}/api/admin/withdrawals?status=ALL`),
         adminFetch(`${apiUrl}/api/admin/users`),
-        adminFetch(`${apiUrl}/api/admin/matches`),
+        adminFetch(`${apiUrl}/api/admin/matches?period=${matchPeriodFilter}`),
         adminFetch(`${apiUrl}/api/admin/promos`),
         adminFetch(`${apiUrl}/api/admin/announcements`),
         adminFetch(`${apiUrl}/api/admin/bot-matches`),
@@ -481,7 +529,16 @@ export default function AdminPage() {
       if (resRecharges.ok) setRecharges(await resRecharges.json());
       if (resWithdrawals.ok) setWithdrawals(await resWithdrawals.json());
       if (resUsers.ok) setUsers(await resUsers.json());
-      if (resMatches.ok) setMatches(await resMatches.json());
+      if (resMatches.ok) {
+        const mData = await resMatches.json();
+        if (Array.isArray(mData)) {
+          setMatches(mData);
+        } else {
+          setMatches(mData.matches || []);
+          if (mData.summary) setMatchesPeriodSummary(mData.summary);
+          if (mData.dailyActivity) setMatchesDailyActivity(mData.dailyActivity);
+        }
+      }
       if (resPromos.ok) setPromos(await resPromos.json());
       if (resAnnounce.ok) setAnnouncements(await resAnnounce.json());
       if (resFeedbacks.ok) {
@@ -493,6 +550,8 @@ export default function AdminPage() {
         const botData = await resBot.json();
         setBotMatches(botData.matches || []);
         if (botData.summary) setBotSummary(botData.summary);
+        if (botData.todaySummary) setBotTodaySummary(botData.todaySummary);
+        if (botData.dailyBreakdown) setBotDailyBreakdown(botData.dailyBreakdown);
       }
       await fetchErrorLogs();
       await fetchBotDifficulty();
@@ -503,6 +562,25 @@ export default function AdminPage() {
     }
   };
 
+  const handleFilterMatchesPeriod = async (p: "dia" | "semana" | "mes" | "todo") => {
+    setMatchPeriodFilter(p);
+    try {
+      const res = await adminFetch(`${apiUrl}/api/admin/matches?period=${p}`);
+      if (res.ok) {
+        const mData = await res.json();
+        if (Array.isArray(mData)) {
+          setMatches(mData);
+        } else {
+          setMatches(mData.matches || []);
+          if (mData.summary) setMatchesPeriodSummary(mData.summary);
+          if (mData.dailyActivity) setMatchesDailyActivity(mData.dailyActivity);
+        }
+      }
+    } catch (e) {
+      console.error("Error al filtrar partidas por período:", e);
+    }
+  };
+
   const loadBotMatches = async (searchQuery: string = botSearch, filterType: string = botResultFilter) => {
     try {
       const res = await adminFetch(`${apiUrl}/api/admin/bot-matches?search=${encodeURIComponent(searchQuery)}&filter=${filterType}`);
@@ -510,6 +588,8 @@ export default function AdminPage() {
         const data = await res.json();
         setBotMatches(data.matches || []);
         if (data.summary) setBotSummary(data.summary);
+        if (data.todaySummary) setBotTodaySummary(data.todaySummary);
+        if (data.dailyBreakdown) setBotDailyBreakdown(data.dailyBreakdown);
       }
     } catch (e) {
       console.error("Error al cargar partidas vs bot:", e);
@@ -1614,20 +1694,255 @@ export default function AdminPage() {
   return (
     <div className="min-h-screen bg-[#0d0704] text-white flex flex-col md:flex-row font-sans">
       {/* ========================================================================= */}
-      {/* BARRA VERTICAL IZQUIERDA (SIDEBAR) */}
+      {/* BARRA SUPERIOR EXCLUSIVA PARA MÓVIL (STICKY) */}
       {/* ========================================================================= */}
-      <aside className="w-full md:w-64 lg:w-72 bg-[#160c06] border-b md:border-b-0 md:border-r border-amber-500/30 flex flex-col flex-shrink-0 z-30">
+      <header className="md:hidden sticky top-0 z-40 bg-[#160c06]/95 backdrop-blur-md border-b border-amber-500/30 px-3 py-2.5 flex items-center justify-between shadow-lg">
+        <div className="flex items-center gap-2">
+          <Image src="/brand.svg" width={95} height={28} alt="El Pericón" priority />
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-lg bg-amber-500/15 border border-amber-500/30 text-[11px] font-black text-amber-300">
+            <span>
+              {activeTab === "dashboard" && "📊 Dashboard"}
+              {activeTab === "users" && "👥 Usuarios"}
+              {activeTab === "whatsapp" && "📱 WhatsApp"}
+              {activeTab === "broadcast" && "📢 Avisos"}
+              {activeTab === "recharges" && "📥 Recargas"}
+              {activeTab === "withdrawals" && "📤 Retiros"}
+              {activeTab === "matches" && "⚔️ Partidas"}
+              {activeTab === "bot-matches" && "🤖 Bot IA"}
+              {activeTab === "reports" && "📈 Reportes"}
+              {activeTab === "promos" && "🎟️ Cupones"}
+              {activeTab === "errors" && "⚠️ Errores"}
+              {activeTab === "feedbacks" && "⭐ Opiniones"}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <span className={`w-2.5 h-2.5 rounded-full ${((stats?.live?.totalActiveGames || 0) > 0) ? "bg-emerald-400 animate-ping" : "bg-green-500"}`} title="En Vivo"></span>
+          <button
+            onClick={() => setMobileMenuOpen(true)}
+            className="p-2 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/40 text-base flex items-center justify-center active:scale-95"
+            aria-label="Abrir Menú"
+          >
+            ☰
+          </button>
+        </div>
+      </header>
+
+      {/* ========================================================================= */}
+      {/* DRAWER / MENÚ DESPLEGABLE MÓVIL (OFF-CANVAS) */}
+      {/* ========================================================================= */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-50 md:hidden flex">
+          {/* Fondo oscuro con desenfoque para cerrar al tocar afuera */}
+          <div
+            className="fixed inset-0 bg-black/80 backdrop-blur-sm transition-opacity"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+
+          <div className="relative w-80 max-w-[85vw] bg-[#160c06] border-r border-amber-500/40 h-full flex flex-col p-4 overflow-y-auto shadow-2xl z-10">
+            {/* Header Drawer */}
+            <div className="flex items-center justify-between pb-3 border-b border-amber-500/20 mb-3">
+              <Image src="/brand.svg" width={110} height={32} alt="El Pericón" priority />
+              <button
+                onClick={() => setMobileMenuOpen(false)}
+                className="w-8 h-8 rounded-xl bg-[#24140a] border border-amber-500/40 text-amber-400 text-sm font-bold flex items-center justify-center"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Identidad Guardian */}
+            <div className="p-3 mb-3 bg-gradient-to-r from-amber-950/40 to-[#221207] border border-amber-500/30 rounded-xl flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-base shadow">
+                🛡️
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="font-black text-xs text-amber-300 block truncate">Guardian</span>
+                <span className="text-[10px] text-amber-200/60 block truncate">Administrador Principal</span>
+              </div>
+            </div>
+
+            {/* Monitor en Vivo */}
+            <div className="mb-3 px-3 py-2 bg-[#201007] border border-amber-500/30 rounded-xl flex items-center justify-between text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className={`w-2 h-2 rounded-full ${((stats?.live?.totalActiveGames || 0) > 0) ? "bg-emerald-400 animate-ping" : "bg-green-500"}`}></span>
+                <span className="font-bold text-amber-200 text-[11px]">En Vivo:</span>
+              </div>
+              <span className="text-[11px] font-black text-amber-300">
+                {stats?.live?.totalActiveGames || 0} partidas
+              </span>
+            </div>
+
+            {/* Navegación Móvil */}
+            <nav className="flex-1 space-y-1">
+              <button
+                onClick={() => { setActiveTab("dashboard"); setMobileMenuOpen(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "dashboard" ? "bg-amber-500 text-amber-950 shadow-md" : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
+                }`}
+              >
+                <div className="flex items-center gap-2.5"><span>📊</span><span>Dashboard General</span></div>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab("users"); setMobileMenuOpen(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "users" ? "bg-amber-500 text-amber-950 shadow-md" : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
+                }`}
+              >
+                <div className="flex items-center gap-2.5"><span>👥</span><span>Usuarios & Baneo</span></div>
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-950/60 text-amber-300 border border-amber-400/30">{users.length}</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab("whatsapp"); setMobileMenuOpen(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "whatsapp" ? "bg-emerald-500 text-emerald-950 shadow-md" : "text-amber-100/70 hover:bg-emerald-500/10 hover:text-emerald-300"
+                }`}
+              >
+                <div className="flex items-center gap-2.5"><span>📱</span><span>Directorio WhatsApp</span></div>
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-emerald-950/60 text-emerald-300 border border-emerald-400/30 font-bold">{usersWithPhone.length}</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab("broadcast"); setMobileMenuOpen(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "broadcast" ? "bg-gradient-to-r from-amber-500 to-yellow-400 text-amber-950 shadow-md" : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
+                }`}
+              >
+                <div className="flex items-center gap-2.5"><span>📢</span><span>Avisos a Usuarios</span></div>
+                {announcements.some((a) => a.isActive) && (
+                  <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-green-500 text-white font-black animate-pulse">ACTIVO</span>
+                )}
+              </button>
+
+              <button
+                onClick={() => { setActiveTab("recharges"); setMobileMenuOpen(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "recharges" ? "bg-amber-500 text-amber-950 shadow-md" : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
+                }`}
+              >
+                <div className="flex items-center gap-2.5"><span>📥</span><span>Recargas de Saldo</span></div>
+                {financialSummary.pendingCount > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-red-500 text-white font-black animate-pulse">{financialSummary.pendingCount}</span>
+                )}
+              </button>
+
+              <button
+                onClick={() => { setActiveTab("withdrawals"); setMobileMenuOpen(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "withdrawals" ? "bg-amber-500 text-amber-950 shadow-md" : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
+                }`}
+              >
+                <div className="flex items-center gap-2.5"><span>📤</span><span>Retiros de Saldo</span></div>
+                {financialSummary.pendingWithdrawalsCount > 0 && (
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-400 text-amber-950 font-black">{financialSummary.pendingWithdrawalsCount}</span>
+                )}
+              </button>
+
+              <button
+                onClick={() => { setActiveTab("matches"); setMatchesSubTab("pvp"); setMobileMenuOpen(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "matches" && matchesSubTab === "pvp" ? "bg-amber-500 text-amber-950 shadow-md" : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
+                }`}
+              >
+                <div className="flex items-center gap-2.5"><span>⚔️</span><span>Partidas Multijugador</span></div>
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-950/60 text-amber-300 border border-amber-400/30">{matches.length}</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab("bot-matches"); setMatchesSubTab("bot"); setMobileMenuOpen(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "bot-matches" || (activeTab === "matches" && matchesSubTab === "bot") ? "bg-amber-500 text-amber-950 shadow-md" : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
+                }`}
+              >
+                <div className="flex items-center gap-2.5"><span>🤖</span><span>Partidas vs Bot</span></div>
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-950/60 text-amber-300 border border-amber-400/30">{botMatches.length}</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab("reports"); setMobileMenuOpen(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "reports" ? "bg-amber-500 text-amber-950 shadow-md" : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
+                }`}
+              >
+                <div className="flex items-center gap-2.5"><span>📈</span><span>Reportes Financieros</span></div>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab("promos"); setMobileMenuOpen(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "promos" ? "bg-amber-500 text-amber-950 shadow-md" : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
+                }`}
+              >
+                <div className="flex items-center gap-2.5"><span>🎟️</span><span>Cupones de Monedas</span></div>
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-950/60 text-amber-300 border border-amber-400/30">{promos.length}</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab("errors"); setMobileMenuOpen(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "errors" ? "bg-gradient-to-r from-red-600 to-amber-600 text-white shadow-md" : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
+                }`}
+              >
+                <div className="flex items-center gap-2.5"><span>⚠️</span><span>Errores & Fallas</span></div>
+                {errorCounts.new > 0 ? (
+                  <span className="px-1.5 py-0.5 rounded-full text-[9px] bg-red-500 text-white font-black animate-pulse">{errorCounts.new} NUEVOS</span>
+                ) : (
+                  <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-950/60 text-amber-300 border border-amber-400/30">{errorLogs.length}</span>
+                )}
+              </button>
+
+              <button
+                onClick={() => { setActiveTab("feedbacks"); setMobileMenuOpen(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "feedbacks" ? "bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 text-stone-950 shadow-md" : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
+                }`}
+              >
+                <div className="flex items-center gap-2.5"><span>⭐</span><span>Opiniones & Sugerencias</span></div>
+                <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-950/60 text-amber-300 border border-amber-400/30">{feedbacks.length}</span>
+              </button>
+            </nav>
+
+            {/* Footer Drawer */}
+            <div className="pt-3 border-t border-amber-500/20 space-y-1.5 mt-3">
+              <button
+                onClick={() => { loadData(); setMobileMenuOpen(false); }}
+                disabled={loading}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 text-xs font-bold border border-amber-500/30"
+              >
+                <span>🔄</span>
+                <span>{loading ? "Actualizando..." : "Actualizar Datos"}</span>
+              </button>
+              <button
+                onClick={() => router.push("/desk")}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[#201107] text-amber-200/80 text-xs font-medium"
+              >
+                <span>🎮</span>
+                <span>Ir al Juego</span>
+              </button>
+              <button
+                onClick={handleLogout}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-red-950/40 text-red-300 text-xs font-bold border border-red-500/30"
+              >
+                <span>🚪</span>
+                <span>Cerrar Sesión</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================================= */}
+      {/* BARRA VERTICAL IZQUIERDA (SIDEBAR ESCRITORIO) */}
+      {/* ========================================================================= */}
+      <aside className="hidden md:flex md:w-64 lg:w-72 bg-[#160c06] border-r border-amber-500/30 flex-col flex-shrink-0 z-30 min-h-screen">
         {/* Encabezado Sidebar */}
         <div className="p-5 border-b border-amber-500/20 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <Image src="/brand.svg" width={130} height={40} alt="El Pericón" priority />
           </div>
-          <button
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-            className="md:hidden p-2 rounded-lg bg-amber-500/10 text-amber-400"
-          >
-            ☰
-          </button>
         </div>
 
         {/* Tarjeta de Identidad Guardian */}
@@ -1656,13 +1971,10 @@ export default function AdminPage() {
         </div>
 
         {/* Menú de Navegación Vertical */}
-        <nav className={`flex-1 px-3 space-y-1 py-2 ${mobileMenuOpen ? "block" : "hidden md:block"}`}>
+        <nav className="flex-1 px-3 space-y-1 py-2">
           {/* 1. Dashboard */}
           <button
-            onClick={() => {
-              setActiveTab("dashboard");
-              setMobileMenuOpen(false);
-            }}
+            onClick={() => setActiveTab("dashboard")}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
               activeTab === "dashboard"
                 ? "bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20"
@@ -1677,10 +1989,7 @@ export default function AdminPage() {
 
           {/* 2. Usuarios & Baneo */}
           <button
-            onClick={() => {
-              setActiveTab("users");
-              setMobileMenuOpen(false);
-            }}
+            onClick={() => setActiveTab("users")}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
               activeTab === "users"
                 ? "bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20"
@@ -1696,12 +2005,9 @@ export default function AdminPage() {
             </span>
           </button>
 
-          {/* 3. Directorio de WhatsApp (NUEVO) */}
+          {/* 3. Directorio de WhatsApp */}
           <button
-            onClick={() => {
-              setActiveTab("whatsapp");
-              setMobileMenuOpen(false);
-            }}
+            onClick={() => setActiveTab("whatsapp")}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
               activeTab === "whatsapp"
                 ? "bg-emerald-500 text-emerald-950 shadow-md shadow-emerald-500/30"
@@ -1717,12 +2023,9 @@ export default function AdminPage() {
             </span>
           </button>
 
-          {/* 4. Avisos y Comunicados a Usuarios (NUEVO) */}
+          {/* 4. Avisos y Comunicados a Usuarios */}
           <button
-            onClick={() => {
-              setActiveTab("broadcast");
-              setMobileMenuOpen(false);
-            }}
+            onClick={() => setActiveTab("broadcast")}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
               activeTab === "broadcast"
                 ? "bg-gradient-to-r from-amber-500 to-yellow-400 text-amber-950 shadow-md shadow-amber-500/30"
@@ -1746,10 +2049,7 @@ export default function AdminPage() {
 
           {/* 5. Recargas */}
           <button
-            onClick={() => {
-              setActiveTab("recharges");
-              setMobileMenuOpen(false);
-            }}
+            onClick={() => setActiveTab("recharges")}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
               activeTab === "recharges"
                 ? "bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20"
@@ -1767,12 +2067,9 @@ export default function AdminPage() {
             )}
           </button>
 
-          {/* 4. Retiros */}
+          {/* 6. Retiros */}
           <button
-            onClick={() => {
-              setActiveTab("withdrawals");
-              setMobileMenuOpen(false);
-            }}
+            onClick={() => setActiveTab("withdrawals")}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
               activeTab === "withdrawals"
                 ? "bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20"
@@ -1790,20 +2087,20 @@ export default function AdminPage() {
             )}
           </button>
 
-          {/* 5. Partidas */}
+          {/* 7. Partidas Multijugador */}
           <button
             onClick={() => {
               setActiveTab("matches");
-              setMobileMenuOpen(false);
+              setMatchesSubTab("pvp");
             }}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
-              activeTab === "matches"
+              activeTab === "matches" && matchesSubTab === "pvp"
                 ? "bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20"
                 : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
             }`}
           >
             <div className="flex items-center gap-3">
-              <span className="text-base">🃏</span>
+              <span className="text-base">⚔️</span>
               <span>Partidas Multijugador</span>
             </div>
             <span className="px-2 py-0.5 rounded-full text-[10px] bg-amber-950/60 text-amber-300 border border-amber-400/30">
@@ -1811,14 +2108,14 @@ export default function AdminPage() {
             </span>
           </button>
 
-          {/* 5.1. Partidas vs Bot */}
+          {/* 8. Partidas vs Bot */}
           <button
             onClick={() => {
               setActiveTab("bot-matches");
-              setMobileMenuOpen(false);
+              setMatchesSubTab("bot");
             }}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
-              activeTab === "bot-matches"
+              activeTab === "bot-matches" || (activeTab === "matches" && matchesSubTab === "bot")
                 ? "bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20"
                 : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
             }`}
@@ -1832,12 +2129,9 @@ export default function AdminPage() {
             </span>
           </button>
 
-          {/* 6. Reportes */}
+          {/* 9. Reportes Financieros */}
           <button
-            onClick={() => {
-              setActiveTab("reports");
-              setMobileMenuOpen(false);
-            }}
+            onClick={() => setActiveTab("reports")}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
               activeTab === "reports"
                 ? "bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20"
@@ -1850,12 +2144,9 @@ export default function AdminPage() {
             </div>
           </button>
 
-          {/* 7. Cupones Promocionales */}
+          {/* 10. Cupones Promocionales */}
           <button
-            onClick={() => {
-              setActiveTab("promos");
-              setMobileMenuOpen(false);
-            }}
+            onClick={() => setActiveTab("promos")}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
               activeTab === "promos"
                 ? "bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20"
@@ -1871,12 +2162,9 @@ export default function AdminPage() {
             </span>
           </button>
 
-          {/* 8. Errores e Incidencias (Telemetría en Vivo) */}
+          {/* 11. Errores e Incidencias (Telemetría en Vivo) */}
           <button
-            onClick={() => {
-              setActiveTab("errors");
-              setMobileMenuOpen(false);
-            }}
+            onClick={() => setActiveTab("errors")}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
               activeTab === "errors"
                 ? "bg-gradient-to-r from-red-600 to-amber-600 text-white shadow-md shadow-red-500/30"
@@ -1898,12 +2186,9 @@ export default function AdminPage() {
             )}
           </button>
 
-          {/* 9. Opiniones y Sugerencias de Jugadores */}
+          {/* 12. Opiniones y Sugerencias de Jugadores */}
           <button
-            onClick={() => {
-              setActiveTab("feedbacks");
-              setMobileMenuOpen(false);
-            }}
+            onClick={() => setActiveTab("feedbacks")}
             className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
               activeTab === "feedbacks"
                 ? "bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-600 text-stone-950 shadow-md shadow-amber-500/30"
@@ -1952,7 +2237,7 @@ export default function AdminPage() {
       {/* ========================================================================= */}
       {/* ÁREA DE CONTENIDO PRINCIPAL (DERECHA) */}
       {/* ========================================================================= */}
-      <main className="flex-1 p-4 md:p-8 overflow-y-auto max-w-7xl">
+      <main className="flex-1 p-3.5 sm:p-5 md:p-8 overflow-y-auto max-w-7xl w-full min-w-0">
         {/* Banner de Mensajes de Acción */}
         {actionMessage && (
           <div className="mb-6 p-4 bg-amber-500/15 border border-amber-400 rounded-2xl flex items-center justify-between text-xs md:text-sm font-semibold text-amber-200 shadow-lg">
@@ -2388,7 +2673,7 @@ export default function AdminPage() {
             {/* Tabla de Usuarios */}
             <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left text-xs min-w-[700px]">
                   <thead className="bg-[#24140a] border-b border-amber-500/30 text-amber-300 uppercase tracking-wider font-bold">
                     <tr>
                       <th className="p-3.5">ID</th>
@@ -2691,7 +2976,7 @@ export default function AdminPage() {
             {/* Tabla del Directorio de WhatsApp */}
             <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left text-xs min-w-[650px]">
                   <thead className="bg-[#24140a] border-b border-amber-500/30 text-amber-300 uppercase tracking-wider font-bold">
                     <tr>
                       <th className="p-3.5">ID</th>
@@ -2987,7 +3272,7 @@ export default function AdminPage() {
 
               <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
+                  <table className="w-full text-left text-xs min-w-[650px]">
                     <thead className="bg-[#24140a] border-b border-amber-500/30 text-amber-300 uppercase tracking-wider font-bold">
                       <tr>
                         <th className="p-3.5">ID</th>
@@ -3149,7 +3434,7 @@ export default function AdminPage() {
             {/* Tabla de Recargas */}
             <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left text-xs min-w-[700px]">
                   <thead className="bg-[#24140a] border-b border-amber-500/30 text-amber-300 uppercase tracking-wider font-bold">
                     <tr>
                       <th className="p-3.5">ID</th>
@@ -3343,7 +3628,7 @@ export default function AdminPage() {
             {/* Tabla de Retiros */}
             <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left text-xs min-w-[700px]">
                   <thead className="bg-[#24140a] border-b border-amber-500/30 text-amber-300 uppercase tracking-wider font-bold">
                     <tr>
                       <th className="p-3.5">ID</th>
@@ -3495,6 +3780,129 @@ export default function AdminPage() {
               </button>
             </div>
 
+            {/* Filtros de Período de Tiempo (Día, Semana, Mes, Todo) */}
+            <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-4 shadow-lg space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="text-xs font-black text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>📅</span>
+                    <span>Filtro de Período y Análisis de Actividad</span>
+                  </h3>
+                  <p className="text-[11px] text-amber-200/60 mt-0.5">
+                    Filtra por día, semana o mes para saber qué días juegan más los usuarios y planificar promociones.
+                  </p>
+                </div>
+
+                <div className="flex rounded-xl bg-[#24140a] border border-amber-500/30 p-1 text-xs font-bold flex-wrap gap-1">
+                  <button
+                    type="button"
+                    onClick={() => handleFilterMatchesPeriod("dia")}
+                    className={`px-3 py-1.5 rounded-lg transition-all ${
+                      matchPeriodFilter === "dia"
+                        ? "bg-amber-500 text-amber-950 font-black shadow"
+                        : "text-amber-200/60 hover:text-white"
+                    }`}
+                  >
+                    Hoy (Día)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleFilterMatchesPeriod("semana")}
+                    className={`px-3 py-1.5 rounded-lg transition-all ${
+                      matchPeriodFilter === "semana"
+                        ? "bg-amber-500 text-amber-950 font-black shadow"
+                        : "text-amber-200/60 hover:text-white"
+                    }`}
+                  >
+                    7 Días (Semana)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleFilterMatchesPeriod("mes")}
+                    className={`px-3 py-1.5 rounded-lg transition-all ${
+                      matchPeriodFilter === "mes"
+                        ? "bg-amber-500 text-amber-950 font-black shadow"
+                        : "text-amber-200/60 hover:text-white"
+                    }`}
+                  >
+                    30 Días (Mes)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleFilterMatchesPeriod("todo")}
+                    className={`px-3 py-1.5 rounded-lg transition-all ${
+                      matchPeriodFilter === "todo"
+                        ? "bg-amber-500 text-amber-950 font-black shadow"
+                        : "text-amber-200/60 hover:text-white"
+                    }`}
+                  >
+                    Histórico (Todo)
+                  </button>
+                </div>
+              </div>
+
+              {/* Tarjetas KPI del Período Seleccionado */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+                <div className="bg-[#24140a] border border-amber-500/20 rounded-xl p-3">
+                  <span className="text-[10px] text-amber-200/60 block uppercase font-bold">Duelos en Período</span>
+                  <div className="text-xl sm:text-2xl font-black text-white mt-1">
+                    {matchesPeriodSummary?.totalMatches ?? matches.length}
+                  </div>
+                  <span className="text-[10px] text-amber-200/40">
+                    Apuesta prom: 🪙 {matchesPeriodSummary?.averageBet ?? (matches.length > 0 ? Math.round(matches.reduce((s, m) => s + m.betPerPlayer, 0) / matches.length) : 0)}
+                  </span>
+                </div>
+
+                <div className="bg-[#24140a] border border-amber-500/20 rounded-xl p-3">
+                  <span className="text-[10px] text-amber-200/60 block uppercase font-bold">Pozo Apostado</span>
+                  <div className="text-xl sm:text-2xl font-black text-amber-300 mt-1">
+                    🪙 {(matchesPeriodSummary?.totalCoinsWagered ?? matches.reduce((s, m) => s + m.totalPot, 0)).toLocaleString()}
+                  </div>
+                  <span className="text-[10px] text-amber-200/40">Volumen disputado</span>
+                </div>
+
+                <div className="bg-[#24140a] border border-amber-500/20 rounded-xl p-3">
+                  <span className="text-[10px] text-amber-200/60 block uppercase font-bold">Comisión Casa</span>
+                  <div className="text-xl sm:text-2xl font-black text-emerald-400 mt-1">
+                    🪙 {(matchesPeriodSummary?.totalHouseCommissions ?? matches.reduce((s, m) => s + m.houseCommission, 0)).toLocaleString()}
+                  </div>
+                  <span className="text-[10px] text-emerald-300/60">Retención 20% / 100%</span>
+                </div>
+
+                <div className="bg-[#24140a] border border-amber-500/20 rounded-xl p-3">
+                  <span className="text-[10px] text-amber-200/60 block uppercase font-bold">Premios Ganadores</span>
+                  <div className="text-xl sm:text-2xl font-black text-cyan-400 mt-1">
+                    🪙 {(matchesPeriodSummary?.totalPrizesAwarded ?? matches.reduce((s, m) => s + m.winnerPrize, 0)).toLocaleString()}
+                  </div>
+                  <span className="text-[10px] text-cyan-300/60">Entregado a ganadores</span>
+                </div>
+              </div>
+
+              {/* Desglose de Afluencia por Día (Estrategia Administrativa) */}
+              {matchesDailyActivity.length > 0 && (
+                <div className="pt-2 border-t border-amber-500/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-bold text-amber-300 uppercase tracking-wide">
+                      📊 Afluencia Diaria en el Período ({matchesDailyActivity.length} días con partidas)
+                    </span>
+                    <span className="text-[10px] text-amber-200/50">Días más concurridos vs menos activos</span>
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2">
+                    {matchesDailyActivity.slice(0, 14).map((d) => (
+                      <div
+                        key={d.date}
+                        className="bg-[#201107] border border-amber-500/25 rounded-xl p-2.5 text-center flex flex-col justify-between"
+                      >
+                        <span className="text-[10px] font-bold text-amber-200/70 block truncate">{d.date}</span>
+                        <div className="text-base font-black text-amber-400 my-1">{d.count} <span className="text-[10px] font-normal text-amber-200/60">partidas</span></div>
+                        <span className="text-[9.5px] text-emerald-400 font-semibold block truncate">+🪙 {d.commission.toLocaleString()}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* Buscador de Jugadores y Filtro de Partidas */}
             <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-4 shadow-lg space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -3596,7 +4004,7 @@ export default function AdminPage() {
 
             <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left text-xs min-w-[750px]">
                   <thead className="bg-[#24140a] border-b border-amber-500/30 text-amber-300 uppercase tracking-wider font-bold">
                     <tr>
                       <th className="p-3.5">ID</th>
@@ -3774,9 +4182,9 @@ export default function AdminPage() {
                     </span>
                   </div>
                   <p className="text-xs text-amber-200/70 mt-1">
-                    {botDifficultyMode === 'facil' && "🟢 Modo Fácil: 50% Casa / 50% Jugador. El usuario gana ~5 de cada 10 partidas. Calibrado para los órdenes 82 y 83."}
-                    {botDifficultyMode === 'medio' && "🟡 Modo Medio: 55% Casa / 45% Jugador. Ventaja gradual y balanceada con antirachas (máx 2 victorias del bot seguidas)."}
-                    {botDifficultyMode === 'dificil' && "🔴 Modo Difícil: 62% Casa / 38% Jugador. Mayor ventaja para la casa con antirachas activas."}
+                    {botDifficultyMode === 'facil' && "🟢 Modo Fácil: 50% Casa / 50% Jugador. El usuario gana ~5 de cada 10 partidas. Fluidez para nuevos jugadores."}
+                    {botDifficultyMode === 'medio' && "🟡 Modo Medio: 60% Casa / 40% Jugador. Objetivo diario 60-40, equilibrio financiero y control antirachas estricto."}
+                    {botDifficultyMode === 'dificil' && "🔴 Modo Difícil: 65% Casa / 35% Jugador. Mayor ventaja para la casa con protección antirachas activa."}
                   </p>
                 </div>
               </div>
@@ -3806,10 +4214,10 @@ export default function AdminPage() {
                       ? "bg-amber-500 text-black ring-2 ring-amber-300"
                       : "bg-[#24140a] text-amber-300 border border-amber-500/40 hover:bg-amber-950/40"
                   }`}
-                  title="55% Casa / 45% Jugador - Balance gradual recomendado"
+                  title="60% Casa / 40% Jugador - Balance diario 60-40 recomendado"
                 >
                   <span>🟡</span>
-                  <span>Medio (55%)</span>
+                  <span>Medio (60%)</span>
                 </button>
 
                 <button
@@ -3821,15 +4229,156 @@ export default function AdminPage() {
                       ? "bg-red-600 text-white ring-2 ring-red-400"
                       : "bg-[#24140a] text-red-400 border border-red-500/40 hover:bg-red-950/40"
                   }`}
-                  title="62% Casa / 38% Jugador - Mayor dificultad"
+                  title="65% Casa / 35% Jugador - Mayor dificultad"
                 >
                   <span>🔴</span>
-                  <span>Difícil (62%)</span>
+                  <span>Difícil (65%)</span>
                 </button>
               </div>
             </div>
 
-            {/* Tarjetas Resumen de Rendimiento del Bot */}
+            {/* Rendimiento de Hoy (Operación Diaria - Reinicia a Medianoche) */}
+            <div className="bg-[#180e07] border-2 border-amber-500/40 rounded-2xl p-4 shadow-xl space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-500/20 pb-2.5">
+                <div className="flex items-center gap-2">
+                  <span className="text-xl">📅</span>
+                  <div>
+                    <h2 className="text-sm font-black text-amber-300">
+                      Rendimiento de Hoy ({botTodaySummary?.date || "Hoy"}) · Operación Diaria (Meta 60/40)
+                    </h2>
+                    <p className="text-[11px] text-amber-200/70">
+                      El contador inicia en CERO a las 00:00 (Hora Venezuela) cada día. El bot calibra dinámicamente sus manos para ganar ~60% de partidas y ~60% de dinero.
+                    </p>
+                  </div>
+                </div>
+                <div className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-black self-start sm:self-auto">
+                  Objetivo: 60% Bot / 40% Jugador
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
+                <div className="bg-[#24140a] border border-amber-500/20 rounded-xl p-3.5">
+                  <span className="text-[10px] text-amber-200/60 block uppercase font-bold">Partidas vs Bot Hoy</span>
+                  <div className="text-2xl font-black text-white mt-1">
+                    {botTodaySummary?.totalMatches ?? 0}
+                  </div>
+                  <span className="text-[11px] text-amber-200/50 block mt-0.5">
+                    🪙 {(botTodaySummary?.totalCoinsWagered ?? 0).toLocaleString()} apostadas hoy
+                  </span>
+                </div>
+
+                <div className="bg-[#24140a] border border-amber-500/20 rounded-xl p-3.5">
+                  <span className="text-[10px] text-amber-200/60 block uppercase font-bold">Victorias Jugadores Hoy</span>
+                  <div className="text-2xl font-black text-emerald-400 mt-1">
+                    {botTodaySummary?.userWins ?? 0} <span className="text-xs font-bold text-emerald-300/80">({botTodaySummary?.userWinRate ?? 0}%)</span>
+                  </div>
+                  <span className="text-[11px] text-emerald-300/60 block mt-0.5">
+                    Meta ~40% · 🪙 {(botTodaySummary?.coinsWonByUser ?? 0).toLocaleString()} pagadas
+                  </span>
+                </div>
+
+                <div className="bg-[#24140a] border border-amber-500/20 rounded-xl p-3.5">
+                  <span className="text-[10px] text-amber-200/60 block uppercase font-bold">Victorias Bot Hoy</span>
+                  <div className="text-2xl font-black text-amber-400 mt-1">
+                    {botTodaySummary?.botWins ?? 0} <span className="text-xs font-bold text-amber-300/80">({botTodaySummary?.botWinRate ?? 0}%)</span>
+                  </div>
+                  <span className="text-[11px] text-amber-300/60 block mt-0.5">
+                    Meta ~60% · 🪙 {(botTodaySummary?.coinsWonByHouse ?? 0).toLocaleString()} retenidas
+                  </span>
+                </div>
+
+                <div className="bg-[#24140a] border border-amber-500/20 rounded-xl p-3.5">
+                  <span className="text-[10px] text-amber-200/60 block uppercase font-bold">Balance Neto Casa Hoy</span>
+                  <div className={`text-2xl font-black mt-1 ${(botTodaySummary?.netHouseProfit ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    🪙 {(botTodaySummary?.netHouseProfit ?? 0) >= 0 ? "+" : ""}{(botTodaySummary?.netHouseProfit ?? 0).toLocaleString()}
+                  </div>
+                  <span className="text-[11px] text-amber-200/50 block mt-0.5">
+                    {(botTodaySummary?.netHouseProfit ?? 0) >= 0 ? "Superávit diario en caja" : "Usuarios arriba hoy"}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Historial y Rendimiento Diario del Bot */}
+            <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-4 shadow-lg space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-xs font-black text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>📊</span>
+                    <span>Historial Diario del Bot (Desglose Día por Día)</span>
+                  </h3>
+                  <p className="text-[11px] text-amber-200/60 mt-0.5">
+                    Registro de partidas jugadas, efectividad y ganancia en monedas día por día (Hora de Venezuela).
+                  </p>
+                </div>
+                <span className="text-xs text-amber-200/60 font-semibold self-start sm:self-auto">
+                  {botDailyBreakdown.length} días registrados
+                </span>
+              </div>
+
+              <div className="overflow-x-auto rounded-xl border border-amber-500/20">
+                <table className="w-full text-left text-xs min-w-[720px]">
+                  <thead className="bg-[#24140a] border-b border-amber-500/30 text-amber-300 font-bold uppercase tracking-wider">
+                    <tr>
+                      <th className="p-3">Fecha (Vzla)</th>
+                      <th className="p-3 text-center">Partidas</th>
+                      <th className="p-3 text-center">Bot (W)</th>
+                      <th className="p-3 text-center">Jugador (W)</th>
+                      <th className="p-3 text-center">% Bot (Meta 60%)</th>
+                      <th className="p-3 text-right">Apostado</th>
+                      <th className="p-3 text-right">Casa Retuvo</th>
+                      <th className="p-3 text-right">Pagado Jugador</th>
+                      <th className="p-3 text-right">Balance Neto</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-amber-500/10">
+                    {botDailyBreakdown.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="text-center py-6 text-amber-200/40">
+                          No hay historial diario previo registrado.
+                        </td>
+                      </tr>
+                    ) : (
+                      botDailyBreakdown.map((d) => (
+                        <tr key={d.date} className="hover:bg-amber-500/5 transition">
+                          <td className="p-3 font-mono font-bold text-amber-200">{d.date}</td>
+                          <td className="p-3 text-center font-bold text-white">{d.totalMatches}</td>
+                          <td className="p-3 text-center text-amber-400 font-bold">{d.botWins}</td>
+                          <td className="p-3 text-center text-emerald-400 font-bold">{d.userWins}</td>
+                          <td className="p-3 text-center">
+                            <span className={`px-2 py-0.5 rounded-full font-black text-[11px] ${
+                              d.botWinRate >= 58 && d.botWinRate <= 65
+                                ? "bg-green-500/20 text-green-300 border border-green-500/40"
+                                : d.botWinRate > 65
+                                ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                                : "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                            }`}>
+                              {d.botWinRate}%
+                            </span>
+                          </td>
+                          <td className="p-3 text-right font-mono text-amber-200/80">🪙 {d.totalCoinsWagered.toLocaleString()}</td>
+                          <td className="p-3 text-right font-mono text-emerald-400 font-bold">🪙 {d.coinsWonByHouse.toLocaleString()}</td>
+                          <td className="p-3 text-right font-mono text-red-300">🪙 {d.coinsWonByUser.toLocaleString()}</td>
+                          <td className="p-3 text-right font-mono font-black">
+                            <span className={d.netHouseProfit >= 0 ? "text-emerald-400" : "text-red-400"}>
+                              {d.netHouseProfit >= 0 ? "+🪙 " : "-🪙 "}{Math.abs(d.netHouseProfit).toLocaleString()}
+                            </span>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Resumen Acumulado Global del Bot (Histórico Total) */}
+            <div className="pt-2">
+              <h3 className="text-xs font-black text-amber-300 uppercase tracking-wider mb-2.5 flex items-center gap-1.5">
+                <span>📈</span>
+                <span>Acumulado Histórico Global del Bot (Todas las Fechas)</span>
+              </h3>
+            </div>
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
               <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-4 shadow-lg">
                 <div className="flex items-center justify-between text-amber-400 mb-2">
@@ -3929,7 +4478,7 @@ export default function AdminPage() {
             {/* Tabla de Partidas vs Bot */}
             <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left text-xs min-w-[750px]">
                   <thead className="bg-[#24140a] border-b border-amber-500/30 text-amber-300 uppercase tracking-wider font-bold">
                     <tr>
                       <th className="p-3.5">ID</th>
@@ -4303,7 +4852,7 @@ export default function AdminPage() {
             {/* Tabla de Cupones */}
             <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left text-xs min-w-[650px]">
                   <thead className="bg-[#24140a] border-b border-amber-500/30 text-amber-300 uppercase tracking-wider font-bold">
                     <tr>
                       <th className="p-3.5">ID</th>
@@ -4524,7 +5073,7 @@ export default function AdminPage() {
             {/* Tabla de Errores e Incidencias */}
             <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl overflow-hidden shadow-xl">
               <div className="overflow-x-auto">
-                <table className="w-full text-left text-xs">
+                <table className="w-full text-left text-xs min-w-[700px]">
                   <thead className="bg-[#24140a] border-b border-amber-500/30 text-amber-300 uppercase tracking-wider font-bold">
                     <tr>
                       <th className="p-3.5">ID / Fecha</th>
