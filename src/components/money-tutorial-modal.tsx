@@ -34,7 +34,7 @@ export default function MoneyTutorialModal({
       title: "1. Consulta los Datos Oficiales de Pago Móvil",
       icon: "📱",
       badge: "Paso 1",
-      desc: "Entra a tu Billetera y pulsa en la pestaña 'Recarga'. Allí verás los datos bancarios oficiales del Pericón (Banco BNC / BDV, Cédula y Teléfono). Copia los datos con un solo toque.",
+      desc: "Entra a tu Billetera y pulsa en la pestaña 'Recarga'. Allí verás los datos bancarios oficiales del Pericón (Banco de Venezuela (0102), Cédula y Teléfono). Copia los datos con un solo toque.",
       highlight: "Tasa oficial: 1 Moneda = 1 Bolívar (Bs.)",
       actionText: "Copiar datos y abrir tu app de banco",
     },

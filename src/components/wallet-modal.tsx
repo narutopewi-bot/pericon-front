@@ -63,8 +63,8 @@ interface MatchSummary {
 }
 
 const VENEZUELAN_BANKS = [
-  "0191 - BNC (Banco Nacional de Crédito)",
   "0102 - Banco de Venezuela",
+  "0191 - BNC (Banco Nacional de Crédito)",
   "0134 - Banesco",
   "0108 - Banco Provincial (BBVA)",
   "0105 - Banco Mercantil",
@@ -898,7 +898,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
             <div className="w-full bg-gradient-to-b from-[#1f1105] to-[#120802] border-2 border-amber-400/60 rounded-2xl p-3.5 shadow-lg flex flex-col gap-2">
               <div className="flex justify-between items-center border-b border-amber-500/20 pb-1.5">
                 <span className="text-[11px] font-black text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
-                  🏦 Datos de Pago Móvil BNC
+                  🏦 Datos de Pago Móvil Banco de Venezuela
                 </span>
                 <span className="text-[10px] bg-emerald-950 border border-emerald-500/50 text-emerald-300 font-bold px-2 py-0.5 rounded-full">
                   1 Bs = 1 Moneda
@@ -909,7 +909,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
                 {/* Banco */}
                 <div className="bg-black/50 p-2 rounded-xl border border-amber-500/20">
                   <span className="text-[10px] text-amber-400/80 font-bold block uppercase">Banco:</span>
-                  <span className="font-extrabold text-amber-100 text-xs">BNC (0191)</span>
+                  <span className="font-extrabold text-amber-100 text-xs">Banco de Venezuela (0102)</span>
                 </div>
 
                 {/* Teléfono */}
