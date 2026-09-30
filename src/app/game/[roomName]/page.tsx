@@ -566,7 +566,7 @@ export default function Duel1vs1() {
 
 
   const handleTurnTimeout1v1 = () => {
-    if (!switchturn.current || isProcessingMove || isDealing || playerCards.length === 0) return;
+    if ((!switchturn.current && !isMyTurn) || isProcessingMove || isDealing || playerCards.length === 0) return;
     let chosen = playerCards[0];
     const currentLifeId = cpEightRef.current?.id ?? -1;
     const isOppLead = roundturn.current === false && switchturn.current === true;
@@ -1737,7 +1737,9 @@ export default function Duel1vs1() {
                                 (tableCards.length > 1 && tableCards[1]?.id !== undefined && tableCards[1].id >= 0);
       const isResponding = hasOppCardOnTable || (roundturn.current === false);
 
-      if (switchturn.current == true) {
+      const canPlay = switchturn.current == true || isMyTurn == true;
+      if (canPlay) {
+        switchturn.current = true;
         if (!isResponding) {
           // JUGADA DE SALIDA (MANO - ORDEN 82)
           numOrder = 82;
@@ -3763,7 +3765,7 @@ export default function Duel1vs1() {
                               ${!isBlockedByPelao ? 'active:scale-110 active:-translate-y-5 sm:hover:-translate-y-4 sm:hover:scale-105 hover:shadow-2xl transition-all' : ''}
                             `}
                             onClick={() => {
-                              if (switchturn.current && !isProcessingMove && !isDealing && tumbaCountdown === null && !isWaitingOppTumba) {
+                              if ((switchturn.current || isMyTurn) && !isProcessingMove && !isDealing && tumbaCountdown === null && !isWaitingOppTumba) {
                                 handleCardClick(card);
                               }
                             }}
