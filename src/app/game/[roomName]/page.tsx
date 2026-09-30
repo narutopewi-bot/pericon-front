@@ -179,6 +179,7 @@ export default function Duel1vs1() {
   const [isProcessingMove, setIsProcessingMove] = useState<boolean>(false);
   const isProcessingRef = useRef<boolean>(false);
   const [isReconnecting, setIsReconnecting] = useState<boolean>(false);
+  const [pingMs, setPingMs] = useState<number | null>(null);
 
   // Estado de Tumba activo (en cualquiera de los dos jugadores)
   const isTumbaActive = (visiblePoints.own >= 9 || (partownRef.current === 1 && visiblePoints.own === 8)) ||
@@ -1173,6 +1174,36 @@ export default function Duel1vs1() {
     window.addEventListener("pericon:signalr:restored", handleGlobalRestored);
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("focus", handleVisibilityChange);
+
+  // Monitoreo periódico de latencia de red (Ping cada 10 segundos)
+  useEffect(() => {
+    if (!connection) return;
+    let isCancelled = false;
+
+    const measurePing = async () => {
+      if (connection.state === signalR.HubConnectionState.Connected) {
+        const start = performance.now();
+        try {
+          await connection.invoke("Ping");
+          if (!isCancelled) {
+            const elapsed = Math.round(performance.now() - start);
+            setPingMs(elapsed);
+          }
+        } catch {
+          // Si hay microcorte temporal, se mantiene el último estado
+        }
+      }
+    };
+
+    const initialTimer = setTimeout(measurePing, 2000);
+    const interval = setInterval(measurePing, 10000);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(initialTimer);
+      clearInterval(interval);
+    };
+  }, [connection]);
 
     connection.on('GameStateSync1vs1', (state: any) => {
       console.log("[GameStateSync1vs1] Sincronización autoritativa recibida:", state);
@@ -3413,6 +3444,31 @@ export default function Duel1vs1() {
               >
                 <span className='text-xs sm:text-sm'>🎧</span>
               </button>
+
+              {/* Indicador de Señal de Red / Latencia en Vivo */}
+              <div
+                className="h-8 sm:h-9 px-2 sm:px-2.5 rounded-xl border border-stone-700/60 bg-stone-900/90 shadow flex items-center gap-1.5 text-[11px] font-semibold text-stone-300 select-none cursor-help"
+                title={
+                  isReconnecting
+                    ? "Reconectando señal móvil... Tu partida está protegida."
+                    : pingMs !== null
+                    ? `Ping: ${pingMs}ms. Calidad de red: ${pingMs < 150 ? 'Excelente' : pingMs < 350 ? 'Buena' : 'Lenta'}`
+                    : "Conexión en vivo activa"
+                }
+              >
+                <span
+                  className={`w-2 h-2 rounded-full ${
+                    isReconnecting
+                      ? 'bg-amber-500 animate-ping'
+                      : pingMs !== null && pingMs > 350
+                      ? 'bg-amber-400'
+                      : 'bg-emerald-400 shadow-[0_0_8px_#34d399]'
+                  }`}
+                />
+                <span className="hidden md:inline text-[10px] text-stone-400 font-mono">
+                  {isReconnecting ? "Reconectando" : pingMs !== null ? `${pingMs}ms` : "En vivo"}
+                </span>
+              </div>
 
               {/* Botón Salir (Abandonar y rendirse) */}
               <button
