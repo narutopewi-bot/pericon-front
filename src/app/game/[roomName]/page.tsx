@@ -1175,17 +1175,14 @@ export default function Duel1vs1() {
     document.addEventListener("visibilitychange", handleVisibilityChange);
     window.addEventListener("focus", handleVisibilityChange);
 
-  // Monitoreo periódico de latencia de red (Ping cada 10 segundos)
-  useEffect(() => {
-    if (!connection) return;
-    let isCancelled = false;
-
+    // Monitoreo periódico de latencia de red (Ping cada 10 segundos)
+    let isPingCancelled = false;
     const measurePing = async () => {
       if (connection.state === signalR.HubConnectionState.Connected) {
         const start = performance.now();
         try {
           await connection.invoke("Ping");
-          if (!isCancelled) {
+          if (!isPingCancelled) {
             const elapsed = Math.round(performance.now() - start);
             setPingMs(elapsed);
           }
@@ -1195,15 +1192,8 @@ export default function Duel1vs1() {
       }
     };
 
-    const initialTimer = setTimeout(measurePing, 2000);
-    const interval = setInterval(measurePing, 10000);
-
-    return () => {
-      isCancelled = true;
-      clearTimeout(initialTimer);
-      clearInterval(interval);
-    };
-  }, [connection]);
+    const pingInitialTimer = setTimeout(measurePing, 2000);
+    const pingInterval = setInterval(measurePing, 10000);
 
     connection.on('GameStateSync1vs1', (state: any) => {
       console.log("[GameStateSync1vs1] Sincronización autoritativa recibida:", state);
@@ -1374,6 +1364,9 @@ export default function Duel1vs1() {
     });
 
     return () => {
+      isPingCancelled = true;
+      clearTimeout(pingInitialTimer);
+      clearInterval(pingInterval);
       if (disconnectDebounceTimerRef.current) clearTimeout(disconnectDebounceTimerRef.current);
       window.removeEventListener("pericon:signalr:restored", handleGlobalRestored);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
