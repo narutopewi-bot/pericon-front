@@ -157,6 +157,8 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
   // Formulario de Recarga (con soporte para borrar sin trabarse en 1)
   const [amountBs, setAmountBs] = useState<string>("800");
   const [reference, setReference] = useState<string>("");
+  const [originBank, setOriginBank] = useState<string>(VENEZUELAN_BANKS[0]);
+  const [originPhone, setOriginPhone] = useState<string>("");
   const [receiptBase64, setReceiptBase64] = useState<string>("");
   const [receiptFileName, setReceiptFileName] = useState<string>("");
   const [submitSuccess, setSubmitSuccess] = useState<string | null>(null);
@@ -508,6 +510,11 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
       return;
     }
 
+    if (!originPhone.trim() || originPhone.replace(/\D/g, "").length < 10) {
+      setSubmitError("Debes ingresar el número de teléfono desde donde realizaste el pago móvil para su validación.");
+      return;
+    }
+
     if (!receiptBase64) {
       setSubmitError("Debes subir la foto o capture del comprobante de pago.");
       return;
@@ -523,15 +530,37 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
           amountBs: numAmount,
           reference: reference.trim(),
           base64Image: receiptBase64,
+          originBank: originBank,
+          originPhone: originPhone.trim(),
         }),
       });
 
       const data = await res.json();
 
       if (res.ok) {
-        setSubmitSuccess(
-          `¡Comprobante enviado con éxito! Tu recarga de ${data.coinsAmount} monedas está en revisión. El administrador la verificará en breve.`
-        );
+        if (data.isAutoApproved) {
+          setSubmitSuccess(
+            `🎉 ¡Pago verificado automáticamente por Banco del Tesoro! Se te han acreditado ${data.coinsAmount} monedas a tu cuenta de inmediato.`
+          );
+          try { playCoinWinSound(); } catch (err) {}
+          if (typeof data.userNewCoins === "number") {
+            dispatch(setGamePlayer({ coins: data.userNewCoins }));
+            if (typeof window !== "undefined") {
+              const stored = localStorage.getItem("pericon_user");
+              if (stored) {
+                try {
+                  const u = JSON.parse(stored);
+                  u.coins = data.userNewCoins;
+                  localStorage.setItem("pericon_user", JSON.stringify(u));
+                } catch (e) {}
+              }
+            }
+          }
+        } else {
+          setSubmitSuccess(
+            `¡Comprobante enviado con éxito! Tu recarga de ${data.coinsAmount} monedas está registrada. El administrador la verificará en breve.`
+          );
+        }
         setReference("");
         setReceiptBase64("");
         setReceiptFileName("");
@@ -894,11 +923,29 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
               </div>
             )}
 
-            {/* Tarjeta con los Datos Bancarios Oficiales */}
+            {/* Notificación a los usuarios sobre el cambio a Banco del Tesoro */}
+            <div className="w-full bg-gradient-to-r from-amber-950/90 via-[#231704] to-amber-950/90 border-2 border-amber-400/80 rounded-2xl p-3 flex items-start gap-3 shadow-xl">
+              <span className="text-2xl shrink-0 animate-bounce">📢</span>
+              <div className="flex-1 text-left">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-black text-amber-300 uppercase tracking-wider">
+                    ¡Aviso Importante: Nuevo Banco Receptor!
+                  </span>
+                  <span className="text-[9px] bg-emerald-500/20 border border-emerald-400/60 text-emerald-300 font-extrabold px-1.5 py-0.5 rounded">
+                    ⚡ ACREDITACIÓN AUTOMÁTICA
+                  </span>
+                </div>
+                <p className="text-[11px] text-amber-100/90 leading-tight mt-1">
+                  A partir de ahora las recargas se realizan a <strong>Banco del Tesoro (0163)</strong>. Con este nuevo sistema, tus pagos móviles se <strong>verifican y acreditan automáticamente en segundos</strong>.
+                </p>
+              </div>
+            </div>
+
+            {/* Tarjeta con los Datos Bancarios Oficiales (SIN NOMBRE DE TITULAR) */}
             <div className="w-full bg-gradient-to-b from-[#1f1105] to-[#120802] border-2 border-amber-400/60 rounded-2xl p-3.5 shadow-lg flex flex-col gap-2">
               <div className="flex justify-between items-center border-b border-amber-500/20 pb-1.5">
                 <span className="text-[11px] font-black text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
-                  🏦 Datos de Pago Móvil Banco de Venezuela
+                  🏦 Datos de Pago Móvil Banco del Tesoro
                 </span>
                 <span className="text-[10px] bg-emerald-950 border border-emerald-500/50 text-emerald-300 font-bold px-2 py-0.5 rounded-full">
                   1 Bs = 1 Moneda
@@ -909,7 +956,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
                 {/* Banco */}
                 <div className="bg-black/50 p-2 rounded-xl border border-amber-500/20">
                   <span className="text-[10px] text-amber-400/80 font-bold block uppercase">Banco:</span>
-                  <span className="font-extrabold text-amber-100 text-xs">Banco de Venezuela (0102)</span>
+                  <span className="font-extrabold text-amber-100 text-xs">Banco del Tesoro (0163)</span>
                 </div>
 
                 {/* Teléfono */}
@@ -942,7 +989,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
               </div>
 
               <p className="text-[10px] text-amber-200/70 text-center italic mt-0.5">
-                💡 Realiza tu pago móvil por el monto que desees y luego reporta aquí la referencia y el capture.
+                💡 Realiza tu pago móvil por el monto que desees y luego completa el formulario para validación automática instantánea.
               </p>
             </div>
 
@@ -963,6 +1010,41 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
                   {submitError}
                 </div>
               )}
+
+              {/* Banco Emisor y Teléfono Emisor */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="text-[11px] text-amber-200/80 font-bold block mb-1">
+                    Tu Banco Emisor (Desde dónde pagas):
+                  </label>
+                  <select
+                    value={originBank}
+                    onChange={(e) => setOriginBank(e.target.value)}
+                    className="w-full bg-black/70 border border-amber-500/40 rounded-xl px-3 py-2 text-xs text-white font-medium focus:outline-none focus:border-amber-400"
+                  >
+                    {VENEZUELAN_BANKS.map((b) => (
+                      <option key={b} value={b} className="bg-neutral-900 text-white">
+                        {b}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-[11px] text-amber-200/80 font-bold block mb-1">
+                    Tu Teléfono de Pago Móvil:
+                  </label>
+                  <input
+                    type="text"
+                    inputMode="tel"
+                    value={originPhone}
+                    onChange={(e) => setOriginPhone(e.target.value)}
+                    className="w-full bg-black/70 border border-amber-500/40 rounded-xl px-3 py-2 text-sm text-white font-medium focus:outline-none focus:border-amber-400"
+                    placeholder="Ej. 04121234567"
+                    required
+                  />
+                </div>
+              </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {/* Monto con borrado libre */}
@@ -994,7 +1076,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
                 {/* Referencia */}
                 <div>
                   <label className="text-[11px] text-amber-200/80 font-bold block mb-1">
-                    Número de Referencia:
+                    Número de Referencia (Últimos dígitos):
                   </label>
                   <input
                     type="text"
@@ -1045,8 +1127,8 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
                 {!operatingStatus.isOpen
                   ? "⛔ Recargas cerradas (Horario: 6:00 AM a 9:30 PM Vzla)"
                   : loading
-                  ? "Enviando comprobante..."
-                  : "Enviar Comprobante al Administrador 📤"}
+                  ? "Validando con Banco del Tesoro..."
+                  : "⚡ Validar y Recargar Monedas al Instante"}
               </button>
             </form>
           </div>
