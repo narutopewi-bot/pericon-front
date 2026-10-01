@@ -485,14 +485,6 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
     setSubmitError(null);
     setSubmitSuccess(null);
 
-    const { isOpen, formattedVzlaTime } = isWithinVenezuelaOperatingHours();
-    if (!isOpen) {
-      setSubmitError(
-        `Por políticas de la plataforma, el horario para recargas y retiros es de 6:00 AM a 9:30 PM (Hora de Venezuela). Hora actual: ${formattedVzlaTime}. Por favor, intenta de nuevo dentro del horario estipulado.`
-      );
-      return;
-    }
-
     const validId = getValidNumericUserId();
     if (!validId) {
       setSubmitError("No se pudo identificar tu cuenta. Por favor vuelve a iniciar sesión.");
@@ -893,35 +885,16 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
         {/* PESTAÑA 1: RECARGAR MONEDAS */}
         {activeTab === "recharge" && (
           <div className="w-full flex flex-col gap-3">
-            {/* Banner de Horario de Recargas y Retiros */}
-            {!operatingStatus.isOpen ? (
-              <div className="w-full bg-gradient-to-r from-rose-950/90 to-[#220707] border-2 border-rose-500/70 rounded-2xl p-3 flex items-start gap-2.5 shadow-lg animate-in fade-in">
-                <span className="text-xl shrink-0">⛔</span>
-                <div className="flex-1 text-left">
-                  <span className="text-xs font-black text-rose-300 block uppercase">
-                    Recargas Cerradas Fuera de Horario
-                  </span>
-                  <p className="text-[11px] text-rose-100/90 leading-tight mt-0.5">
-                    Por normativas operativas, las recargas y retiros están disponibles únicamente en el horario de <strong>6:00 AM a 9:30 PM</strong> (Hora de Venezuela).
-                  </p>
-                  <div className="flex items-center gap-2 mt-1.5 text-[10px] text-rose-300 font-bold">
-                    <span>🕒 Hora actual en Venezuela: {operatingStatus.formattedVzlaTime}</span>
-                    <span>•</span>
-                    <span>Apertura: 6:00 AM</span>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div className="w-full bg-emerald-950/40 border border-emerald-500/40 rounded-xl py-1.5 px-3 flex items-center justify-between text-[11px] text-emerald-300 font-bold">
-                <span className="flex items-center gap-1.5">
-                  <span>🕒</span>
-                  <span>Horario de Recargas y Retiros: 6:00 AM a 9:30 PM (Hora Vzla)</span>
-                </span>
-                <span className="text-emerald-400 bg-emerald-900/60 px-2 py-0.5 rounded-full text-[10px] border border-emerald-500/30">
-                  ● En servicio ({operatingStatus.formattedVzlaTime})
-                </span>
-              </div>
-            )}
+            {/* Banner 24/7 de Recargas Activas */}
+            <div className="w-full bg-emerald-950/60 border border-emerald-500/50 rounded-2xl p-2.5 flex items-center justify-between text-xs text-emerald-300 font-bold shadow-md">
+              <span className="flex items-center gap-2">
+                <span className="text-base">⚡</span>
+                <span>Recargas Disponibles 24/7 (Acreditación Automática en Segundos)</span>
+              </span>
+              <span className="text-emerald-300 bg-emerald-900/80 px-2.5 py-1 rounded-full text-[10px] border border-emerald-400/40 uppercase tracking-wider font-extrabold">
+                ● En Servicio Continuo
+              </span>
+            </div>
 
             {/* Notificación a los usuarios sobre el cambio a Banco del Tesoro */}
             <div className="w-full bg-gradient-to-r from-amber-950/90 via-[#231704] to-amber-950/90 border-2 border-amber-400/80 rounded-2xl p-3 flex items-start gap-3 shadow-xl">
@@ -1121,12 +1094,10 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
 
               <button
                 type="submit"
-                disabled={loading || !operatingStatus.isOpen}
+                disabled={loading}
                 className="w-full py-2.5 mt-1 bg-gradient-to-r from-amber-500 to-yellow-500 hover:brightness-110 text-black font-extrabold text-xs rounded-xl shadow-lg transition disabled:opacity-50 disabled:grayscale cursor-pointer"
               >
-                {!operatingStatus.isOpen
-                  ? "⛔ Recargas cerradas (Horario: 6:00 AM a 9:30 PM Vzla)"
-                  : loading
+                {loading
                   ? "Validando con Banco del Tesoro..."
                   : "⚡ Validar y Recargar Monedas al Instante"}
               </button>
