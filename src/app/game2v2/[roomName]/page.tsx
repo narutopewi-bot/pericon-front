@@ -1937,7 +1937,7 @@ export default function GameTwoVsTwo() {
                 <span style="font-weight: bold; color: #facc15;">${totalPot} monedas</span>
               </div>
               <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                <span style="color: #cbd5e1;">🏛️ Comisión de sala (20%):</span>
+                <span style="color: #cbd5e1;">🏛️ Comisión de sala (10%):</span>
                 <span style="font-weight: bold; color: #fb923c;">-${houseCommission} monedas</span>
               </div>
               <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">

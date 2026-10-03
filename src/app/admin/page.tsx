@@ -392,14 +392,14 @@ export default function AdminPage() {
           botDifficulty: {
             ...prev.botDifficulty,
             mode: mode,
-            housePercent: mode === "facil" ? 50 : mode === "dificil" ? 65 : 60,
-            userPercent: mode === "facil" ? 50 : mode === "dificil" ? 35 : 40,
+            housePercent: mode === "facil" ? 40 : mode === "dificil" ? 65 : 50,
+            userPercent: mode === "facil" ? 60 : mode === "dificil" ? 35 : 50,
           }
         } : prev);
         Swal.fire({
           icon: "success",
           title: "Dificultad Actualizada",
-          text: `El bot ahora está en Modo ${mode.toUpperCase()} (${mode === "facil" ? "50% Casa / 50% Jugador - El jugador gana con mayor frecuencia" : mode === "dificil" ? "65% Casa / 35% Jugador - Mayor dificultad para la casa" : "60% Casa / 40% Jugador - Balance estándar"}).`,
+          text: `El bot ahora está en Modo ${mode.toUpperCase()} (${mode === "facil" ? "40% Casa / 60% Jugador - El jugador gana con mayor frecuencia" : mode === "dificil" ? "65% Casa / 35% Jugador - Mayor dificultad para la casa" : "50% Casa / 50% Jugador - Balance equitativo"}).`,
           background: "#180e07",
           color: "#fef3c7",
           confirmButtonColor: "#f59e0b"
@@ -2366,10 +2366,10 @@ export default function AdminPage() {
                       ? "bg-green-600 text-white ring-2 ring-green-400"
                       : "bg-[#24140a] text-green-400 border border-green-500/40 hover:bg-green-950/40"
                   }`}
-                  title="50% Casa / 50% Jugador - Permite ganar más seguido al usuario"
+                  title="40% Casa / 60% Jugador - Permite ganar más seguido a los usuarios (atracción de clientes)"
                 >
                   <span>🟢</span>
-                  <span>Fácil (50%)</span>
+                  <span>Fácil (60% Jugador)</span>
                 </button>
 
                 <button
@@ -2381,10 +2381,10 @@ export default function AdminPage() {
                       ? "bg-amber-500 text-black ring-2 ring-amber-300"
                       : "bg-[#24140a] text-amber-300 border border-amber-500/40 hover:bg-amber-950/40"
                   }`}
-                  title="55% Casa / 45% Jugador - Balance gradual recomendado"
+                  title="50% Casa / 50% Jugador - Balance equitativo"
                 >
                   <span>🟡</span>
-                  <span>Medio (55%)</span>
+                  <span>Medio (50%)</span>
                 </button>
 
                 <button
@@ -2396,10 +2396,10 @@ export default function AdminPage() {
                       ? "bg-red-600 text-white ring-2 ring-red-400"
                       : "bg-[#24140a] text-red-400 border border-red-500/40 hover:bg-red-950/40"
                   }`}
-                  title="62% Casa / 38% Jugador - Mayor dificultad"
+                  title="65% Casa / 35% Jugador - Mayor dificultad"
                 >
                   <span>🔴</span>
-                  <span>Difícil (62%)</span>
+                  <span>Difícil (65%)</span>
                 </button>
               </div>
             </div>
@@ -3885,7 +3885,7 @@ export default function AdminPage() {
                   <div className="text-xl sm:text-2xl font-black text-emerald-400 mt-1">
                     🪙 {(matchesPeriodSummary?.totalHouseCommissions ?? matches.reduce((s, m) => s + m.houseCommission, 0)).toLocaleString()}
                   </div>
-                  <span className="text-[10px] text-emerald-300/60">Retención 20% / 100%</span>
+                  <span className="text-[10px] text-emerald-300/60">Retención 10% / 100%</span>
                 </div>
 
                 <div className="bg-[#24140a] border border-amber-500/20 rounded-xl p-3">
@@ -4098,7 +4098,7 @@ export default function AdminPage() {
                               ) : (
                                 <div className="flex flex-col items-start gap-0.5">
                                   <span className="text-green-400 font-bold">+🪙 {m.houseCommission}</span>
-                                  <span className="text-[10px] text-green-300/70 font-semibold">20% Duelo</span>
+                                  <span className="text-[10px] text-green-300/70 font-semibold">10% Duelo</span>
                                 </div>
                               )}
                             </td>
@@ -4218,10 +4218,10 @@ export default function AdminPage() {
                       ? "bg-green-600 text-white ring-2 ring-green-400"
                       : "bg-[#24140a] text-green-400 border border-green-500/40 hover:bg-green-950/40"
                   }`}
-                  title="50% Casa / 50% Jugador - Permite ganar más seguido al usuario"
+                  title="40% Casa / 60% Jugador - Permite ganar más seguido a los usuarios (atracción de clientes)"
                 >
                   <span>🟢</span>
-                  <span>Fácil (50%)</span>
+                  <span>Fácil (60% Jugador)</span>
                 </button>
 
                 <button
@@ -4233,10 +4233,10 @@ export default function AdminPage() {
                       ? "bg-amber-500 text-black ring-2 ring-amber-300"
                       : "bg-[#24140a] text-amber-300 border border-amber-500/40 hover:bg-amber-950/40"
                   }`}
-                  title="60% Casa / 40% Jugador - Balance diario 60-40 recomendado"
+                  title="50% Casa / 50% Jugador - Balance equitativo"
                 >
                   <span>🟡</span>
-                  <span>Medio (60%)</span>
+                  <span>Medio (50%)</span>
                 </button>
 
                 <button
@@ -4725,7 +4725,7 @@ export default function AdminPage() {
                   🪙 {financialSummary.totalCommissions.toLocaleString()}
                 </div>
                 <p className="text-[11px] text-amber-200/60 mt-1">
-                  En {financialSummary.totalMatches} duelos (100% salas privadas y 20% matchmaking)
+                  En {financialSummary.totalMatches} duelos (100% salas privadas y 10% matchmaking)
                 </p>
               </div>
 

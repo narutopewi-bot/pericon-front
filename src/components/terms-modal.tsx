@@ -86,13 +86,13 @@ export default function TermsModal({ isOpen, onClose, onAccept }: TermsModalProp
           {/* Sección 3: Rol del Administrador y Comisión de Árbitro */}
           <div className="space-y-1.5">
             <h3 className="text-white font-extrabold text-sm flex items-center gap-1.5 text-amber-400">
-              <ShieldCheck size={16} /> 3. Arbitraje Tecnológico y Comisión por Servicio (20%)
+              <ShieldCheck size={16} /> 3. Arbitraje Tecnológico y Comisión por Servicio (10%)
             </h3>
             <p>
               La administración de la plataforma actúa única y exclusivamente como <strong>árbitro tecnológico y proveedor de la infraestructura digital</strong> para permitir el juego entre usuarios o contra el sistema.
             </p>
             <p>
-              Por la prestación de este servicio, mantenimiento de servidores y resolución automatizada de partidas, el sistema descuenta automáticamente un <strong>veinte por ciento (20%)</strong> sobre el pozo acumulado de apuestas en cada partida concluida, entregando el ochenta por ciento (80%) restante al ganador legítimo.
+              Por la prestación de este servicio, mantenimiento de servidores y resolución automatizada de partidas, el sistema descuenta automáticamente un <strong>diez por ciento (10%)</strong> sobre el pozo acumulado de apuestas en cada partida concluida, entregando el noventa por ciento (90%) restante al ganador legítimo.
             </p>
           </div>
 

@@ -420,6 +420,11 @@ export default function Duel1vs1() {
   const handleClaimRivalTimeout = async () => {
     if (rivalTimeoutData.isClaiming) return;
     if (!idGame.current || idGame.current <= 0) return;
+    if (isMyTurn || switchturn.current) {
+      console.warn("[ClaimTimeout] Reclamo rechazado en cliente: es tu propio turno de juego.");
+      setRivalTimeoutData(prev => ({ ...prev, isOpen: false, isClaiming: false }));
+      return;
+    }
     if (hasPaidOutRef.current || isGameOverRef.current) {
       console.warn("[ClaimTimeout] Reclamo rechazado en cliente: la partida ya concluyó o fue liquidada.");
       setRivalTimeoutData(prev => ({ ...prev, isOpen: false, isClaiming: false }));
@@ -444,6 +449,8 @@ export default function Duel1vs1() {
 
   const handleRivalTimeoutDetected = () => {
     if (
+      isMyTurn ||
+      switchturn.current ||
       hasPaidOutRef.current ||
       isGameOverRef.current ||
       hasTimedOut.current ||
@@ -458,7 +465,7 @@ export default function Duel1vs1() {
       !idGame.current ||
       idGame.current <= 0
     ) {
-      console.log("[RivalTimeout] Detección de inactividad ignorada: la mesa se encuentra en estado protegido (transición/reparto/tumba).");
+      console.log("[RivalTimeout] Detección de inactividad ignorada: la mesa se encuentra en estado protegido o es mi propio turno.");
       return;
     }
     const oppName = oponent.username && oponent.username !== 'nulo' ? oponent.username : 'Rival';
@@ -1198,6 +1205,9 @@ export default function Duel1vs1() {
     connection.on('GameStateSync1vs1', (state: any) => {
       console.log("[GameStateSync1vs1] Sincronización autoritativa recibida:", state);
       if (!state) return;
+      hasTimedOut.current = false;
+      setTimeLeft(30);
+      setRivalTimeoutData(prev => ({ ...prev, isOpen: false, isClaiming: false }));
       if (typeof state.pointsOwn === 'number' && typeof state.pointsOpp === 'number') {
         updatePointsAndTumba(state.pointsOwn, state.pointsOpp);
       }
@@ -1257,8 +1267,14 @@ export default function Duel1vs1() {
 
     connection.on('OpponentDisconnectedNotice1vs1', (data: any) => {
       console.log("[OpponentDisconnectedNotice1vs1] El rival se desconectó. Iniciando gracia...", data);
+      const myActiveId = connection?.connectionId || playerown.current;
+      if (data?.disconnectedConnectionId && myActiveId && data.disconnectedConnectionId === myActiveId) {
+        console.warn("[OpponentDisconnectedNotice1vs1] Ignorando aviso: corresponde a mi propio socket anterior.");
+        return;
+      }
       if (disconnectDebounceTimerRef.current) clearTimeout(disconnectDebounceTimerRef.current);
       disconnectDebounceTimerRef.current = setTimeout(() => {
+        if (hasPaidOutRef.current || isGameOverRef.current) return;
         playSynthSound?.('tumba');
         const oppName = data?.disconnectedPlayerName || oponent.username || 'Rival';
         setRivalTimeoutData({
@@ -3269,7 +3285,20 @@ export default function Duel1vs1() {
             </div>
 
             <button
-              onClick={() => router.push('/desk')}
+              onClick={async () => {
+                if (idGame.current > 0 && !hasPaidOutRef.current && !isGameOverRef.current && connection) {
+                  try {
+                    await safeSignalRInvoke(connection, "SurrenderGame1vs1", {
+                      game: idGame.current,
+                      order: 89,
+                      content: playerown.current
+                    });
+                  } catch (e) {
+                    console.error("Error al rendirse al salir:", e);
+                  }
+                }
+                router.push('/desk');
+              }}
               className="text-xs text-red-400 hover:text-red-300 font-bold underline transition"
             >
               Cancelar y volver al escritorio

@@ -130,7 +130,7 @@ const Duelmode: React.FC<DuelmodeProps> = ({ onMode, duelToggle }) => {
       <div className="mt-4 text-left">
         <label className="text-[11px] font-black uppercase tracking-wider text-amber-400 block mb-2 flex items-center justify-between">
           <span>2. Ficha de Apuesta por Jugador</span>
-          <span className="text-[10px] text-amber-300 font-normal">Ganador se lleva el 80%</span>
+          <span className="text-[10px] text-amber-300 font-normal">Ganador se lleva el 90%</span>
         </label>
 
         <div className="grid grid-cols-4 gap-1.5 sm:gap-2">

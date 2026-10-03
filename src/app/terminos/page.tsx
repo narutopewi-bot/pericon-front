@@ -92,13 +92,13 @@ export default function TerminosPage() {
           {/* 3. Árbitro */}
           <section className="space-y-2">
             <h2 className="text-base sm:text-lg font-extrabold text-amber-400 flex items-center gap-2">
-              <ShieldCheck size={20} /> 3. Calidad de Árbitro Tecnológico y Comisión (20%)
+              <ShieldCheck size={20} /> 3. Calidad de Árbitro Tecnológico y Comisión (10%)
             </h2>
             <p>
               El titular y los administradores de Pericón Online actúan exclusivamente en condición de <strong>árbitros y facilitadores de la infraestructura de comunicaciones</strong> que permite a los usuarios disputar partidas reglamentarias del juego tradicional de cartas.
             </p>
             <p>
-              En contraprestación por el servicio de mediación, mantenimiento tecnológico y soporte, la plataforma retiene una comisión fija e innegociable equivalente al <strong>veinte por ciento (20%)</strong> sobre el pozo total apostado en cada partida, distribuyéndose el ochenta por ciento (80%) restante en favor del jugador vencedor.
+              En contraprestación por el servicio de mediación, mantenimiento tecnológico y soporte, la plataforma retiene una comisión fija e innegociable equivalente al <strong>diez por ciento (10%)</strong> sobre el pozo total apostado en cada partida, distribuyéndose el noventa por ciento (90%) restante en favor del jugador vencedor.
             </p>
           </section>
 

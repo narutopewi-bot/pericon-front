@@ -228,7 +228,7 @@ export default function VictoryShowcaseModal({
                 <span className="font-extrabold text-amber-400">{potTotal} monedas</span>
               </div>
               <div className="flex justify-between items-center mb-0.5">
-                <span>🏛️ Comisión de casa (20%):</span>
+                <span>🏛️ Comisión de casa (10%):</span>
                 <span className="font-extrabold text-orange-400">-{houseFee} monedas</span>
               </div>
               <div className="my-1 h-px bg-white/10" />
