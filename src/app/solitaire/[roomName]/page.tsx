@@ -735,17 +735,17 @@ export default function Duel() {
         isProcessingRef.current = true;
         setIsProcessingMove(true);
 
-        // 1. PAUSA GENEROSA DE 2.4 SEGUNDOS: CERO POPUPS NI MODALES. SE VEN LAS CARTAS PERFECTAMENTE.
+        // 1. Pausa de 2.4 segundos para apreciar la baza ganadora
         setTimeout(() => {
           setIsReturningToDeck(true);
           playSwooshSound();
 
-          // 2. AHORA QUE REGRESAN AL MAZO, SE MUESTRA EL MENSAJE DE QUIÉN GANÓ LA RONDA
+          // 2. Al regresar al mazo, limpiar mesa manteniendo La Vida y anunciar ganador
           setTimeout(() => {
             setIsReturningToDeck(false);
             setTrickWinner(null);
-            setTableCards([]);
-            setPlayerCards([]); // Limpiar mano anterior: nada que tocar en pantalla
+            setTableCards([cpEightRef.current]);
+            setPlayerCards([]);
 
             // Fin de la mano (uno de los dos ganó 2 bazas)
             const playerWonHand = (cp01 == 2);
@@ -815,7 +815,6 @@ export default function Duel() {
                   subtitle: stakePoints > 1 ? `Te llevas ${stakePoints} piedras` : 'Sumas 1 piedra a tu cuenta',
                   badge: `Marcador: ${pointsownRef.current} - ${pointsoppRef.current}`
                 }, 2500);
-                xcad = stakePoints > 1 ? `¡Ganaste la mano! (+${stakePoints} piedras)` : "¡Punto para ti!";
               } else {
                 updatePointsAndTumba(pointsownRef.current, pointsoppRef.current + stakePoints);
                 playVoiceAudio('punto_para_rivales', "Punto para los rivales.");
@@ -827,21 +826,15 @@ export default function Duel() {
                   subtitle: stakePoints > 1 ? `El rival suma ${stakePoints} piedras` : 'El rival suma 1 piedra',
                   badge: `Marcador: ${pointsownRef.current} - ${pointsoppRef.current}`
                 }, 2500);
-                xcad = stakePoints > 1 ? `Pericón gana la mano (+${stakePoints} piedras)` : "Punto para tu oponente";
               }
             }
 
-            const alertTwo = AlertMessage(xcad);
+            // Tras la locución y animación visual, solicitar nueva mano sin popups que traben la mesa
             setTimeout(() => {
-              Swal.fire(alertTwo.firstMessage).then(() => {
-                // Permanece bloqueado hasta que el servidor reparta la nueva mano
-                delay(500).then(() => {
-                  shuffleCards();
-                });
-              });
-            }, 1800);
+              shuffleCards();
+            }, 2600);
           }, 850);
-        }, 4000);
+        }, 2400);
       }
 
     });
@@ -1302,7 +1295,6 @@ export default function Duel() {
       const numberCard : string = `${pointsownRef.current}-${pointsoppRef.current}-${partownRef.current}-${partoppRef.current}`;
       const dato : Message = { game: numberGame, order: 105, content: numberCard };
       try {
-        await new Promise(resolve => setTimeout(resolve, 800));
         console.log("Enviando objeto al servidor:", dato);
         await connection.invoke("ChangeTurnSol", dato);
       } catch (error) {
