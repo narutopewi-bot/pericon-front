@@ -2284,7 +2284,7 @@ export default function Duel1vs1() {
               badge: '+3 piedras automáticas'
             }, 2600);
           } else {
-            playVoiceAudio('la_cogia_rival', "¡La Cogía para los rivales!");
+            playVoiceAudio('la_cogia_rival', "¡La Cogía para el rival!");
             vibrateDevice('reject');
             playSynthSound('reject');
             triggerAnnouncement({
@@ -2350,7 +2350,7 @@ export default function Duel1vs1() {
 
                 const oppWasInTumba = (pointsopp.current >= 9 || (partoppRef.current === 1 && pointsopp.current === 8));
                 if (oppWasInTumba) {
-                  playVoiceAudio('rivales_cayeron_tumba', "¡Los rivales cayeron en Tumba! Más tres piedras.");
+                  playVoiceAudio('rivales_cayeron_tumba', "¡El rival cayó en Tumba! Más tres piedras.");
                   vibrateDevice('winRound');
                   playSynthSound('win');
                   triggerAnnouncement({
@@ -2363,7 +2363,7 @@ export default function Duel1vs1() {
                   // Evitar doble voz: si la partida ya finalizó o la voz de victoria ya sonó, NO cantar ronda
                   if (!hasPlayedGameOverVoiceRef.current && !isGameOverRef.current && !hasPaidOutRef.current) {
                     if (stakePts > 1) {
-                      playVoiceAudio('ganaron_la_mano', "¡Ganaron la mano! Sumamos piedras.");
+                      playVoiceAudio('ganaron_la_mano', "¡Ganaste la mano! Sumas piedras.");
                     } else {
                       playVoiceAudio('ganaste_la_ronda', "¡Ganaste la ronda!");
                     }
@@ -2389,18 +2389,7 @@ export default function Duel1vs1() {
                       console.error("Error en Watchdog RequestNewHand1vs1:", e);
                     }
                   }
-                }, 4500);
-
-                setTimeout(async () => {
-                  setTableCards(prev => [cpEightRef.current]);
-                  const dato = { game: idGame.current, order: 87, content: "" };
-                  try {
-                    console.log("Enviando objeto al servidor:", dato);
-                    await safeSignalRInvoke(connection, "ChangeGame1vs1", dato);
-                  } catch (error) {
-                    console.error("Error al enviar objeto al servidor:", error);
-                  };
-                }, 2600);
+                }, 7500);
               } else if (Orden == "5") {
                 switchturn.current = false;
                 setIsMyTurn(false);
@@ -2457,7 +2446,7 @@ export default function Duel1vs1() {
                       console.error("Error en Watchdog RequestNewHand1vs1:", e);
                     }
                   }
-                }, 4500);
+                }, 7500);
 
                 const playerWasInTumba = (pointsown.current >= 9 || (partownRef.current === 1 && pointsown.current === 8));
                 if (playerWasInTumba) {
@@ -2471,7 +2460,7 @@ export default function Duel1vs1() {
                     badge: `Marcador: ${pointsown.current} - ${pointsopp.current}`
                   }, 2600);
                 } else {
-                  playVoiceAudio('punto_para_rivales', "Punto para los rivales.");
+                  playVoiceAudio('punto_para_rivales', "Punto para el rival.");
                   vibrateDevice('reject');
                   playSynthSound('reject');
                   triggerAnnouncement({
@@ -2612,7 +2601,7 @@ export default function Duel1vs1() {
 
               const oppWasInTumba = (pointsopp.current >= 9 || (partoppRef.current === 1 && pointsopp.current === 8));
               if (oppWasInTumba) {
-                playVoiceAudio('rivales_cayeron_tumba', "¡Los rivales cayeron en Tumba! Más tres piedras.");
+                playVoiceAudio('rivales_cayeron_tumba', "¡El rival cayó en Tumba! Más tres piedras.");
                 vibrateDevice('winRound');
                 playSynthSound('win');
                 triggerAnnouncement({
@@ -2625,7 +2614,7 @@ export default function Duel1vs1() {
                 // Evitar doble voz: si la partida ya finalizó o la voz de victoria ya sonó, NO cantar ronda
                 if (!hasPlayedGameOverVoiceRef.current && !isGameOverRef.current && !hasPaidOutRef.current) {
                   if (stakePts > 1) {
-                    playVoiceAudio('ganaron_la_mano', "¡Ganaron la mano! Sumamos piedras.");
+                    playVoiceAudio('ganaron_la_mano', "¡Ganaste la mano! Sumas piedras.");
                   } else {
                     playVoiceAudio('ganaste_la_ronda', "¡Ganaste la ronda!");
                   }
@@ -2651,18 +2640,7 @@ export default function Duel1vs1() {
                     console.error("Error en Watchdog RequestNewHand1vs1:", e);
                   }
                 }
-              }, 4500);
-
-              setTimeout(async () => {
-                setTableCards(prev => [cpEightRef.current]);
-                const dato = { game: idGame.current, order: 87, content: "" };
-                try {
-                  console.log("Enviando objeto al servidor tras ronda:", dato);
-                  await safeSignalRInvoke(connection, "ChangeGame1vs1", dato);
-                } catch (error) {
-                  console.error("Error al enviar objeto al servidor:", error);
-                };
-              }, 2600);
+              }, 7500);
             } else if (Orden == "4") {
               switchturn.current = false;
               setIsMyTurn(false);
@@ -2720,7 +2698,7 @@ export default function Duel1vs1() {
                     console.error("Error en Watchdog RequestNewHand1vs1:", e);
                   }
                 }
-              }, 4500);
+              }, 7500);
 
               const playerWasInTumba = (pointsown.current >= 9 || (partownRef.current === 1 && pointsown.current === 8));
               if (playerWasInTumba) {
@@ -2734,7 +2712,7 @@ export default function Duel1vs1() {
                   badge: `Marcador: ${pointsown.current} - ${pointsopp.current}`
                 }, 2600);
               } else {
-                playVoiceAudio('punto_para_rivales', "Punto para los rivales.");
+                playVoiceAudio('punto_para_rivales', "Punto para el rival.");
                 vibrateDevice('reject');
                 playSynthSound('reject');
                 triggerAnnouncement({
@@ -3780,20 +3758,20 @@ export default function Duel1vs1() {
 
                   if (canDenyCinco) {
                     return (
-                      <div className='flex justify-center mb-2 animate-bounce-subtle'>
-                        <div className='flex items-center gap-2 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black px-4 py-1.5 rounded-full font-black text-xs sm:text-sm shadow-xl border-2 border-yellow-200'>
-                          <span className='text-sm sm:text-base'>👑</span>
-                          <span>REGLA DEL 5 DE ORO: ¡Puedes negarlo y tirar otra carta, o jugarlo si prefieres!</span>
+                      <div className='flex justify-center mb-1.5 sm:mb-2 animate-bounce-subtle px-2'>
+                        <div className='flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 text-black px-3 py-1 sm:px-4 sm:py-1.5 rounded-full font-black text-[11px] sm:text-xs shadow-xl border-2 border-yellow-200 text-center leading-tight'>
+                          <span className='text-xs sm:text-sm'>👑</span>
+                          <span>5 DE ORO: ¡Puedes negarlo y tirar otra carta, o jugarlo!</span>
                         </div>
                       </div>
                     );
                   }
 
                   return (
-                    <div className='flex justify-center mb-2 animate-bounce-subtle'>
-                      <div className='flex items-center gap-2 bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 text-black px-4 py-1 rounded-full font-black text-xs sm:text-sm shadow-xl border-2 border-amber-300'>
-                        <span className='text-sm sm:text-base'>⚡</span>
-                        <span>REGLA DEL PELAO: ¡Salieron con triunfo, debes lanzar triunfo!</span>
+                    <div className='flex justify-center mb-1.5 sm:mb-2 animate-bounce-subtle px-2'>
+                      <div className='flex items-center gap-1.5 sm:gap-2 bg-gradient-to-r from-amber-600 via-yellow-500 to-amber-600 text-black px-3 py-1 sm:px-4 sm:py-1 rounded-full font-black text-[11px] sm:text-xs shadow-xl border-2 border-amber-300 text-center leading-tight'>
+                        <span className='text-xs sm:text-sm'>⚡</span>
+                        <span>PELAO: ¡Salieron con triunfo, debes lanzar triunfo!</span>
                       </div>
                     </div>
                   );
@@ -3933,12 +3911,13 @@ export default function Duel1vs1() {
 
 
                 {/* Botones de Acción y Temporizador */}
-                <div className='fixed right-2 top-[52%] -translate-y-1/2 sm:top-auto sm:translate-y-0 sm:bottom-6 sm:right-6 z-30 flex flex-col sm:flex-row items-end gap-1.5'>
-                  {/* Temporizador de 30s con Auto-juego */}
+                <div className='fixed right-2 bottom-3 sm:bottom-6 sm:right-6 z-30 flex flex-row items-center gap-1.5'>
+                  {/* Temporizador de 30s con Auto-juego en segundo plano (sin duplicar el reloj de cabecera) */}
                   <GameTurnTimer
                     isMyTurn={switchturn.current && !isProcessingMove && !isDealing && playerCards.length > 0 && tumbaCountdown === null && !isWaitingOppTumba}
                     onTimeout={handleTurnTimeout1v1}
                     maxSeconds={30}
+                    className='hidden'
                   />
 
                   <button
