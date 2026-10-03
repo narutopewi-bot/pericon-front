@@ -41,6 +41,14 @@ const Duel = ({ open, duelToggle, }: any) => {
   }
 
   React.useEffect(() => {
+    if (!open) {
+      setOnQueue(false);
+      setDuelMode(null);
+      setQueueCount(1);
+    }
+  }, [open]);
+
+  React.useEffect(() => {
     if (!connection) return;
 
     connection.on("MatchmakingStatus", (status: any) => {

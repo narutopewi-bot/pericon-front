@@ -1248,6 +1248,12 @@ export default function Duel1vs1() {
         currentStakeRef.current = state.currentStake;
       }
 
+      // Sincronización de La Vida si está disponible
+      if (typeof state.lifeCardId === 'number' && state.lifeCardId >= 0) {
+        const lifeCard = Baraja(state.lifeCardId, 0);
+        cpEightRef.current = lifeCard;
+      }
+
       // Sincronización autoritativa de la mesa y el rol de tiro (Mano vs Pie)
       if (state.hasLeadMove && state.leadMove?.content) {
         const oppParts = state.leadMove.content.split(' ');
@@ -1267,6 +1273,15 @@ export default function Duel1vs1() {
         if (state.isMyTurn) {
           roundturn.current = true; // Si es mi turno y la mesa está vacía, soy Mano (Orden 82)
         }
+      }
+
+      // Sincronización de cartas: Si el jugador perdió las cartas (pantalla en blanco o refresh),
+      // restaurar exactamente las mismas cartas que tiene en mano según el servidor (sin reiniciar)
+      if (playerCardsRef.current.length === 0 && Array.isArray(state.remainingCardIds) && state.remainingCardIds.length > 0) {
+        console.log("[GameStateSync1vs1] Restaurando exactamente las mismas cartas vivas:", state.remainingCardIds);
+        const restored = state.remainingCardIds.map((cid: number, idx: number) => Baraja(cid, idx));
+        playerCardsRef.current = restored;
+        setPlayerCards(restored);
       }
 
       setRivalTimeoutData(prev => prev.isOpen ? { ...prev, isOpen: false } : prev);
@@ -1384,6 +1399,14 @@ export default function Duel1vs1() {
     connection.on('setChangeHand', (modelo: Message) => {
       setIsWaitingHandChange1v1(false);
       if (handWatchdogTimerRef.current) clearTimeout(handWatchdogTimerRef.current);
+
+      // Si el jugador ya tiene cartas vivas en mano y es la misma mano que ya se está jugando,
+      // NUNCA reiniciar sus cartas a 3 (mantener exactamente las mismas cartas que tiene):
+      if (playerCardsRef.current.length > 0 && lastHandCardsRef.current === modelo.content) {
+        console.log("[setChangeHand] Bloqueo de reinicio redundante: Se mantienen las mismas cartas activas.");
+        return;
+      }
+
       lastHandCardsRef.current = modelo.content;
       execHand(modelo, true);
     });

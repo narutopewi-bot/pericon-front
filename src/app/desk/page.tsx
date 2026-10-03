@@ -408,11 +408,57 @@ export default function Desk() {
       }
     });
 
+    connection.on('ActiveMatchPending1vs1', (data: any) => {
+      console.log('[ActiveMatchPending1vs1 recibido]', data);
+      if (!data?.hasActiveMatch) return;
+
+      // Cerrar modales si estuvieran abiertos
+      setOpen(false);
+      setNewopen(false);
+
+      Swal.fire({
+        title: 'PARTIDA ACTIVA EN CURSO',
+        html: `
+          <div style="text-align: center; padding: 4px 0;">
+            <p style="color: #cbd5e1; font-size: 15px; margin-bottom: 12px;">
+              Tienes una jugada activa contra <strong style="color: #60a5fa;">${data.opponentName || 'tu rival'}</strong> por <strong style="color: #facc15;">${data.coins || 100} monedas</strong>.
+            </p>
+            <div style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 12px; padding: 10px; color: #fde68a; font-size: 13px; margin-bottom: 10px;">
+              ⏱️ Tienes <strong>${data.secondsLeft || 60} segundos</strong> para reconectarte y jugar con <strong>tus mismas cartas</strong>.
+            </div>
+            <p style="color: #94a3b8; font-size: 13px;">¿Deseas reconectar ahora?</p>
+          </div>
+        `,
+        icon: 'warning',
+        showCancelButton: true,
+        confirmButtonText: '⚡ Sí, reconectar',
+        cancelButtonText: '❌ Abandonar partida',
+        confirmButtonColor: '#2563eb',
+        cancelButtonColor: '#ef4444',
+        background: '#15091e',
+        color: '#fff',
+        allowOutsideClick: false,
+        customClass: {
+          popup: 'border-2 border-amber-500/50 rounded-3xl shadow-2xl'
+        }
+      }).then(async (result) => {
+        if (result.isConfirmed) {
+          const serialized = encodeURIComponent(data.serializedDatos);
+          router.push(`/game/999?datos=${serialized}&reconnect=1`);
+        } else if (result.dismiss === Swal.DismissReason.cancel) {
+          if (connection) {
+            await safeSignalRInvoke(connection, "AbandonActiveMatch1vs1", data.gameId, data.isPlayerOne);
+          }
+        }
+      });
+    });
+
     return () => {
       connection.off('GetPlayer');
       connection.off('GlobalAnnouncement');
+      connection.off('ActiveMatchPending1vs1');
     };
-  }, [connection]); 
+  }, [connection, router]); 
 
   useEffect(() => {
     if (!connection) return;
@@ -422,6 +468,8 @@ export default function Desk() {
         await safeSignalRInvoke(connection, "SetPlayer");
         if (gamep.name && gamep.name !== "nulo") {
           await safeSignalRInvoke(connection, "IdentifyPlayer", gamep.name, gamep.email, gamep.coins);
+          // Consulta si hay partida activa pendiente dentro del lapso de 1 minuto
+          await safeSignalRInvoke(connection, "CheckActiveMatch1vs1", gamep.id || "", gamep.name || "");
         }
       } catch (error) {
         console.error("Error al identificar jugador en desk:", error);
