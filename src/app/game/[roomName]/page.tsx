@@ -593,7 +593,11 @@ export default function Duel1vs1() {
                    !isProcessingMove &&
                    !isWaitingOppTumba &&
                    tumbaCountdown === null &&
-                   pedirChallenge === null;
+                   pedirChallenge === null &&
+                   trickWinner === null &&
+                   pointOne.current < 2 &&
+                   pointTwo.current < 2 &&
+                   tableCards.length <= 2;
 
 
 
@@ -2340,13 +2344,18 @@ export default function Duel1vs1() {
                 isProcessingRef.current = false;
                 setIsProcessingMove(false);
               } else if (Orden == "3") {
+                isProcessingRef.current = false;
+                setIsProcessingMove(false);
                 pointOne.current = 0;
                 pointTwo.current = 0;
                 switchturn.current = false;
                 setIsMyTurn(false);
                 setTimeLeft(30);
                 hasTimedOut.current = false;
-                setPlayerCards([]);
+                if (playerCardsRef.current.length < 3) {
+                  playerCardsRef.current = [];
+                  setPlayerCards([]);
+                }
 
                 const oppWasInTumba = (pointsopp.current >= 9 || (partoppRef.current === 1 && pointsopp.current === 8));
                 if (oppWasInTumba) {
@@ -2426,14 +2435,18 @@ export default function Duel1vs1() {
                 isProcessingRef.current = false;
                 setIsProcessingMove(false);
               } else if (Orden == "2") {
+                isProcessingRef.current = false;
+                setIsProcessingMove(false);
                 pointOne.current = 0;
                 pointTwo.current = 0;
                 switchturn.current = false;
                 setIsMyTurn(false);
                 setTimeLeft(30);
                 hasTimedOut.current = false;
-                playerCardsRef.current = [];
-                setPlayerCards([]);
+                if (playerCardsRef.current.length < 3) {
+                  playerCardsRef.current = [];
+                  setPlayerCards([]);
+                }
 
                 setIsWaitingHandChange1v1(true);
                 if (handWatchdogTimerRef.current) clearTimeout(handWatchdogTimerRef.current);
@@ -2597,7 +2610,10 @@ export default function Duel1vs1() {
               setIsMyTurn(false);
               setTimeLeft(30);
               hasTimedOut.current = false;
-              setPlayerCards([]);
+              if (playerCardsRef.current.length < 3) {
+                playerCardsRef.current = [];
+                setPlayerCards([]);
+              }
 
               const oppWasInTumba = (pointsopp.current >= 9 || (partoppRef.current === 1 && pointsopp.current === 8));
               if (oppWasInTumba) {
@@ -2684,8 +2700,10 @@ export default function Duel1vs1() {
               setIsMyTurn(false);
               setTimeLeft(30);
               hasTimedOut.current = false;
-              playerCardsRef.current = [];
-              setPlayerCards([]);
+              if (playerCardsRef.current.length < 3) {
+                playerCardsRef.current = [];
+                setPlayerCards([]);
+              }
 
               setIsWaitingHandChange1v1(true);
               if (handWatchdogTimerRef.current) clearTimeout(handWatchdogTimerRef.current);
