@@ -4113,10 +4113,11 @@ export default function AdminPage() {
                       </tr>
                     ) : (
                       filteredPvpMatches.map((m) => {
-                        const isSalaMatch = m.houseCommission === m.totalPot || m.endReason?.includes("[SALA") || (m.winnerPrize === 0 && m.totalPot > 0);
+                        const isRefund = m.winnerUsername === "REEMBOLSO" || m.endReason?.toLowerCase().includes("reembolso");
+                        const isSalaMatch = !isRefund && (m.houseCommission === m.totalPot || m.endReason?.includes("[SALA"));
                         const q = playerMatchSearch.trim().toLowerCase();
-                        const isPlayerWon = q && m.winnerUsername.toLowerCase() === q;
-                        const isPlayerLost = q && m.loserUsername.toLowerCase() === q;
+                        const isPlayerWon = q && !isRefund && m.winnerUsername.toLowerCase() === q;
+                        const isPlayerLost = q && !isRefund && m.loserUsername.toLowerCase() === q;
 
                         return (
                           <tr key={m.id} className="hover:bg-amber-500/5 transition-colors">
@@ -4154,7 +4155,14 @@ export default function AdminPage() {
                             <td className="p-3.5 font-semibold text-amber-200">🪙 {m.betPerPlayer}</td>
                             <td className="p-3.5 font-black text-amber-300">🪙 {m.totalPot}</td>
                             <td className="p-3.5 font-bold">
-                              {isSalaMatch ? (
+                              {isRefund ? (
+                                <div className="flex flex-col items-start gap-0.5">
+                                  <span className="text-amber-400 font-bold text-sm">🪙 0</span>
+                                  <span className="inline-block bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[9.5px] font-black uppercase px-2 py-0.5 rounded-full">
+                                    Reembolso 100%
+                                  </span>
+                                </div>
+                              ) : isSalaMatch ? (
                                 <div className="flex flex-col items-start gap-0.5">
                                   <span className="text-emerald-400 font-black text-sm">+🪙 {m.houseCommission}</span>
                                   <span className="inline-block bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 text-[9.5px] font-black uppercase px-2 py-0.5 rounded-full">
@@ -4169,15 +4177,26 @@ export default function AdminPage() {
                               )}
                             </td>
                             <td className="p-3.5">
-                              <button
-                                onClick={() => setPlayerMatchSearch(m.winnerUsername)}
-                                className="inline-flex items-center gap-1 font-bold text-amber-300 hover:underline transition"
-                                title="Filtrar partidas del ganador"
-                              >
-                                🏆 {m.winnerUsername}
-                              </button>
-                              {isSalaMatch && (
-                                <span className="block text-[10px] text-amber-200/60 font-semibold">Tarifa Abonada a Casa</span>
+                              {isRefund ? (
+                                <div className="flex flex-col items-start gap-0.5">
+                                  <span className="font-bold text-amber-300 inline-flex items-center gap-1">
+                                    🔄 REEMBOLSO
+                                  </span>
+                                  <span className="block text-[10px] text-amber-200/60 font-semibold">Devuelto 100% a Jugadores</span>
+                                </div>
+                              ) : (
+                                <>
+                                  <button
+                                    onClick={() => setPlayerMatchSearch(m.winnerUsername)}
+                                    className="inline-flex items-center gap-1 font-bold text-amber-300 hover:underline transition"
+                                    title="Filtrar partidas del ganador"
+                                  >
+                                    🏆 {m.winnerUsername}
+                                  </button>
+                                  {isSalaMatch && (
+                                    <span className="block text-[10px] text-amber-200/60 font-semibold">Tarifa Abonada a Casa</span>
+                                  )}
+                                </>
                               )}
                             </td>
                             <td className="p-3.5 text-amber-200/70">{m.endReason}</td>
