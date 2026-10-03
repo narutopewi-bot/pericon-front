@@ -11,7 +11,7 @@ import * as signalR from '@microsoft/signalr';
 import { Baraja } from '@/lib/library';
 import Stone from '@/components/stone-meter';
 import { GameAnnouncement, AnnouncementData } from '@/components/game-announcement';
-import { playCardSound, playSwooshSound, vibrateDevice, playSynthSound, speakPhrase, playVoiceAudio, preloadVoiceAudios } from '@/lib/gameEffects';
+import { playCardSound, playSwooshSound, vibrateDevice, playSynthSound, speakPhrase, playVoiceAudio, stopVoiceAudio, preloadVoiceAudios } from '@/lib/gameEffects';
 import { playCardDealSound, playCardDropSound, playCoinWinSound, playCantoSound, playChatPopSound, isSoundMuted, setSoundMuted, unlockAudioEngine } from '@/lib/soundEffects';
 import GameTurnTimer from '@/components/game-turn-timer';
 import { reportAppError } from '@/lib/errorLogger';
@@ -306,6 +306,10 @@ export default function GameTwoVsTwo() {
   const [timeLeft, setTimeLeft] = useState<number>(30);
   const timeLeftRef = useRef<number>(30);
   const handleTurnTimeoutRef = useRef<() => void>(() => {});
+
+  // Guardia estricta de deduplicación de voz para fin de partida (evita que se repita la voz)
+  const hasPlayedGameOverVoiceRef = useRef<boolean>(false);
+  const isGameOverRef = useRef<boolean>(false);
 
   useEffect(() => {
     preloadVoiceAudios();
@@ -1653,7 +1657,10 @@ export default function GameTwoVsTwo() {
           subtitle: `Tu equipo suma +${addedStones} piedra(s)`,
           badge: 'MANO FINALIZADA'
         }, 3000);
-        playVoiceAudio('ganaron_la_mano', `¡Ganan la mano! Suman ${addedStones} piedras.`);
+        // Evitar doble voz: si la partida ya concluyó, NO cantar mano para que no choque con la voz de victoria de partida
+        if (!hasPlayedGameOverVoiceRef.current && !isGameOverRef.current) {
+          playVoiceAudio('ganaron_la_mano', `¡Ganan la mano! Suman ${addedStones} piedras.`);
+        }
       } else {
         triggerAnnouncement({
           type: 'opp_win_round',
@@ -1661,7 +1668,9 @@ export default function GameTwoVsTwo() {
           subtitle: `Los rivales suman +${addedStones} piedra(s)`,
           badge: 'MANO FINALIZADA'
         }, 3000);
-        playVoiceAudio('punto_para_rivales', `Punto para los rivales.`);
+        if (!hasPlayedGameOverVoiceRef.current && !isGameOverRef.current) {
+          playVoiceAudio('punto_para_rivales', `Punto para los rivales.`);
+        }
       }
     }
   };
@@ -1755,10 +1764,15 @@ export default function GameTwoVsTwo() {
         localStorage.setItem("pericon_user", JSON.stringify(storedUser));
       }
 
+      isGameOverRef.current = true;
       if (isPlayerTeamWinner) {
         vibrateDevice('winMatch');
         playSynthSound('win');
-        playVoiceAudio('victoria_partida', '¡Felicidades! Tu equipo ha ganado la partida.');
+        if (!hasPlayedGameOverVoiceRef.current) {
+          hasPlayedGameOverVoiceRef.current = true;
+          stopVoiceAudio();
+          playVoiceAudio('victoria_partida', '¡Felicidades! Tu equipo ha ganado la partida.');
+        }
 
         setTimeout(() => {
           Swal.fire({
@@ -1810,7 +1824,11 @@ export default function GameTwoVsTwo() {
           });
         }, 3200);
       } else {
-        playVoiceAudio('derrota_partida', 'Partida terminada. Los rivales se llevaron la victoria.');
+        if (!hasPlayedGameOverVoiceRef.current) {
+          hasPlayedGameOverVoiceRef.current = true;
+          stopVoiceAudio();
+          playVoiceAudio('derrota_partida', 'Partida terminada. Los rivales se llevaron la victoria.');
+        }
         setTimeout(() => {
           Swal.fire({
             title: 'PARTIDA AMISTOSA FINALIZADA',
@@ -1914,11 +1932,16 @@ export default function GameTwoVsTwo() {
       localStorage.setItem("pericon_user", JSON.stringify(storedUser));
     }
 
+    isGameOverRef.current = true;
     if (isPlayerTeamWinner) {
       vibrateDevice('winMatch');
       playSynthSound('win');
       playCoinWinSound();
-      playVoiceAudio('victoria_partida', '¡Felicidades! Tu equipo ha ganado la partida.');
+      if (!hasPlayedGameOverVoiceRef.current) {
+        hasPlayedGameOverVoiceRef.current = true;
+        stopVoiceAudio();
+        playVoiceAudio('victoria_partida', '¡Felicidades! Tu equipo ha ganado la partida.');
+      }
 
       Swal.fire({
         title: '🏆 ¡VICTORIA EN EQUIPO!',
@@ -1972,7 +1995,11 @@ export default function GameTwoVsTwo() {
         }
       });
     } else {
-      playVoiceAudio('derrota_partida', 'Partida terminada. Los rivales se llevaron la victoria.');
+      if (!hasPlayedGameOverVoiceRef.current) {
+        hasPlayedGameOverVoiceRef.current = true;
+        stopVoiceAudio();
+        playVoiceAudio('derrota_partida', 'Partida terminada. Los rivales se llevaron la victoria.');
+      }
       Swal.fire({
         title: '💔 PARTIDA FINALIZADA',
         html: `

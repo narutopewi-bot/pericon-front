@@ -37,7 +37,7 @@ export default function VictoryShowcaseModal({
   if (!isOpen) return null;
 
   const potTotal = stakeCoins * (is2v2 ? 4 : 2);
-  const houseFee = Math.round(potTotal * 0.20);
+  const houseFee = Math.round(potTotal * 0.10);
   const netEarnings = potTotal - houseFee;
 
   const displayWinner = winnerName && winnerName !== 'nulo' ? winnerName : 'Tú';

@@ -83,7 +83,7 @@ export default function DefeatShowcaseModal({
               ? "⏳ Tiempo de turno agotado"
               : endReason === "Rendicion" 
                 ? "🏳️ Abandono de partida" 
-                : "💔 Tu rival se llevó la victoria esta vez"}
+                : `💔 @${displayWinner} se llevó la victoria esta vez`}
           </p>
         </div>
 

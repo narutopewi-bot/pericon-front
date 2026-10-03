@@ -187,6 +187,21 @@ interface BotSummary {
   netHouseProfit: number;
 }
 
+interface VirtualBotItem {
+  id: number;
+  username: string;
+  avatarUrl?: string;
+  level: string;
+  coins: number;
+  isActive: boolean;
+  difficulty: "facil" | "medio" | "dificil";
+  totalMatches: number;
+  botWins: number;
+  botLosses: number;
+  winRate: number;
+  houseProfit: number;
+}
+
 interface BotDailyRow {
   date: string;
   totalMatches: number;
@@ -293,6 +308,8 @@ export default function AdminPage() {
   const [botResultFilter, setBotResultFilter] = useState<"all" | "user_won" | "bot_won">("all");
   const [botDifficultyMode, setBotDifficultyMode] = useState<"facil" | "medio" | "dificil">("medio");
   const [botDifficultyLoading, setBotDifficultyLoading] = useState(false);
+  const [virtualBots, setVirtualBots] = useState<VirtualBotItem[]>([]);
+  const [updatingBotId, setUpdatingBotId] = useState<number | null>(null);
   const [promos, setPromos] = useState<PromoCodeRow[]>([]);
   const [feedbacks, setFeedbacks] = useState<FeedbackRow[]>([]);
   const [feedbackStats, setFeedbackStats] = useState<{ total: number; averageRating: number }>({ total: 0, averageRating: 5.0 });
@@ -418,6 +435,43 @@ export default function AdminPage() {
       console.error("Error setting bot difficulty:", err);
     } finally {
       setBotDifficultyLoading(false);
+    }
+  };
+
+  const fetchVirtualBots = async () => {
+    try {
+      const res = await adminFetch(`${apiUrl}/api/admin/virtual-bots`);
+      if (res.ok) {
+        setVirtualBots(await res.json());
+      }
+    } catch (e) {
+      console.error("Error al cargar bots virtuales:", e);
+    }
+  };
+
+  const handleUpdateVirtualBot = async (botId: number, difficulty: string, isActive?: boolean) => {
+    setUpdatingBotId(botId);
+    try {
+      const res = await adminFetch(`${apiUrl}/api/admin/virtual-bots/difficulty`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ botId, difficulty, isActive })
+      });
+      if (res.ok) {
+        setVirtualBots(prev => prev.map(b => b.id === botId ? {
+          ...b,
+          difficulty: (difficulty as any) || b.difficulty,
+          isActive: isActive !== undefined ? isActive : b.isActive
+        } : b));
+        setActionMessage(`✅ Configuración del bot actualizada.`);
+      } else {
+        const err = await res.json().catch(() => ({}));
+        alert(err.message || "Error al actualizar bot.");
+      }
+    } catch {
+      alert("Error de conexión al actualizar bot.");
+    } finally {
+      setUpdatingBotId(null);
     }
   };
 
@@ -557,6 +611,7 @@ export default function AdminPage() {
       }
       await fetchErrorLogs();
       await fetchBotDifficulty();
+      await fetchVirtualBots();
     } catch (err) {
       console.error("Error loading admin data:", err);
     } finally {
@@ -2713,6 +2768,9 @@ export default function AdminPage() {
                     ) : (
                       filteredUsers.map((u) => {
                         const isGuardian = u.username.toLowerCase() === "guardian";
+                        const isVipUser = u.id === 28 || u.id === 44 ||
+                          u.username.toLowerCase() === "dianilith" || u.username.toLowerCase() === "bea" ||
+                          (u.email ? (u.email.toLowerCase().includes("madriddianelith") || u.email.toLowerCase().includes("beatrizmadrid")) : false);
                         return (
                           <tr
                             key={u.id}
@@ -2722,9 +2780,17 @@ export default function AdminPage() {
                           >
                             <td className="p-3.5 font-mono text-amber-200/50">#{u.id}</td>
                             <td className="p-3.5">
-                              <div className="font-bold text-white flex items-center gap-1.5">
+                              <div className="font-bold text-white flex items-center gap-1.5 flex-wrap">
                                 {u.username}
                                 {isGuardian && <span className="text-xs" title="Administrador Principal">🛡️</span>}
+                                {isVipUser && (
+                                  <span
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                                    title="Usuario VIP con preferencia sutil de triunfos"
+                                  >
+                                    ⭐ VIP
+                                  </span>
+                                )}
                               </div>
                               <div className="text-[11px] text-amber-200/40">{u.email}</div>
                             </td>
@@ -4253,6 +4319,164 @@ export default function AdminPage() {
                   <span>🔴</span>
                   <span>Difícil (65%)</span>
                 </button>
+              </div>
+            </div>
+
+            {/* ========================================================================= */}
+            {/* GESTIÓN DE BOTS VIRTUALES 1 VS 1 (INYECCIÓN DE OPONENTES) */}
+            {/* ========================================================================= */}
+            <div className="bg-[#180e07] border-2 border-amber-500/40 rounded-2xl p-5 shadow-2xl space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-amber-500/20 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-amber-500/30 to-amber-700/20 border border-amber-500/40 flex items-center justify-center text-2xl shadow-inner shrink-0">
+                    👥
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className={`${fonts.bowlbyOneSC.className} text-base md:text-lg text-amber-300 tracking-wide`}>
+                        Bots Virtuales 1 vs 1 (Retención de Jugadores)
+                      </h2>
+                      <span className="text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full bg-emerald-950/80 text-emerald-300 border border-emerald-500/40">
+                        Infill Automático (30 - 40s)
+                      </span>
+                    </div>
+                    <p className="text-xs text-amber-200/70 mt-0.5">
+                      Personajes autónomos que entran a jugar 1vs1 si un usuario espera entre 30 y 40 segundos sin encontrar rival humano. Poseen perfil real y aparecen en el ranking.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Grid de Personajes Virtuales */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-1">
+                {virtualBots.length === 0 ? (
+                  <div className="col-span-full py-8 text-center text-xs text-amber-200/50">
+                    Cargando personajes de bots virtuales...
+                  </div>
+                ) : (
+                  virtualBots.map((bot) => {
+                    const isUpdating = updatingBotId === bot.id;
+                    return (
+                      <div
+                        key={bot.id}
+                        className={`bg-[#20120a] border rounded-2xl p-4 transition-all space-y-3 relative overflow-hidden ${
+                          bot.isActive
+                            ? "border-amber-500/40 hover:border-amber-400/80 shadow-md"
+                            : "border-zinc-700 opacity-60"
+                        }`}
+                      >
+                        {/* Header del Bot */}
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-10 h-10 rounded-full bg-amber-500/20 border border-amber-400/30 flex items-center justify-center font-bold text-amber-300 text-sm overflow-hidden shrink-0">
+                              {bot.avatarUrl && bot.avatarUrl.length > 5 ? (
+                                <img src={bot.avatarUrl} alt={bot.username} className="w-full h-full object-cover" />
+                              ) : (
+                                bot.username.charAt(0)
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <h3 className="text-sm font-black text-white truncate">{bot.username}</h3>
+                                <span className="text-[9px] font-bold text-amber-400/90 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-500/30">
+                                  ID #{bot.id}
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-amber-200/60 truncate">{bot.level}</p>
+                            </div>
+                          </div>
+
+                          {/* Toggle Activo / Pausa */}
+                          <button
+                            type="button"
+                            disabled={isUpdating}
+                            onClick={() => handleUpdateVirtualBot(bot.id, bot.difficulty, !bot.isActive)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase transition border ${
+                              bot.isActive
+                                ? "bg-emerald-950 text-emerald-300 border-emerald-500/50 hover:bg-emerald-900"
+                                : "bg-zinc-900 text-zinc-400 border-zinc-700 hover:bg-zinc-800"
+                            }`}
+                            title={bot.isActive ? "Pausar bot" : "Activar bot"}
+                          >
+                            {bot.isActive ? "Activo" : "Pausado"}
+                          </button>
+                        </div>
+
+                        {/* Selector de Dificultad Individual */}
+                        <div>
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-amber-400/80 block mb-1.5">
+                            Dificultad Individual:
+                          </span>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            <button
+                              type="button"
+                              disabled={isUpdating || bot.difficulty === "facil"}
+                              onClick={() => handleUpdateVirtualBot(bot.id, "facil", bot.isActive)}
+                              className={`py-1.5 px-1 rounded-lg text-[10px] font-black transition border text-center ${
+                                bot.difficulty === "facil"
+                                  ? "bg-green-600 text-white border-green-400 ring-1 ring-green-400"
+                                  : "bg-[#140b06] text-green-400/80 border-green-500/30 hover:bg-green-950/30"
+                              }`}
+                              title="40% Casa / 60% Jugador"
+                            >
+                              🟢 Fácil
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={isUpdating || bot.difficulty === "medio"}
+                              onClick={() => handleUpdateVirtualBot(bot.id, "medio", bot.isActive)}
+                              className={`py-1.5 px-1 rounded-lg text-[10px] font-black transition border text-center ${
+                                bot.difficulty === "medio"
+                                  ? "bg-amber-500 text-black border-amber-300 ring-1 ring-amber-300"
+                                  : "bg-[#140b06] text-amber-300/80 border-amber-500/30 hover:bg-amber-950/30"
+                              }`}
+                              title="50% Casa / 50% Jugador"
+                            >
+                              🟡 Medio
+                            </button>
+
+                            <button
+                              type="button"
+                              disabled={isUpdating || bot.difficulty === "dificil"}
+                              onClick={() => handleUpdateVirtualBot(bot.id, "dificil", bot.isActive)}
+                              className={`py-1.5 px-1 rounded-lg text-[10px] font-black transition border text-center ${
+                                bot.difficulty === "dificil"
+                                  ? "bg-red-600 text-white border-red-400 ring-1 ring-red-400"
+                                  : "bg-[#140b06] text-red-400/80 border-red-500/30 hover:bg-red-950/30"
+                              }`}
+                              title="65% Casa / 35% Jugador"
+                            >
+                              🔴 Difícil
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Estadísticas del Bot */}
+                        <div className="grid grid-cols-2 gap-2 pt-1 border-t border-amber-500/10 text-xs">
+                          <div className="bg-[#140b06] p-2 rounded-xl border border-amber-500/10">
+                            <span className="text-[10px] text-amber-200/60 block">Partidas / Winrate:</span>
+                            <span className="font-black text-amber-300">
+                              {bot.totalMatches} ({bot.winRate}%)
+                            </span>
+                          </div>
+                          <div className="bg-[#140b06] p-2 rounded-xl border border-amber-500/10">
+                            <span className="text-[10px] text-amber-200/60 block">Victorias / Derrotas:</span>
+                            <span className="font-bold text-white">
+                              <span className="text-emerald-400">{bot.botWins}V</span> - <span className="text-red-400">{bot.botLosses}D</span>
+                            </span>
+                          </div>
+                          <div className="col-span-2 bg-[#140b06] p-2 rounded-xl border border-amber-500/10 flex items-center justify-between">
+                            <span className="text-[10px] text-amber-200/60">Impacto Casa (Ganancia Neta):</span>
+                            <span className={`font-black ${bot.houseProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                              {bot.houseProfit >= 0 ? `+Bs. ${bot.houseProfit.toLocaleString()}` : `-Bs. ${Math.abs(bot.houseProfit).toLocaleString()}`}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
               </div>
             </div>
 

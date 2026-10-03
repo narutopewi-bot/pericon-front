@@ -19,7 +19,7 @@ import Link from 'next/link';
 
 import Swal from 'sweetalert2';
 import 'sweetalert2/src/sweetalert2.scss';
-import { playCardSound, playSwooshSound, vibrateDevice, playSynthSound, speakPhrase, playVoiceAudio, preloadVoiceAudios } from '@/lib/gameEffects';
+import { playCardSound, playSwooshSound, vibrateDevice, playSynthSound, speakPhrase, playVoiceAudio, stopVoiceAudio, preloadVoiceAudios } from '@/lib/gameEffects';
 import { playCardDealSound, playCardDropSound, playCoinWinSound, playCantoSound, isSoundMuted, setSoundMuted, unlockAudioEngine } from '@/lib/soundEffects';
 import GameTurnTimer from '@/components/game-turn-timer';
 import { GameAnnouncement, AnnouncementData, AnnouncementType } from '@/components/game-announcement';
@@ -314,13 +314,25 @@ export default function Duel1vs1() {
     // 1. Narración y efectos de victoria única por partida
     if (!hasPlayedGameOverVoiceRef.current) {
       hasPlayedGameOverVoiceRef.current = true;
+      stopVoiceAudio();
       playVoiceAudio('victoria_partida', "¡Ganaste la partida, fuiste victorioso!");
       playSynthSound?.('win');
       vibrateDevice('winMatch');
     }
 
-    const myName = user?.name && user.name !== 'nulo' ? user.name : 'Tú';
-    const oppName = oponent.username && oponent.username !== 'nulo' ? oponent.username : 'Rival';
+    const myName = (user?.name && user.name !== 'nulo')
+      ? user.name
+      : (payoutData?.winnerName || (datos.current.flag ? datos.current.nameone : datos.current.nametwo) || 'Tú');
+
+    const oppName =
+      (payoutData?.rivalName && payoutData.rivalName !== 'Rival' && payoutData.rivalName !== 'Perdedor' && payoutData.rivalName !== 'Ganador')
+        ? payoutData.rivalName
+        : (payoutData?.loserName && payoutData.loserName !== 'Rival' && payoutData.loserName !== 'Perdedor')
+          ? payoutData.loserName
+          : (oponent.username && oponent.username !== 'nulo' && oponent.username.toLowerCase() !== 'rival')
+            ? oponent.username
+            : (datos.current.flag ? datos.current.nametwo : datos.current.nameone) || 'Rival';
+
     const myStones = visiblePoints.own || pointsown.current || 9;
     const oppStones = visiblePoints.opp || pointsopp.current || 0;
     const coinsBet = payoutData?.bet || datos.current.coins || 10;
@@ -389,13 +401,25 @@ export default function Duel1vs1() {
     // 1. Narración y efectos de derrota única por partida
     if (!hasPlayedGameOverVoiceRef.current) {
       hasPlayedGameOverVoiceRef.current = true;
+      stopVoiceAudio();
       playVoiceAudio('derrota_partida', "Partida finalizada. Tu oponente se llevó la victoria.");
       playSynthSound?.('reject');
       vibrateDevice('tumba');
     }
 
-    const myName = user?.name && user.name !== 'nulo' ? user.name : 'Tú';
-    const oppName = oponent.username && oponent.username !== 'nulo' ? oponent.username : 'Rival';
+    const myName = (user?.name && user.name !== 'nulo')
+      ? user.name
+      : (payoutData?.loserName || (datos.current.flag ? datos.current.nameone : datos.current.nametwo) || 'Tú');
+
+    const oppName =
+      (payoutData?.rivalName && payoutData.rivalName !== 'Rival' && payoutData.rivalName !== 'Ganador' && payoutData.rivalName !== 'Perdedor')
+        ? payoutData.rivalName
+        : (payoutData?.winnerName && payoutData.winnerName !== 'Rival' && payoutData.winnerName !== 'Ganador')
+          ? payoutData.winnerName
+          : (oponent.username && oponent.username !== 'nulo' && oponent.username.toLowerCase() !== 'rival')
+            ? oponent.username
+            : (datos.current.flag ? datos.current.nametwo : datos.current.nameone) || 'Rival';
+
     const myStones = visiblePoints.own || pointsown.current || 0;
     const oppStones = visiblePoints.opp || pointsopp.current || 9;
     const coinsBet = payoutData?.bet || datos.current.coins || 10;
@@ -994,6 +1018,10 @@ export default function Duel1vs1() {
           playeropp.current = obj.flag == true ? obj.usertwo : obj.userone;
 
           const myName = obj.flag == true ? obj.nameone : obj.nametwo;
+          const oppName = obj.flag == true ? obj.nametwo : obj.nameone;
+          if (oppName) {
+            setOponent(prev => ({ ...prev, username: oppName }));
+          }
           if (myName) {
             try {
               await safeSignalRInvoke(connection, "IdentifyPlayer", myName, gameplayer.email || "", gameplayer.coins || 0);
@@ -2309,10 +2337,13 @@ export default function Duel1vs1() {
                     badge: `Marcador: ${pointsown.current} - ${pointsopp.current}`
                   }, 2600);
                 } else {
-                  if (stakePts > 1) {
-                    playVoiceAudio('ganaron_la_mano', "¡Ganaron la mano! Sumamos piedras.");
-                  } else {
-                    playVoiceAudio('ganaste_la_ronda', "¡Ganaste la ronda!");
+                  // Evitar doble voz: si la partida ya finalizó o la voz de victoria ya sonó, NO cantar ronda
+                  if (!hasPlayedGameOverVoiceRef.current && !isGameOverRef.current && !hasPaidOutRef.current) {
+                    if (stakePts > 1) {
+                      playVoiceAudio('ganaron_la_mano', "¡Ganaron la mano! Sumamos piedras.");
+                    } else {
+                      playVoiceAudio('ganaste_la_ronda', "¡Ganaste la ronda!");
+                    }
                   }
                   vibrateDevice('winRound');
                   playSynthSound('win');
@@ -2352,10 +2383,13 @@ export default function Duel1vs1() {
                 setIsMyTurn(false);
                 // Mantener las cartas sobre el tapete para que el jugador vea claramente la jugada final
                 setTableCards([cpEightRef.current, cpownRef.current, cardZero]);
-                hasPlayedGameOverVoiceRef.current = true;
-                playVoiceAudio('tumba_completada', "¡Ganaste la partida! Tumba completada.");
-                vibrateDevice('winMatch');
-                playSynthSound('win');
+                if (!hasPlayedGameOverVoiceRef.current) {
+                  hasPlayedGameOverVoiceRef.current = true;
+                  stopVoiceAudio();
+                  playVoiceAudio('tumba_completada', "¡Ganaste la partida! Tumba completada.");
+                  vibrateDevice('winMatch');
+                  playSynthSound('win');
+                }
                 triggerAnnouncement({
                   type: 'win_round',
                   title: '¡CAMPEÓN DEL JUEGO!',
@@ -2565,10 +2599,13 @@ export default function Duel1vs1() {
                   badge: `Marcador: ${pointsown.current} - ${pointsopp.current}`
                 }, 2600);
               } else {
-                if (stakePts > 1) {
-                  playVoiceAudio('ganaron_la_mano', "¡Ganaron la mano! Sumamos piedras.");
-                } else {
-                  playVoiceAudio('ganaste_la_ronda', "¡Ganaste la ronda!");
+                // Evitar doble voz: si la partida ya finalizó o la voz de victoria ya sonó, NO cantar ronda
+                if (!hasPlayedGameOverVoiceRef.current && !isGameOverRef.current && !hasPaidOutRef.current) {
+                  if (stakePts > 1) {
+                    playVoiceAudio('ganaron_la_mano', "¡Ganaron la mano! Sumamos piedras.");
+                  } else {
+                    playVoiceAudio('ganaste_la_ronda', "¡Ganaste la ronda!");
+                  }
                 }
                 vibrateDevice('winRound');
                 playSynthSound('win');
@@ -2608,10 +2645,13 @@ export default function Duel1vs1() {
               setIsMyTurn(false);
               // Mantener las cartas sobre el tapete
               setTableCards([cpEightRef.current, cpoppRef.current, cpownRef.current]);
-              hasPlayedGameOverVoiceRef.current = true;
-              playVoiceAudio('tumba_completada', "¡Ganaste la partida! Tumba completada.");
-              vibrateDevice('winMatch');
-              playSynthSound('win');
+              if (!hasPlayedGameOverVoiceRef.current) {
+                hasPlayedGameOverVoiceRef.current = true;
+                stopVoiceAudio();
+                playVoiceAudio('tumba_completada', "¡Ganaste la partida! Tumba completada.");
+                vibrateDevice('winMatch');
+                playSynthSound('win');
+              }
               triggerAnnouncement({
                 type: 'win_round',
                 title: '¡CAMPEÓN DEL JUEGO!',
