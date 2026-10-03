@@ -168,6 +168,7 @@ interface BotMatchRow {
   userWon: boolean;
   coinsWon: number;
   coinsLost: number;
+  houseCommission?: number;
   houseProfit: number;
   userCoinsBefore: number;
   userCoinsAfter: number;
@@ -184,6 +185,7 @@ interface BotSummary {
   totalCoinsWagered: number;
   totalCoinsWonByUser: number;
   totalCoinsWonByHouse: number;
+  totalHouseCommission?: number;
   netHouseProfit: number;
 }
 
@@ -212,6 +214,7 @@ interface BotDailyRow {
   totalCoinsWagered: number;
   coinsWonByUser: number;
   coinsWonByHouse: number;
+  houseCommission?: number;
   netHouseProfit: number;
 }
 
@@ -654,7 +657,7 @@ export default function AdminPage() {
   };
 
   const exportBotMatchesCSV = () => {
-    const headers = ["ID", "Usuario", "Rival", "Apuesta", "Resultado", "Monedas Ganadas", "Monedas Perdidas", "Impacto Casa", "Saldo Final", "Motivo", "Fecha"];
+    const headers = ["ID", "Usuario", "Rival", "Apuesta", "Resultado", "Monedas Ganadas", "Monedas Perdidas", "Comision Casa (10%)", "Impacto Casa", "Saldo Final", "Motivo", "Fecha"];
     const rows = filteredBotMatches.map((m) => [
       m.id,
       m.username,
@@ -663,6 +666,7 @@ export default function AdminPage() {
       m.userWon ? "GANO USUARIO" : "GANO BOT",
       m.coinsWon,
       m.coinsLost,
+      m.houseCommission || (m.userWon ? Math.round(m.betAmount * 0.1) : 0),
       m.houseProfit,
       m.userCoinsAfter,
       m.endReason,
@@ -4588,6 +4592,7 @@ export default function AdminPage() {
                       <th className="p-3 text-center">Jugador (W)</th>
                       <th className="p-3 text-center">% Bot (Meta 60%)</th>
                       <th className="p-3 text-right">Apostado</th>
+                      <th className="p-3 text-right text-yellow-400">Comisión 10%</th>
                       <th className="p-3 text-right">Casa Retuvo</th>
                       <th className="p-3 text-right">Pagado Jugador</th>
                       <th className="p-3 text-right">Balance Neto</th>
@@ -4596,7 +4601,7 @@ export default function AdminPage() {
                   <tbody className="divide-y divide-amber-500/10">
                     {botDailyBreakdown.length === 0 ? (
                       <tr>
-                        <td colSpan={9} className="text-center py-6 text-amber-200/40">
+                        <td colSpan={10} className="text-center py-6 text-amber-200/40">
                           No hay historial diario previo registrado.
                         </td>
                       </tr>
@@ -4619,6 +4624,7 @@ export default function AdminPage() {
                             </span>
                           </td>
                           <td className="p-3 text-right font-mono text-amber-200/80">🪙 {d.totalCoinsWagered.toLocaleString()}</td>
+                          <td className="p-3 text-right font-mono text-yellow-400 font-bold">🪙 {(d.houseCommission ?? 0).toLocaleString()}</td>
                           <td className="p-3 text-right font-mono text-emerald-400 font-bold">🪙 {d.coinsWonByHouse.toLocaleString()}</td>
                           <td className="p-3 text-right font-mono text-red-300">🪙 {d.coinsWonByUser.toLocaleString()}</td>
                           <td className="p-3 text-right font-mono font-black">
@@ -4749,6 +4755,7 @@ export default function AdminPage() {
                       <th className="p-3.5">Apuesta</th>
                       <th className="p-3.5">Resultado</th>
                       <th className="p-3.5">Monedas Usuario</th>
+                      <th className="p-3.5 text-amber-400">Comisión 10%</th>
                       <th className="p-3.5">Balance Casa</th>
                       <th className="p-3.5">Saldo Final</th>
                       <th className="p-3.5">Motivo</th>
@@ -4758,7 +4765,7 @@ export default function AdminPage() {
                   <tbody className="divide-y divide-amber-500/10">
                     {filteredBotMatches.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="text-center py-10 text-amber-200/40">
+                        <td colSpan={11} className="text-center py-10 text-amber-200/40">
                           No hay registros de partidas solitario contra el Bot aún (Panel en Cero).
                         </td>
                       </tr>
@@ -4790,6 +4797,9 @@ export default function AdminPage() {
                             ) : (
                               <span className="text-red-400 font-bold">-🪙 {m.coinsLost}</span>
                             )}
+                          </td>
+                          <td className="p-3.5 font-bold font-mono text-amber-400">
+                            🪙 {m.houseCommission ? m.houseCommission : (m.userWon ? Math.round(m.betAmount * 0.1) : 0)}
                           </td>
                           <td className="p-3.5 font-bold">
                             {m.houseProfit > 0 ? (

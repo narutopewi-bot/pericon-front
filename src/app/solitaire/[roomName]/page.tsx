@@ -1309,7 +1309,9 @@ export default function Duel() {
 
   const endGame = async (x: number) => {
     const isWinner = x === 1;
-    const coinsChange = isWinner ? betAmount : -betAmount;
+    const commission = isWinner ? Math.round(betAmount * 0.10) : 0;
+    const netReward = isWinner ? (betAmount - commission) : 0;
+    const coinsChange = isWinner ? netReward : -betAmount;
 
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
     let currentUserId = gameplayer?.id ? parseInt(gameplayer.id.toString(), 10) : 0;
@@ -1347,7 +1349,7 @@ export default function Duel() {
           won: isWinner,
           coinsChange: coinsChange,
           betAmount: betAmount,
-          endReason: isWinner ? "Victoria contra la Máquina" : "Derrota contra la Máquina",
+          endReason: isWinner ? "Victoria contra la Máquina (Comisión 10%)" : "Derrota contra la Máquina",
           botName: "Pericón (Bot IA)"
         })
       })
@@ -1390,10 +1392,18 @@ export default function Duel() {
             <p style="margin-bottom: 12px; font-weight: bold; color: #4ade80; font-size: 15px; text-align: center;">
               ¡Derrotaste a la computadora!
             </p>
-            <div style="background: rgba(0,0,0,0.45); border-radius: 12px; padding: 10px 14px; border: 1px solid rgba(250,204,21,0.25);">
+            <div style="background: rgba(0,0,0,0.45); border-radius: 12px; padding: 12px 14px; border: 1px solid rgba(250,204,21,0.25);">
               <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
-                <span style="color: #cbd5e1;">🪙 Recompensa ganada:</span>
-                <span style="font-weight: bold; color: #4ade80;">+${betAmount} monedas</span>
+                <span style="color: #cbd5e1;">🪙 Apuesta en juego:</span>
+                <span style="font-weight: bold; color: #fff;">${betAmount} monedas</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span style="color: #f59e0b;">🏛️ Comisión casa (10%):</span>
+                <span style="font-weight: bold; color: #f59e0b;">-${commission} monedas</span>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <span style="color: #4ade80; font-weight: bold;">🪙 Premio neto ganado:</span>
+                <span style="font-weight: bold; color: #4ade80;">+${netReward} monedas</span>
               </div>
               <hr style="border: 0; border-top: 1px solid rgba(255,255,255,0.15); margin: 8px 0;" />
               <div style="display: flex; justify-content: space-between; font-size: 14px;">

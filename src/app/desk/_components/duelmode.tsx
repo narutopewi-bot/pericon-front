@@ -73,7 +73,7 @@ const Duelmode: React.FC<DuelmodeProps> = ({ onMode, duelToggle }) => {
             <span className={`text-xs font-black tracking-wide ${selectedValue === "Solitario" ? "text-white" : "text-slate-300"}`}>
               SOLITARIO
             </span>
-            <span className="text-[9px] text-amber-300/90 font-semibold">vs Computadora</span>
+            <span className="text-[9px] text-amber-300/90 font-semibold">vs Computadora (Comisión 10%)</span>
           </button>
 
           {/* Opción 2: 1 vs 1 */}
