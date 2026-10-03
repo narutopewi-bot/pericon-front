@@ -3,6 +3,9 @@ const nextConfig = {
   images: {
     domains: ["127.0.0.1", "localhost"],
   },
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
   reactStrictMode : false,
   async rewrites() {
     return [

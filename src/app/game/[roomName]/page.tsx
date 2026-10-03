@@ -765,7 +765,7 @@ export default function Duel1vs1() {
         if (prev <= 1) {
           clearInterval(interval);
           if (isMyTurn && !hasTimedOut.current && !isWaitingOppTumba && tumbaCountdown === null && !isWaitingHandChange1v1 && playerCards.length > 0) {
-            handleTimeoutForfeit();
+            handleTurnTimeout1v1();
           } else if (!isMyTurn && !hasTimedOut.current && !isWaitingOppTumba && tumbaCountdown === null && !isWaitingHandChange1v1 && playerCards.length > 0) {
             handleRivalTimeoutDetected();
           }
@@ -1744,12 +1744,12 @@ export default function Duel1vs1() {
       setTimeLeft(30);
       hasTimedOut.current = false;
 
-      // Watchdog de seguridad sincronizado: 10s análisis + 8s decisión + 10s margen red móvil = 28 segundos
+      // Watchdog de seguridad sincronizado: desbloqueo seguro si el rival tarda en responder
       if (oppTumbaWatchdogRef.current) clearTimeout(oppTumbaWatchdogRef.current);
       oppTumbaWatchdogRef.current = setTimeout(() => {
         setIsWaitingOppTumba(prev => {
           if (prev) {
-            console.warn("[Watchdog Tumba 1v1] Tiempo de espera del rival agotado (28s). Desbloqueando mesa...");
+            console.warn("[Watchdog Tumba 1v1] Tiempo de espera del rival agotado (12s). Desbloqueando mesa...");
             setTimeLeft(30);
             hasTimedOut.current = false;
             isProcessingRef.current = false;
@@ -1758,7 +1758,7 @@ export default function Duel1vs1() {
           }
           return false;
         });
-      }, 28000);
+      }, 12000);
     } else {
       setIsWaitingOppTumba(false);
       if (oppTumbaWatchdogRef.current) {
