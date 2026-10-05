@@ -20,6 +20,9 @@ import PericonTutorialModal from "@/components/pericon-tutorial-modal";
 import LeaderboardModal from "@/components/leaderboard-modal";
 import MoneyTutorialModal from "@/components/money-tutorial-modal";
 import FeedbackModal from "@/components/feedback-modal";
+import TournamentBracketModal from "@/components/tournament-bracket-modal";
+import ReferralModal from "@/components/referral-modal";
+import DailyStreakRouletteModal from "@/components/daily-streak-roulette-modal";
 import { playChatPopSound } from "@/lib/soundEffects";
 import { safeSignalRInvoke } from "@/lib/safeSignalR";
 import Swal from "sweetalert2";
@@ -213,6 +216,9 @@ export default function Desk() {
   const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [moneyTutorialOpen, setMoneyTutorialOpen] = useState(false);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [tournamentOpen, setTournamentOpen] = useState(false);
+  const [referralOpen, setReferralOpen] = useState(false);
+  const [dailyStreakOpen, setDailyStreakOpen] = useState(false);
 
   interface AnnouncementPayload {
     id?: number;
@@ -560,6 +566,60 @@ export default function Desk() {
             </span>
           </div>
 
+          {/* Barra de Eventos y Recompensas (Torneo Piloto, Referidos, Racha/Ruleta) */}
+          <div className="grid grid-cols-3 gap-2 w-full mb-3 sm:mb-4">
+            {/* Torneo Piloto con Llaves */}
+            <button
+              onClick={() => setTournamentOpen(true)}
+              className="relative flex flex-col items-center justify-center p-2 sm:p-2.5 rounded-2xl bg-gradient-to-b from-amber-950/80 via-amber-900/60 to-black border-2 border-amber-500/70 hover:border-amber-400 active:scale-95 transition-all shadow-lg shadow-amber-500/20 group cursor-pointer"
+            >
+              <div className="absolute -top-2 bg-amber-500 text-slate-950 text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded-full border border-yellow-200 shadow">
+                🔒 PILOTO
+              </div>
+              <div className="text-xl sm:text-2xl mt-1 group-hover:scale-110 transition">🏆</div>
+              <span className="text-[10px] sm:text-xs font-black text-amber-300 uppercase tracking-wide mt-0.5">
+                TORNEO 8P
+              </span>
+              <span className="text-[8px] sm:text-[9px] text-amber-200/80 font-medium">
+                Llaves en vivo
+              </span>
+            </button>
+
+            {/* Referidos: Invita y Gana */}
+            <button
+              onClick={() => setReferralOpen(true)}
+              className="relative flex flex-col items-center justify-center p-2 sm:p-2.5 rounded-2xl bg-gradient-to-b from-emerald-950/80 via-emerald-900/60 to-black border-2 border-emerald-500/70 hover:border-emerald-400 active:scale-95 transition-all shadow-lg shadow-emerald-500/20 group cursor-pointer"
+            >
+              <div className="absolute -top-2 bg-emerald-500 text-slate-950 text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded-full border border-emerald-200 shadow">
+                +150 🪙
+              </div>
+              <div className="text-xl sm:text-2xl mt-1 group-hover:scale-110 transition">👥</div>
+              <span className="text-[10px] sm:text-xs font-black text-emerald-300 uppercase tracking-wide mt-0.5">
+                REFERIDOS
+              </span>
+              <span className="text-[8px] sm:text-[9px] text-emerald-200/80 font-medium">
+                Gana x Amigos
+              </span>
+            </button>
+
+            {/* Racha y Ruleta del Chivo */}
+            <button
+              onClick={() => setDailyStreakOpen(true)}
+              className="relative flex flex-col items-center justify-center p-2 sm:p-2.5 rounded-2xl bg-gradient-to-b from-rose-950/80 via-red-900/60 to-black border-2 border-rose-500/70 hover:border-rose-400 active:scale-95 transition-all shadow-lg shadow-rose-500/20 group cursor-pointer"
+            >
+              <div className="absolute -top-2 bg-rose-500 text-white text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded-full border border-rose-300 shadow">
+                🔥 DIARIO
+              </div>
+              <div className="text-xl sm:text-2xl mt-1 group-hover:scale-110 transition">🐐</div>
+              <span className="text-[10px] sm:text-xs font-black text-rose-300 uppercase tracking-wide mt-0.5">
+                RACHA & RULETA
+              </span>
+              <span className="text-[8px] sm:text-[9px] text-rose-200/80 font-medium">
+                30 a 100 🪙
+              </span>
+            </button>
+          </div>
+
           {/* Cuadrícula Optimizada de 3 Modos Principales */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4 w-full">
 
@@ -728,6 +788,57 @@ export default function Desk() {
           id: dataplayer.id,
           name: dataplayer.name,
           email: dataplayer.email,
+        }}
+      />
+
+      {/* Modal de Torneo Piloto con Llaves Orthogonales */}
+      <TournamentBracketModal
+        isOpen={tournamentOpen}
+        onClose={() => setTournamentOpen(false)}
+        currentUser={{
+          id: dataplayer.id && !isNaN(Number(dataplayer.id)) ? Number(dataplayer.id) : 1,
+          username: dataplayer.name || "Jugador",
+          coins: dataplayer.coins
+        }}
+      />
+
+      {/* Modal de Programa de Referidos (150/100 🪙) */}
+      <ReferralModal
+        isOpen={referralOpen}
+        onClose={() => setReferralOpen(false)}
+        currentUser={{
+          id: dataplayer.id && !isNaN(Number(dataplayer.id)) ? Number(dataplayer.id) : 1,
+          username: dataplayer.name || "Jugador",
+          coins: dataplayer.coins
+        }}
+        onRewardApplied={() => {
+          const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
+          if (dataplayer.id) {
+            fetch(`${apiUrl}/api/user/${dataplayer.id}/profile`)
+              .then(res => res.ok ? res.json() : null)
+              .then(data => {
+                if (data && data.coins !== undefined) {
+                  setDataplayer(prev => ({ ...prev, coins: data.coins }));
+                  dispatch(setGamePlayer({ ...dataplayer, coins: data.coins }));
+                }
+              }).catch(() => {});
+          }
+        }}
+      />
+
+      {/* Modal de Racha Diaria (30-100 🪙) y Ruleta del Chivo */}
+      <DailyStreakRouletteModal
+        isOpen={dailyStreakOpen}
+        onClose={() => setDailyStreakOpen(false)}
+        currentUser={{
+          id: dataplayer.id && !isNaN(Number(dataplayer.id)) ? Number(dataplayer.id) : 1,
+          username: dataplayer.name || "Jugador",
+          coins: dataplayer.coins,
+          dailyStreak: (dataplayer as any).dailyStreak || 1
+        }}
+        onCoinsClaimed={(newBalance) => {
+          setDataplayer(prev => ({ ...prev, coins: newBalance }));
+          dispatch(setGamePlayer({ ...dataplayer, coins: newBalance }));
         }}
       />
     </React.Fragment>
