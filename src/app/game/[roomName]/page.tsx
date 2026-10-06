@@ -239,6 +239,28 @@ export default function Duel1vs1() {
   const oppTumbaWatchdogRef = useRef<any>(null);
   const processingWatchdogRef = useRef<any>(null);
   const disconnectDebounceTimerRef = useRef<any>(null);
+  const trickPauseTimeoutRef = useRef<any>(null);
+  const returnDeckTimeoutRef = useRef<any>(null);
+
+  const BOT_NAMES = ['joel', 'maría', 'maria', 'gloria', 'la gorda', 'pedro', 'ramón', 'ramon', 'bot_ia', 'pericon'];
+  const isOpponentBot = () => {
+    let oppCandidate = datos.current?.flag 
+      ? (datos.current.nametwo || oponent?.username || '') 
+      : (datos.current.nameone || oponent?.username || '');
+
+    if (!oppCandidate && typeof window !== 'undefined') {
+      try {
+        const raw = searchParams.get('datos');
+        if (raw) {
+          const parsed = JSON.parse(decodeURIComponent(raw));
+          oppCandidate = parsed.flag ? parsed.nametwo : parsed.nameone;
+        }
+      } catch (e) {}
+    }
+
+    const cleanOpp = (oppCandidate || '').toLowerCase().trim().replace(/^@/, '');
+    return BOT_NAMES.includes(cleanOpp) || cleanOpp.startsWith('bot_');
+  };
 
   // Watchdog de seguridad anti-bloqueo: si isProcessingMove permanece true por más de 6 segundos, auto-desbloquear mesa
   useEffect(() => {
@@ -1057,6 +1079,16 @@ export default function Duel1vs1() {
   useEffect(() => {
     if (!connection) return;
 
+    // Si el rival es un bot virtual, NO solicitar micrófono ni activar WebRTC para no bloquear el altavoz multimedia del celular
+    if (isOpponentBot()) {
+      console.log('[WebRTC] Rival es un Bot Virtual. Manteniendo WebRTC inactivo para preservar altavoz multimedia.');
+      if (voiceManagerRef.current) {
+        voiceManagerRef.current.destroy();
+        voiceManagerRef.current = null;
+      }
+      return;
+    }
+
     let isSubscribed = true;
     let vm = voiceManagerRef.current;
 
@@ -1112,7 +1144,7 @@ export default function Duel1vs1() {
     return () => {
       isSubscribed = false;
     };
-  }, [connection, idGame.current, datos.current.flag, roomName]);
+  }, [connection, idGame.current, datos.current.flag, roomName, oponent?.username]);
 
   useEffect(() => {
     return () => {
@@ -1381,13 +1413,19 @@ export default function Duel1vs1() {
         await safeSignalRInvoke(connection, 'GetInitHand', msg.game, isFlag);
         hasConnected.current = true;
 
-        // Conectar canal de voz WebRTC
-        const mySeat = isFlag ? 0 : 1;
-        const rivalSeat = isFlag ? 1 : 0;
-        connection.invoke('JoinVoice1vs1', msg.game, mySeat).catch(() => {});
-        if (voiceManagerRef.current) {
-          voiceManagerRef.current.updateSession(`game1vs1_${msg.game}`, mySeat, myName, connection);
-          voiceManagerRef.current.connectToPeer(rivalSeat, oppName);
+        // Conectar canal de voz WebRTC solo si el rival es un humano real
+        const oppLower = (oppName || '').toLowerCase().trim();
+        const isBotOpp = BOT_NAMES.includes(oppLower) || oppLower.startsWith('bot_');
+        if (!isBotOpp) {
+          const mySeat = isFlag ? 0 : 1;
+          const rivalSeat = isFlag ? 1 : 0;
+          connection.invoke('JoinVoice1vs1', msg.game, mySeat).catch(() => {});
+          if (voiceManagerRef.current) {
+            voiceManagerRef.current.updateSession(`game1vs1_${msg.game}`, mySeat, myName, connection);
+            voiceManagerRef.current.connectToPeer(rivalSeat, oppName);
+          }
+        } else {
+          console.log('[MatchFound] Oponente es Bot virtual. Omitiendo WebRTC para preservar altavoz multimedia.');
         }
       }
     });
@@ -1807,6 +1845,7 @@ export default function Duel1vs1() {
     }, 4000);
 
     try {
+      unlockAudioEngine();
       playCardDropSound();
       playCardSound();
       setSelectedCard(cardZero);
@@ -1862,7 +1901,8 @@ export default function Duel1vs1() {
           const trumpsCount = playerCards.filter(c => isTrumpCard(c.id, currentLifeId)).length;
           const canDenyCinco = isFirstBaza && hasCincoDeOro && trumpsCount === 1;
 
-          if (isOppTrump && playerHasTrump && !canDenyCinco && !isTrumpCard(cardZero.id, currentLifeId)) {
+          // Solo aplica si el jugador tiene MÁS de 1 carta en mano (si le queda 1 sola carta, no hay opción de descarte)
+          if (playerCards.length > 1 && isOppTrump && playerHasTrump && !canDenyCinco && !isTrumpCard(cardZero.id, currentLifeId)) {
             playVoiceAudio('regla_del_pelao', "¡Regla del Pelao! Debes lanzar un triunfo.");
             vibrateDevice('reject');
             playSynthSound('reject');
@@ -2242,6 +2282,21 @@ export default function Duel1vs1() {
         oponentCards.current = Math.max(0, oponentCards.current - 1);
         const cardZero: Card = Baraja(parseInt(Trozo(modelo.content, 2)), 0);
         const turnZero: boolean = (Trozo(modelo.content, 3) == "1" ? false : true);
+
+        // Cancelar timeouts previos para evitar colisiones de limpieza de baza
+        if (trickPauseTimeoutRef.current) {
+          clearTimeout(trickPauseTimeoutRef.current);
+          trickPauseTimeoutRef.current = null;
+        }
+        if (returnDeckTimeoutRef.current) {
+          clearTimeout(returnDeckTimeoutRef.current);
+          returnDeckTimeoutRef.current = null;
+        }
+        setIsReturningToDeck(false);
+        setTrickWinner(null);
+
+        unlockAudioEngine();
+        playCardDropSound();
         playCardSound();
         switchturn.current = true;
         setIsMyTurn(true);
@@ -2300,15 +2355,17 @@ export default function Duel1vs1() {
           }
         }
 
-        // PAUSA AMPLIADA: 4.0 SEGUNDOS EN BAZA FINAL (O 2.6s EN BAZAS INTERMEDIAS) PARA APRECIAR LA CARTA GANADORA/PERDEDORA
+        // PAUSA CALCULADA: 3.5s EN BAZA FINAL (O 2.2s EN BAZAS INTERMEDIAS)
         const isHandOrGameEnding = (Orden == "2" || Orden == "3" || Orden == "4" || Orden == "5");
-        const trickPauseMs = isHandOrGameEnding ? 4000 : 2600;
+        const trickPauseMs = isHandOrGameEnding ? 3500 : 2200;
 
-        setTimeout(() => {
+        if (trickPauseTimeoutRef.current) clearTimeout(trickPauseTimeoutRef.current);
+        trickPauseTimeoutRef.current = setTimeout(() => {
           setIsReturningToDeck(true);
           playSwooshSound();
 
-          setTimeout(() => {
+          if (returnDeckTimeoutRef.current) clearTimeout(returnDeckTimeoutRef.current);
+          returnDeckTimeoutRef.current = setTimeout(() => {
             setIsReturningToDeck(false);
             setTrickWinner(null);
 
@@ -2516,6 +2573,8 @@ export default function Duel1vs1() {
     });
     return () => {
       connection.off('ResponseCard1vs1');
+      if (trickPauseTimeoutRef.current) clearTimeout(trickPauseTimeoutRef.current);
+      if (returnDeckTimeoutRef.current) clearTimeout(returnDeckTimeoutRef.current);
     };
   }, [connection]);
 
@@ -2559,15 +2618,17 @@ export default function Duel1vs1() {
         }
       }
 
-      // PAUSA AMPLIADA: 4.0 SEGUNDOS EN BAZA FINAL (O 2.6s EN BAZAS INTERMEDIAS) PARA APRECIAR LA CARTA GANADORA/PERDEDORA
+      // PAUSA CALCULADA: 3.5s EN BAZA FINAL (O 2.2s EN BAZAS INTERMEDIAS)
       const isHandOrGameEnding = (Orden == "2" || Orden == "3" || Orden == "4" || Orden == "5");
-      const trickPauseMs = isHandOrGameEnding ? 4000 : 2600;
+      const trickPauseMs = isHandOrGameEnding ? 3500 : 2200;
 
-      setTimeout(() => {
+      if (trickPauseTimeoutRef.current) clearTimeout(trickPauseTimeoutRef.current);
+      trickPauseTimeoutRef.current = setTimeout(() => {
         setIsReturningToDeck(true);
         playSwooshSound();
 
-        setTimeout(() => {
+        if (returnDeckTimeoutRef.current) clearTimeout(returnDeckTimeoutRef.current);
+        returnDeckTimeoutRef.current = setTimeout(() => {
           setIsReturningToDeck(false);
           setTrickWinner(null);
 
@@ -2770,6 +2831,8 @@ export default function Duel1vs1() {
     });
     return () => {
       connection.off('ReasonRound1vs1');
+      if (trickPauseTimeoutRef.current) clearTimeout(trickPauseTimeoutRef.current);
+      if (returnDeckTimeoutRef.current) clearTimeout(returnDeckTimeoutRef.current);
     };
   }, [connection]);
 
@@ -3488,33 +3551,46 @@ export default function Duel1vs1() {
                 <span className='text-xs sm:text-sm'>{isSoundMutedState ? '🔇' : '🔊'}</span>
               </button>
 
-              {/* Botón Micrófono 1 vs 1 */}
-              <button
-                type='button'
-                onClick={toggleVoiceMute}
-                className={`h-8 w-8 sm:h-9 sm:w-9 rounded-xl border shadow flex items-center justify-center transition-all cursor-pointer ${
-                  isMicMuted
-                    ? 'bg-red-950/85 hover:bg-red-900 border-red-500/50 text-red-300'
-                    : 'bg-emerald-950/85 hover:bg-emerald-900 border-emerald-500/70 text-emerald-300 shadow-emerald-500/25 ring-1 ring-emerald-500/40'
-                }`}
-                title={isMicMuted ? 'Micrófono SILENCIADO (Clic para activar)' : 'Micrófono EN VIVO (Clic para silenciar)'}
-              >
-                {isMicMuted ? <MicOff size={14} /> : <Mic size={14} className={speakingPeers[datos.current.flag ? 0 : 1] ? 'text-emerald-400 animate-pulse' : ''} />}
-              </button>
+              {/* Botones de Voz WebRTC (Solo para rivales humanos reales) */}
+              {isOpponentBot() ? (
+                <div
+                  className='h-8 sm:h-9 px-2 sm:px-2.5 rounded-xl border border-cyan-500/40 bg-cyan-950/80 shadow flex items-center gap-1.5 text-[11px] font-bold text-cyan-300 select-none'
+                  title='Jugando contra un Bot Virtual (Audio multimedia habilitado)'
+                >
+                  <span className='text-xs'>🤖</span>
+                  <span className='hidden xs:inline uppercase text-[10px] tracking-wider'>Bot</span>
+                </div>
+              ) : (
+                <>
+                  {/* Botón Micrófono 1 vs 1 */}
+                  <button
+                    type='button'
+                    onClick={toggleVoiceMute}
+                    className={`h-8 w-8 sm:h-9 sm:w-9 rounded-xl border shadow flex items-center justify-center transition-all cursor-pointer ${
+                      isMicMuted
+                        ? 'bg-red-950/85 hover:bg-red-900 border-red-500/50 text-red-300'
+                        : 'bg-emerald-950/85 hover:bg-emerald-900 border-emerald-500/70 text-emerald-300 shadow-emerald-500/25 ring-1 ring-emerald-500/40'
+                    }`}
+                    title={isMicMuted ? 'Micrófono SILENCIADO (Clic para activar)' : 'Micrófono EN VIVO (Clic para silenciar)'}
+                  >
+                    {isMicMuted ? <MicOff size={14} /> : <Mic size={14} className={speakingPeers[datos.current.flag ? 0 : 1] ? 'text-emerald-400 animate-pulse' : ''} />}
+                  </button>
 
-              {/* Botón Ensordecer 1 vs 1 */}
-              <button
-                type='button'
-                onClick={toggleDeafenAudio}
-                className={`h-8 w-8 sm:h-9 sm:w-9 rounded-xl border shadow flex items-center justify-center transition-all cursor-pointer ${
-                  isDeafened
-                    ? 'bg-red-950/85 hover:bg-red-900 border-red-500/50 text-red-300'
-                    : 'bg-stone-900/90 hover:bg-stone-800 border-stone-600/60 text-stone-300'
-                }`}
-                title={isDeafened ? 'Audio ensordecido (Clic para escuchar al rival)' : 'Ensordecer audio del rival'}
-              >
-                {isDeafened ? <VolumeX size={14} /> : <Volume2 size={14} />}
-              </button>
+                  {/* Botón Ensordecer 1 vs 1 */}
+                  <button
+                    type='button'
+                    onClick={toggleDeafenAudio}
+                    className={`h-8 w-8 sm:h-9 sm:w-9 rounded-xl border shadow flex items-center justify-center transition-all cursor-pointer ${
+                      isDeafened
+                        ? 'bg-red-950/85 hover:bg-red-900 border-red-500/50 text-red-300'
+                        : 'bg-stone-900/90 hover:bg-stone-800 border-stone-600/60 text-stone-300'
+                    }`}
+                    title={isDeafened ? 'Audio ensordecido (Clic para escuchar al rival)' : 'Ensordecer audio del rival'}
+                  >
+                    {isDeafened ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                  </button>
+                </>
+              )}
 
               {/* Botón de Diagnóstico y Prueba de Audio y Micrófono */}
               <button
@@ -3770,7 +3846,7 @@ export default function Duel1vs1() {
                   const hasCincoDeOro = playerCards.some(c => c.id === 4);
                   const trumpsCount = playerCards.filter(c => isTrumpCard(c.id, currentLifeId)).length;
                   const canDenyCinco = isFirstBaza && hasCincoDeOro && trumpsCount === 1;
-                  const isPelaoActive = isOppTrump && playerHasTrump;
+                  const isPelaoActive = playerCards.length > 1 && isOppTrump && playerHasTrump;
 
                   if (!isPelaoActive) return null;
 
