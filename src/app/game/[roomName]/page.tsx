@@ -2283,6 +2283,12 @@ export default function Duel1vs1() {
         const cardZero: Card = Baraja(parseInt(Trozo(modelo.content, 2)), 0);
         const turnZero: boolean = (Trozo(modelo.content, 3) == "1" ? false : true);
 
+        // Blindaje anti-duplicados: descartar orden 84 si la carta ya pertenece a la mano local del jugador
+        if (playerCardsRef.current.some(c => c.id === cardZero.id)) {
+          console.warn(`[AntiDuplicate] Descartando orden 84 desincronizada: la carta ${cardZero.id} ya está en la mano del jugador.`);
+          return;
+        }
+
         // Cancelar timeouts previos para evitar colisiones de limpieza de baza
         if (trickPauseTimeoutRef.current) {
           clearTimeout(trickPauseTimeoutRef.current);
