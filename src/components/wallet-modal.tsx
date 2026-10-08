@@ -120,6 +120,29 @@ export function isWithinVenezuelaOperatingHours(): { isOpen: boolean; formattedV
   }
 }
 
+// Función para verificar si una fecha ISO o timestamp corresponde al día de hoy en Venezuela (UTC-4)
+export function isTodayInVenezuela(dateStr: string): boolean {
+  if (!dateStr) return false;
+  try {
+    const vzlaNowStr = new Date().toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
+    if (dateStr.startsWith(vzlaNowStr)) return true;
+
+    const d = new Date(dateStr);
+    const vzlaWithdrawalStr = d.toLocaleDateString("en-CA", { timeZone: "America/Caracas" });
+    return vzlaWithdrawalStr === vzlaNowStr;
+  } catch {
+    const d = new Date(dateStr);
+    const now = new Date();
+    const dVzla = new Date(d.getTime() - 4 * 3600000);
+    const nowVzla = new Date(now.getTime() - 4 * 3600000);
+    return (
+      dVzla.getUTCFullYear() === nowVzla.getUTCFullYear() &&
+      dVzla.getUTCMonth() === nowVzla.getUTCMonth() &&
+      dVzla.getUTCDate() === nowVzla.getUTCDate()
+    );
+  }
+}
+
 export default function WalletModal({ isOpen, onClose, userId, coins: propCoins }: WalletModalProps) {
   const dispatch = useDispatch();
   const reduxPlayer = useSelector((state: RootState) => state.gameplayer);
@@ -612,6 +635,28 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
       return;
     }
 
+    const isExempt = reduxPlayer?.name?.toLowerCase() === "guardian";
+
+    // REGLA FINANCIERA: Límite estricto de 1 retiro diario por usuario
+    const todayWithdrawal = withdrawals.find(
+      (w) => w.status !== "RECHAZADO" && isTodayInVenezuela(w.createdAt)
+    );
+    if (todayWithdrawal && !isExempt) {
+      setWithdrawError(
+        "Por políticas de seguridad y control financiero, solo se permite realizar un (1) retiro por día. Ya registraste una solicitud de retiro el día de hoy. Podrás realizar una nueva solicitud a partir de mañana dentro del horario operativo (6:00 AM a 9:30 PM)."
+      );
+      return;
+    }
+
+    // REGLA FINANCIERA: Esperar a que se procese cualquier retiro pendiente previo
+    const pendingWithdrawal = withdrawals.find((w) => w.status === "PENDIENTE");
+    if (pendingWithdrawal && !isExempt) {
+      setWithdrawError(
+        "Ya tienes una solicitud de retiro previa en estado PENDIENTE de revisión por el administrador. Espera a que sea procesada antes de solicitar uno nuevo."
+      );
+      return;
+    }
+
     if (!withdrawPhone.trim()) {
       setWithdrawError("Ingresa tu número de teléfono de Pago Móvil.");
       return;
@@ -675,6 +720,14 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
       setLoading(false);
     }
   };
+
+  const isExempt = reduxPlayer?.name?.toLowerCase() === "guardian";
+  const todayWithdrawal = withdrawals.find(
+    (w) => w.status !== "RECHAZADO" && isTodayInVenezuela(w.createdAt)
+  );
+  const pendingWithdrawal = withdrawals.find((w) => w.status === "PENDIENTE");
+  const isDailyLimitReached = !!todayWithdrawal && !isExempt;
+  const isPendingBlocked = !!pendingWithdrawal && !isDailyLimitReached && !isExempt;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/85 backdrop-blur-md p-3 overflow-y-auto">
@@ -1180,6 +1233,44 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
               </div>
             )}
 
+            {/* Aviso de Límite Diario: 1 Retiro por Día */}
+            {isDailyLimitReached && (
+              <div className="w-full bg-gradient-to-r from-amber-950/90 to-[#291807] border-2 border-amber-500/70 rounded-2xl p-3.5 flex items-start gap-2.5 shadow-lg animate-in fade-in">
+                <span className="text-xl shrink-0">⏳</span>
+                <div className="flex-1 text-left">
+                  <div className="flex items-center justify-between gap-1 flex-wrap">
+                    <span className="text-xs font-black text-amber-300 block uppercase">
+                      Límite Diario Alcanzado (1 Retiro por Día)
+                    </span>
+                    <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-2 py-0.5 rounded-full font-bold">
+                      Cupo de hoy utilizado
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-amber-100/90 leading-tight mt-1">
+                    Por políticas de seguridad y control financiero, cada usuario puede realizar <strong>un solo (1) retiro diario</strong>. Ya registraste una solicitud de retiro el día de hoy.
+                  </p>
+                  <p className="text-[10px] text-amber-300/80 font-semibold mt-1">
+                    Podrás solicitar un nuevo retiro mañana a partir de las 6:00 AM (Hora de Venezuela).
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {/* Aviso de Retiro Pendiente */}
+            {isPendingBlocked && (
+              <div className="w-full bg-gradient-to-r from-sky-950/90 to-[#0a1e2d] border-2 border-sky-500/70 rounded-2xl p-3.5 flex items-start gap-2.5 shadow-lg animate-in fade-in">
+                <span className="text-xl shrink-0">🕒</span>
+                <div className="flex-1 text-left">
+                  <span className="text-xs font-black text-sky-300 block uppercase">
+                    Retiro Previo en Proceso
+                  </span>
+                  <p className="text-[11px] text-sky-100/90 leading-tight mt-1">
+                    Tienes una solicitud de retiro previa en estado <strong>PENDIENTE</strong> de revisión y transferencia por el administrador. Espera a que sea procesada antes de solicitar uno nuevo.
+                  </p>
+                </div>
+              </div>
+            )}
+
             <form onSubmit={handleSubmitWithdrawal} className="w-full bg-black/40 border border-emerald-500/30 rounded-2xl p-4 flex flex-col gap-3">
               {withdrawSuccess && (
                 <div className="bg-emerald-950/90 border border-emerald-500 text-emerald-200 text-xs p-3 rounded-xl">
@@ -1303,11 +1394,15 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
 
               <button
                 type="submit"
-                disabled={loading || currentCoins <= 0 || !operatingStatus.isOpen}
+                disabled={loading || currentCoins <= 0 || !operatingStatus.isOpen || isDailyLimitReached || isPendingBlocked}
                 className="w-full py-2.5 mt-1 bg-gradient-to-r from-emerald-600 to-teal-500 hover:brightness-110 text-white font-extrabold text-xs rounded-xl shadow-lg transition disabled:opacity-50 disabled:grayscale cursor-pointer"
               >
                 {!operatingStatus.isOpen
                   ? "⛔ Retiros cerrados (Horario: 6:00 AM a 9:30 PM Vzla)"
+                  : isDailyLimitReached
+                  ? "🔒 Límite diario alcanzado (1 retiro por día)"
+                  : isPendingBlocked
+                  ? "🕒 Retiro previo en proceso de revisión"
                   : loading
                   ? "Procesando retiro..."
                   : "Solicitar Retiro de Bolívares 💸"}
