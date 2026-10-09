@@ -514,6 +514,12 @@ export default function Duel1vs1() {
       console.log("[RivalTimeout] Detección de inactividad ignorada: la mesa se encuentra en estado protegido o es mi propio turno.");
       return;
     }
+
+    if (isOpponentBot() && connection && idGame.current > 0) {
+      console.log("[RivalTimeout] Rival es bot: ejecutando SyncTable1vs1 para rescate proactivo...");
+      safeSignalRInvoke(connection, "SyncTable1vs1", idGame.current).catch(() => {});
+    }
+
     const oppName = oponent.username && oponent.username !== 'nulo' ? oponent.username : 'Rival';
     playSynthSound?.('tumba');
     setRivalTimeoutData({
@@ -1270,7 +1276,10 @@ export default function Duel1vs1() {
       console.log("[GameStateSync1vs1] Sincronización autoritativa recibida:", state);
       if (!state) return;
       hasTimedOut.current = false;
-      setTimeLeft(30);
+      const prevTurn = switchturn.current;
+      const turnChanged = (typeof state.isMyTurn === 'boolean' && state.isMyTurn !== prevTurn);
+      const hadLeadBefore = (cpoppRef.current?.id !== undefined && cpoppRef.current.id >= 0);
+
       setRivalTimeoutData(prev => ({ ...prev, isOpen: false, isClaiming: false }));
       if (typeof state.pointsOwn === 'number' && typeof state.pointsOpp === 'number') {
         updatePointsAndTumba(state.pointsOwn, state.pointsOpp);
@@ -1302,12 +1311,21 @@ export default function Duel1vs1() {
           setTableCards([cpEightRef.current, oppCard]);
         }
         roundturn.current = false; // Hay carta del rival en mesa: me toca responder (Pie)
+        // BLINDAJE: Si hay una carta del rival esperando en la mesa, SIEMPRE me toca responder
+        setIsMyTurn(true);
+        switchturn.current = true;
+        if (!hadLeadBefore) {
+          setTimeLeft(30);
+        }
       } else {
         cpoppRef.current = { id: -1, position: -1, suit: "", number: -1, image: "" };
         cpownRef.current = { id: -1, position: -1, suit: "", number: -1, image: "" };
         setTableCards([cpEightRef.current]);
         if (state.isMyTurn) {
           roundturn.current = true; // Si es mi turno y la mesa está vacía, soy Mano (Orden 82)
+        }
+        if (turnChanged) {
+          setTimeLeft(30);
         }
       }
 
@@ -3314,7 +3332,7 @@ export default function Duel1vs1() {
         rivalName={rivalTimeoutData.rivalName}
         rivalAvatar={rivalTimeoutData.rivalAvatar}
         reason={rivalTimeoutData.reason}
-        initialSeconds={30}
+        initialSeconds={isOpponentBot() ? 0 : 30}
         isClaiming={rivalTimeoutData.isClaiming}
         onClaimVictory={handleClaimRivalTimeout}
         onWait={() => {

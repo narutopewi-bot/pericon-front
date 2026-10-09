@@ -84,6 +84,10 @@ export default function RivalTimeoutModal({
               <>
                 <span className="font-bold text-white">@{displayRival}</span> se quedó sin conexión a internet. Se le han otorgado <span className="text-amber-400 font-extrabold">30 segundos de gracia</span> para reconectarse.
               </>
+            ) : initialSeconds === 0 ? (
+              <>
+                <span className="font-bold text-white">@{displayRival}</span> agotó su tiempo de turno de juego. Puedes reclamar la victoria por inactividad.
+              </>
             ) : (
               <>
                 <span className="font-bold text-white">@{displayRival}</span> agotó sus 30s de turno. Se le conceden <span className="text-amber-400 font-extrabold">30 segundos de gracia</span> por posible fallo de red.
@@ -138,6 +142,8 @@ export default function RivalTimeoutModal({
             <p className="text-[10px] text-slate-400 mt-1.5">
               {isGracePeriodActive 
                 ? "El botón para reclamar la victoria se activará al cumplirse el minuto completo."
+                : initialSeconds === 0
+                ? "¡El bot no respondió a tiempo! Ya puedes reclamar la victoria."
                 : "¡El minuto de espera concluyó! Ya puedes reclamar la victoria por abandono."}
             </p>
           </div>
@@ -169,7 +175,11 @@ export default function RivalTimeoutModal({
           {/* Información de Cortesía */}
           <div className="flex items-center justify-center gap-1.5 text-[11px] text-amber-300/70 py-1">
             <ShieldCheck className="h-3.5 w-3.5 text-amber-400" />
-            <span>Tolerancia justa anti-microcortes de conexión (60s total)</span>
+            <span>
+              {initialSeconds === 0 
+                ? "Regulación autoritativa de turno contra bots virtuales" 
+                : "Tolerancia justa anti-microcortes de conexión (60s total)"}
+            </span>
           </div>
 
         </div>
