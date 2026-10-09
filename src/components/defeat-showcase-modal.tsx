@@ -15,6 +15,7 @@ export interface DefeatShowcaseModalProps {
   newBalance?: number;
   is2v2?: boolean;
   isFriendlyRoom?: boolean;
+  isRematchPending?: boolean;
   endReason?: string;
   onRequestRevancha: () => void;
   onExitLobby: () => void;
@@ -32,6 +33,7 @@ export default function DefeatShowcaseModal({
   newBalance,
   is2v2 = false,
   isFriendlyRoom = false,
+  isRematchPending = false,
   endReason,
   onRequestRevancha,
   onExitLobby,
@@ -228,10 +230,11 @@ export default function DefeatShowcaseModal({
           {/* Botón Pedir Revancha */}
           <button
             onClick={onRequestRevancha}
-            className="w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 hover:from-amber-500 hover:to-yellow-500 py-2.5 px-3 text-xs sm:text-sm font-black uppercase tracking-wider text-white shadow-[0_4px_15px_rgba(217,119,6,0.4)] active:scale-95 transition-all duration-200"
+            disabled={isRematchPending}
+            className={`w-full flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-amber-600 via-yellow-600 to-amber-700 hover:from-amber-500 hover:to-yellow-500 py-2.5 px-3 text-xs sm:text-sm font-black uppercase tracking-wider text-white shadow-[0_4px_15px_rgba(217,119,6,0.4)] active:scale-95 transition-all duration-200 ${isRematchPending ? 'opacity-60 cursor-not-allowed' : ''}`}
           >
-            <RefreshCw className="h-4 w-4" />
-            <span>¡Exigir Revancha Inmediata!</span>
+            <RefreshCw className={`h-4 w-4 ${isRematchPending ? 'animate-spin' : ''}`} />
+            <span>{isRematchPending ? 'Esperando Respuesta...' : '¡Exigir Revancha Inmediata!'}</span>
           </button>
 
           {/* Botón Retar por WhatsApp */}

@@ -323,6 +323,7 @@ export default function Duel1vs1() {
   const hasPlayedGameOverVoiceRef = useRef<boolean>(false);
   const hasPaidOutRef = useRef<boolean>(false);
   const isGameOverRef = useRef<boolean>(false);
+  const [isRematchPending, setIsRematchPending] = useState<boolean>(false);
 
   const triggerEpicVictorySequence = (payoutData?: any) => {
     hasPaidOutRef.current = true;
@@ -704,6 +705,8 @@ export default function Duel1vs1() {
 
   const handleRequestRevancha1vs1 = async () => {
     if (!connection) return;
+    if (isRematchPending) return;
+    setIsRematchPending(true);
     const myName = user?.name && user.name !== 'nulo' ? user.name : 'Un jugador';
     try {
       Swal.fire({
@@ -723,6 +726,7 @@ export default function Duel1vs1() {
       await safeSignalRInvoke(connection, "RequestRevancha1vs1", idGame.current, myName);
     } catch (e) {
       console.error("Error al solicitar revancha 1vs1:", e);
+      setIsRematchPending(false);
       Swal.fire({
         title: "Error",
         text: "No se pudo enviar la solicitud de revancha.",
@@ -3143,6 +3147,13 @@ export default function Duel1vs1() {
     connection.on('RevanchaRequested1vs1', (data: { requesterName: string; gameId: number }) => {
       console.log("[RevanchaRequested1vs1] Solicitud de revancha recibida:", data);
       const reqName = data.requesterName || "Tu rival";
+      setIsRematchPending(false);
+
+      // CERRAR INMEDIATAMENTE CUALQUIER VENTANA DE VICTORIA O DERROTA PARA MOSTRAR LA PETICIÓN AL INSTANTE
+      setVictoryModalData(prev => ({ ...prev, isOpen: false }));
+      setDefeatModalData(prev => ({ ...prev, isOpen: false }));
+      try { Swal.close(); } catch (_) {}
+
       playSynthSound?.('accept');
       Swal.fire({
         title: "⚔️ ¡PETICIÓN DE REVANCHA!",
@@ -3164,6 +3175,12 @@ export default function Duel1vs1() {
         const myName = user?.name && user.name !== 'nulo' ? user.name : 'Un jugador';
         if (res.isConfirmed) {
           try {
+            Swal.fire({
+              title: "🔄 Preparando Mesa...",
+              text: "Aceptando revancha...",
+              allowOutsideClick: false,
+              didOpen: () => { Swal.showLoading(null); }
+            });
             await safeSignalRInvoke(connection, "AnswerRevancha1vs1", idGame.current, true, myName);
           } catch (e) {
             console.error("Error al aceptar revancha 1vs1:", e);
@@ -3179,10 +3196,21 @@ export default function Duel1vs1() {
       });
     });
 
+    connection.on('RevanchaRequestedPending1vs1', (data: { requesterName: string }) => {
+      console.log("[RevanchaRequestedPending1vs1] Solicitud enviada en espera:", data);
+      setIsRematchPending(true);
+    });
+
     connection.on('RevanchaAccepted1vs1', (data: { responderName: string; gameId: number }) => {
       console.log("[RevanchaAccepted1vs1] Revancha aceptada:", data);
-      Swal.close();
+      setIsRematchPending(false);
+      setVictoryModalData(prev => ({ ...prev, isOpen: false }));
+      setDefeatModalData(prev => ({ ...prev, isOpen: false }));
+      hasPaidOutRef.current = false;
+      isGameOverRef.current = false;
       hasPlayedGameOverVoiceRef.current = false;
+      try { Swal.close(); } catch (_) {}
+
       updatePointsAndTumba(0, 0);
       pointOne.current = 0;
       pointTwo.current = 0;
@@ -3207,6 +3235,9 @@ export default function Duel1vs1() {
 
     connection.on('RevanchaRejected1vs1', (data: { responderName: string }) => {
       console.log("[RevanchaRejected1vs1] Revancha rechazada:", data);
+      setIsRematchPending(false);
+      setVictoryModalData(prev => ({ ...prev, isOpen: false }));
+      setDefeatModalData(prev => ({ ...prev, isOpen: false }));
       const respName = data.responderName || "Tu contrincante";
       Swal.fire({
         title: "Revancha rechazada",
@@ -3226,6 +3257,7 @@ export default function Duel1vs1() {
 
     return () => {
       connection.off('RevanchaRequested1vs1');
+      connection.off('RevanchaRequestedPending1vs1');
       connection.off('RevanchaAccepted1vs1');
       connection.off('RevanchaRejected1vs1');
     };
@@ -3300,6 +3332,7 @@ export default function Duel1vs1() {
         loserStones={victoryModalData.loserStones}
         stakeCoins={victoryModalData.stakeCoins}
         isFriendlyRoom={isFriendlyRoom}
+        isRematchPending={isRematchPending}
         onRequestRevancha={() => {
           setVictoryModalData(prev => ({ ...prev, isOpen: false }));
           handleRequestRevancha1vs1();
@@ -3325,6 +3358,7 @@ export default function Duel1vs1() {
         newBalance={defeatModalData.newBalance}
         endReason={defeatModalData.endReason}
         isFriendlyRoom={isFriendlyRoom}
+        isRematchPending={isRematchPending}
         onRequestRevancha={() => {
           setDefeatModalData(prev => ({ ...prev, isOpen: false }));
           handleRequestRevancha1vs1();

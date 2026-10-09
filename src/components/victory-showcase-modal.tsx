@@ -14,6 +14,7 @@ export interface VictoryShowcaseModalProps {
   stakeCoins?: number;
   is2v2?: boolean;
   isFriendlyRoom?: boolean;
+  isRematchPending?: boolean;
   onRequestRevancha: () => void;
   onExitLobby: () => void;
 }
@@ -29,6 +30,7 @@ export default function VictoryShowcaseModal({
   stakeCoins = 10,
   is2v2 = false,
   isFriendlyRoom = false,
+  isRematchPending = false,
   onRequestRevancha,
   onExitLobby,
 }: VictoryShowcaseModalProps) {
@@ -274,10 +276,11 @@ export default function VictoryShowcaseModal({
           <div className="grid grid-cols-2 gap-2 mt-0.5">
             <button
               onClick={onRequestRevancha}
-              className="flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 py-2 sm:py-2.5 text-xs font-black text-white shadow-md active:scale-95 transition-all"
+              disabled={isRematchPending}
+              className={`flex items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 py-2 sm:py-2.5 text-xs font-black text-white shadow-md active:scale-95 transition-all ${isRematchPending ? 'opacity-60 cursor-not-allowed' : ''}`}
             >
-              <RefreshCw className="h-3.5 w-3.5" />
-              <span>Pedir Revancha</span>
+              <RefreshCw className={`h-3.5 w-3.5 ${isRematchPending ? 'animate-spin' : ''}`} />
+              <span>{isRematchPending ? 'Esperando...' : 'Pedir Revancha'}</span>
             </button>
 
             <button
