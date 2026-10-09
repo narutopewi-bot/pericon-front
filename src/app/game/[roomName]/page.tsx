@@ -2256,6 +2256,15 @@ export default function Duel1vs1() {
             }
           }
         }, 4500);
+
+        setTimeout(async () => {
+          const dato = { game: idGame.current, order: 87, content: "" };
+          try {
+            await safeSignalRInvoke(connection, "ChangeGame1vs1", dato);
+          } catch (err) {
+            console.error("Error al cambiar juego tras rechazo en EndAsk369Round:", err);
+          }
+        }, 2200);
       }
     });
 
