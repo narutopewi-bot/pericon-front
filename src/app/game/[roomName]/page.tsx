@@ -2093,6 +2093,17 @@ export default function Duel1vs1() {
     if (!connection) return;
     connection.on('Asked369Game', (modelo: Message) => {
       console.log("[Asked369Game] Recibido:", modelo);
+
+      // Candado estricto de Tumba en cliente: en estado de Tumba jamás se procesan retos de 3, 6 ni 9
+      const pOwn = pointsown.current;
+      const pOpp = pointsopp.current;
+      const isTumbaCurrent = (pOwn >= 9 || (partownRef.current === 1 && pOwn === 8)) ||
+                             (pOpp >= 9 || (partoppRef.current === 1 && pOpp === 8));
+      if (isTumbaCurrent) {
+        console.warn("[Asked369Game] Ignorado: la partida está en estado de Tumba. No se permite pedir ni apostar.");
+        return;
+      }
+
       const targetStake = modelo.content === "1" ? 3 : (modelo.content === "4" ? 6 : 9);
       const rejectReward = targetStake === 3 ? 1 : (targetStake === 6 ? 3 : 6);
 
