@@ -698,7 +698,11 @@ export default function Duel1vs1() {
         }
         hasPaidOutRef.current = true;
         isGameOverRef.current = true;
-        router.replace("/desk");
+        if (typeof roomName === 'string' && roomName.startsWith('sala-torneo-')) {
+          router.replace("/desk?tournament=active");
+        } else {
+          router.replace("/desk");
+        }
       }
     });
   };
@@ -3341,7 +3345,11 @@ export default function Duel1vs1() {
           hasPaidOutRef.current = true;
           isGameOverRef.current = true;
           setVictoryModalData(prev => ({ ...prev, isOpen: false }));
-          router.replace("/desk");
+          if (typeof roomName === 'string' && roomName.startsWith('sala-torneo-')) {
+            router.replace("/desk?tournament=active");
+          } else {
+            router.replace("/desk");
+          }
         }}
       />
 
@@ -3367,7 +3375,11 @@ export default function Duel1vs1() {
           hasPaidOutRef.current = true;
           isGameOverRef.current = true;
           setDefeatModalData(prev => ({ ...prev, isOpen: false }));
-          router.replace("/desk");
+          if (typeof roomName === 'string' && roomName.startsWith('sala-torneo-')) {
+            router.replace("/desk?tournament=active");
+          } else {
+            router.replace("/desk");
+          }
         }}
       />
 
@@ -3393,21 +3405,21 @@ export default function Duel1vs1() {
               🎴
             </div>
             <h2 className="text-xl sm:text-2xl font-black text-amber-200 uppercase tracking-wide">
-              SALA PRIVADA 1 VS 1
+              {typeof roomName === 'string' && roomName.startsWith('sala-torneo-') ? 'MESA DE TORNEO 1 VS 1' : 'SALA PRIVADA 1 VS 1'}
             </h2>
             <p className="text-xs text-amber-300/80 font-semibold mt-1">
-              Duelo Mano a Mano • Esperando a tu rival
+              {typeof roomName === 'string' && roomName.startsWith('sala-torneo-') ? 'Eliminación Directa • Esperando al oponente de tu llave' : 'Duelo Mano a Mano • Esperando a tu rival'}
             </p>
 
             {/* Código y Apuesta */}
             <div className="flex items-center justify-center gap-3 my-4">
               <div className="bg-black/60 border border-amber-500/40 px-3 py-1.5 rounded-xl">
-                <span className="text-[10px] text-slate-400 block font-bold">CÓDIGO DE SALA</span>
+                <span className="text-[10px] text-slate-400 block font-bold">MESA DE JUEGO</span>
                 <span className="text-base sm:text-lg font-black text-amber-400 font-mono">{String(roomName).toUpperCase()}</span>
               </div>
               <div className="bg-black/60 border border-amber-500/40 px-3 py-1.5 rounded-xl">
-                <span className="text-[10px] text-slate-400 block font-bold">TARIFA DE ENTRADA</span>
-                <span className="text-base sm:text-lg font-black text-yellow-400">🪙 10</span>
+                <span className="text-[10px] text-slate-400 block font-bold">INSCRIPCIÓN</span>
+                <span className="text-base sm:text-lg font-black text-emerald-400">{typeof roomName === 'string' && roomName.startsWith('sala-torneo-') ? '✅ PAGADA' : '🪙 10'}</span>
               </div>
             </div>
 
@@ -3497,11 +3509,15 @@ export default function Duel1vs1() {
                     console.error("Error al rendirse al salir:", e);
                   }
                 }
-                router.push('/desk');
+                if (typeof roomName === 'string' && roomName.startsWith('sala-torneo-')) {
+                  router.push('/desk?tournament=active');
+                } else {
+                  router.push('/desk');
+                }
               }}
-              className="text-xs text-red-400 hover:text-red-300 font-bold underline transition"
+              className="text-xs text-red-400 hover:text-red-300 font-bold underline transition cursor-pointer"
             >
-              Cancelar y volver al escritorio
+              {typeof roomName === 'string' && roomName.startsWith('sala-torneo-') ? 'Volver al bracket del torneo' : 'Cancelar y volver al escritorio'}
             </button>
           </div>
         </div>

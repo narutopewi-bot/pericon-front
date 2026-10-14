@@ -1,7 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Trophy, Lock, Users, Swords, Crown, Sparkles, X, Check, RefreshCw, AlertCircle, Play } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Trophy, Lock, Users, Swords, Crown, Sparkles, X, Check, RefreshCw, AlertCircle, Play, Eye } from 'lucide-react';
 
 interface TournamentBracketModalProps {
   isOpen: boolean;
@@ -14,12 +15,15 @@ export default function TournamentBracketModal({
   onClose,
   currentUser,
 }: TournamentBracketModalProps) {
+  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [tournamentData, setTournamentData] = useState<any>(null);
   const [passwordInput, setPasswordInput] = useState('');
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [joining, setJoining] = useState(false);
+  const [starting, setStarting] = useState(false);
+  const [resetting, setResetting] = useState(false);
 
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
 
@@ -42,6 +46,8 @@ export default function TournamentBracketModal({
   useEffect(() => {
     if (isOpen) {
       fetchTournament();
+      const interval = setInterval(fetchTournament, 3500);
+      return () => clearInterval(interval);
     }
   }, [isOpen]);
 
@@ -52,6 +58,73 @@ export default function TournamentBracketModal({
   const matches = tournamentData?.matches || [];
 
   const isUserJoined = participants.some((p: any) => p.userId === currentUser?.id);
+
+  // Buscar si el usuario actual tiene una partida en curso en este momento
+  const activeUserMatch = matches.find((m: any) =>
+    m.status === 'EnJuego' &&
+    (
+      (currentUser?.id && (m.playerOneId === currentUser.id || m.playerTwoId === currentUser.id)) ||
+      (currentUser?.username && (m.playerOneUsername === currentUser.username || m.playerTwoUsername === currentUser.username))
+    )
+  );
+
+  const handleEnterMatch = (match: any) => {
+    let room = '';
+    if (match.round === 'Final') {
+      room = `sala-torneo-${t?.id || 1}-final`;
+    } else {
+      room = `sala-torneo-${t?.id || 1}-m${match.matchIndex}`;
+    }
+    onClose();
+    router.push(`/game/${room}?friendly=1&bet=0`);
+  };
+
+  const handleStartTournament = async () => {
+    try {
+      setStarting(true);
+      setErrorMsg('');
+      setSuccessMsg('');
+      const res = await fetch(`${apiUrl}/api/tournaments/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ tournamentId: t?.id })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorMsg(data.message || 'Error al inicializar el torneo.');
+      } else {
+        setSuccessMsg(data.message || '¡Torneo iniciado exitosamente!');
+        fetchTournament();
+      }
+    } catch (e) {
+      setErrorMsg('Error de conexión al iniciar el torneo.');
+    } finally {
+      setStarting(false);
+    }
+  };
+
+  const handleResetPilot = async () => {
+    if (!window.confirm('¿Reiniciar este torneo piloto para comenzar una nueva prueba desde cero?')) return;
+    try {
+      setResetting(true);
+      setErrorMsg('');
+      setSuccessMsg('');
+      const res = await fetch(`${apiUrl}/api/tournaments/reset-pilot?key=PERICON2026`, {
+        method: 'POST'
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setErrorMsg(data.message || 'Error al reiniciar el torneo.');
+      } else {
+        setSuccessMsg(data.message || 'Torneo piloto reiniciado correctamente.');
+        fetchTournament();
+      }
+    } catch (e) {
+      setErrorMsg('Error de red al reiniciar torneo.');
+    } finally {
+      setResetting(false);
+    }
+  };
 
   const handleJoin = async () => {
     if (!currentUser || !currentUser.id) {
@@ -101,15 +174,6 @@ export default function TournamentBracketModal({
   // Gran Final (1 match)
   const fMatch = matches.find((m: any) => m.round === 'Final');
 
-  const getMatchBoxContent = (match: any, defaultP1: string, defaultP2: string) => {
-    const p1 = match?.playerOneUsername || defaultP1;
-    const p2 = match?.playerTwoUsername || defaultP2;
-    const winner = match?.winnerUsername;
-    const isLive = match?.status === 'EnJuego';
-
-    return { p1, p2, winner, isLive };
-  };
-
   return (
     <div className="fixed inset-0 z-[9999] flex items-center justify-center p-2 sm:p-4 bg-black/90 backdrop-blur-md animate-in fade-in duration-200">
       <div className="relative w-full max-w-5xl max-h-[95dvh] overflow-y-auto rounded-3xl border-2 border-amber-500/60 bg-[#0d1117] p-4 sm:p-6 text-white shadow-[0_0_50px_rgba(245,158,11,0.25)]">
@@ -130,6 +194,15 @@ export default function TournamentBracketModal({
                     <Lock size={10} /> Privado
                   </span>
                 )}
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full uppercase border ${
+                  t?.status === 'Finalizado'
+                    ? 'bg-emerald-500/20 text-emerald-300 border-emerald-500/40'
+                    : t?.status === 'Inscripciones'
+                    ? 'bg-blue-500/20 text-blue-300 border-blue-500/40'
+                    : 'bg-amber-500/20 text-amber-300 border-amber-500/40 animate-pulse'
+                }`}>
+                  Fase: {t?.status || 'Inscripciones'}
+                </span>
               </div>
               <p className="text-xs text-amber-200/60 font-medium">
                 Llave de Eliminación Directa ({isFourPlayer ? "4 Jugadores" : "8 Jugadores"}) • Pozo: 🪙 {t?.totalPot || (isFourPlayer ? 200 : 400)} monedas
@@ -137,17 +210,88 @@ export default function TournamentBracketModal({
             </div>
           </div>
 
-          <button
-            onClick={onClose}
-            className="rounded-xl p-2 text-amber-200/60 hover:bg-amber-500/10 hover:text-white transition"
-          >
-            <X size={22} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleResetPilot}
+              disabled={resetting}
+              className="rounded-xl border border-amber-500/30 bg-amber-950/40 px-2.5 py-1.5 text-[11px] font-bold text-amber-300/80 hover:border-red-500/50 hover:bg-red-950/40 hover:text-red-300 transition flex items-center gap-1.5 disabled:opacity-50 cursor-pointer"
+              title="Reiniciar torneo piloto para pruebas"
+            >
+              <RefreshCw size={12} className={resetting ? 'animate-spin' : ''} />
+              <span className="hidden sm:inline">{resetting ? 'Reiniciando...' : 'Reiniciar Piloto'}</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="rounded-xl p-2 text-amber-200/60 hover:bg-amber-500/10 hover:text-white transition cursor-pointer"
+            >
+              <X size={22} />
+            </button>
+          </div>
         </div>
+
+        {/* 1. BANNER DESTACADO: Partida Activa del Jugador Conectado */}
+        {activeUserMatch && (
+          <div className="mb-4 rounded-2xl border-2 border-yellow-400 bg-gradient-to-r from-amber-950 via-yellow-950/90 to-amber-950 p-4 shadow-[0_0_35px_rgba(245,158,11,0.5)] flex flex-col sm:flex-row items-center justify-between gap-3 animate-pulse">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-amber-400 text-slate-950 shadow-md">
+                <Swords className="h-6 w-6" />
+              </div>
+              <div className="text-left">
+                <div className="flex items-center gap-2">
+                  <span className="bg-red-500 text-white text-[9px] font-black uppercase px-2 py-0.5 rounded-full animate-bounce">
+                    🔴 ¡ES TU TURNO DE JUGAR!
+                  </span>
+                  <span className="text-xs font-bold text-amber-300">
+                    {activeUserMatch.round === 'Final' ? '🏆 Gran Final' : `Mesa ${activeUserMatch.matchIndex + 1} (Semifinal)`}
+                  </span>
+                </div>
+                <p className="text-xs sm:text-sm font-black text-white mt-0.5">
+                  {activeUserMatch.playerOneUsername || 'Jugador 1'} <span className="text-amber-400">VS</span> {activeUserMatch.playerTwoUsername || 'Jugador 2'}
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={() => handleEnterMatch(activeUserMatch)}
+              className="w-full sm:w-auto shrink-0 bg-gradient-to-r from-yellow-400 via-amber-400 to-yellow-500 hover:from-yellow-300 hover:to-amber-300 active:scale-95 text-slate-950 font-black text-xs sm:text-sm px-6 py-2.5 rounded-xl transition shadow-[0_0_20px_rgba(245,158,11,0.6)] flex items-center justify-center gap-2 cursor-pointer"
+            >
+              <Play size={16} fill="currentColor" />
+              <span>ENTRAR A MI PARTIDA</span>
+            </button>
+          </div>
+        )}
+
+        {/* 2. BANNER: Botón para Inicializar Torneo cuando hay 4 jugadores */}
+        {t?.status === 'Inscripciones' && participants.length >= (t?.maxParticipants || 4) && (
+          <div className="mb-4 rounded-2xl border-2 border-emerald-400 bg-emerald-950/60 p-4 shadow-[0_0_25px_rgba(16,185,129,0.3)] flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500 text-white font-black text-lg">
+                👥
+              </div>
+              <div className="text-left">
+                <span className="text-xs font-black uppercase text-emerald-300 block">
+                  ¡CUPO COMPLETO ({participants.length}/{t?.maxParticipants || 4} JUGADORES LISTOS)!
+                </span>
+                <span className="text-xs text-white/80">
+                  Presiona el botón para generar los emparejamientos y arrancar las partidas al momento.
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={handleStartTournament}
+              disabled={starting}
+              className="w-full sm:w-auto shrink-0 bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-400 hover:to-green-500 active:scale-95 text-white font-black text-xs sm:text-sm px-6 py-2.5 rounded-xl transition shadow-lg flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+            >
+              <Play size={16} fill="currentColor" />
+              <span>{starting ? 'Iniciando...' : '🚀 INICIAR TORNEO AHORA'}</span>
+            </button>
+          </div>
+        )}
 
         {/* Barra de Estado y Acceso con Contraseña */}
         {!isUserJoined && t?.status === 'Inscripciones' && (
-          <div className="mb-6 rounded-2xl border border-amber-500/40 bg-amber-950/30 p-3.5 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="mb-4 rounded-2xl border border-amber-500/40 bg-amber-950/30 p-3.5 sm:p-4 flex flex-col sm:flex-row items-center justify-between gap-3">
             <div className="flex items-center gap-2.5 text-xs sm:text-sm text-amber-200">
               <Lock className="text-amber-400 shrink-0" size={18} />
               <span>
@@ -166,7 +310,7 @@ export default function TournamentBracketModal({
               <button
                 onClick={handleJoin}
                 disabled={joining}
-                className="shrink-0 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs px-4 py-2 rounded-xl transition shadow-md disabled:opacity-50"
+                className="shrink-0 bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs px-4 py-2 rounded-xl transition shadow-md disabled:opacity-50 cursor-pointer"
               >
                 {joining ? 'Entrando...' : 'Inscribirme'}
               </button>
@@ -174,9 +318,9 @@ export default function TournamentBracketModal({
           </div>
         )}
 
-        {isUserJoined && (
+        {isUserJoined && t?.status === 'Inscripciones' && (
           <div className="mb-4 rounded-xl border border-emerald-500/40 bg-emerald-950/20 px-3.5 py-2 text-xs font-bold text-emerald-300 flex items-center justify-between">
-            <span>✅ Ya estás inscrito en este torneo. ¡Prepárate para jugar tu llave!</span>
+            <span>✅ Ya estás inscrito en este torneo. Esperando inicio...</span>
             <span className="text-emerald-400 font-mono">Cupos: {participants.length}/{t?.maxParticipants || (isFourPlayer ? 4 : 8)}</span>
           </div>
         )}
@@ -202,7 +346,7 @@ export default function TournamentBracketModal({
               {/* COLUMNA 1: SEMIFINALES (4 Casillas en 2 Cruces) */}
               <div className="flex flex-col justify-around h-[420px]">
                 <div className="text-[11px] font-black uppercase tracking-wider text-amber-400 text-center mb-1">
-                  Semifinales
+                  Semifinales (1 vs 1)
                 </div>
 
                 {[0, 1].map((sIdx) => {
@@ -211,9 +355,17 @@ export default function TournamentBracketModal({
                   const p2 = match?.playerTwoUsername || participants[sIdx * 2 + 1]?.username || `Jugador ${sIdx * 2 + 2}`;
                   const p1Won = match?.winnerUsername && match?.winnerUsername === p1;
                   const p2Won = match?.winnerUsername && match?.winnerUsername === p2;
+                  const isUserInMatch = currentUser && (
+                    (match?.playerOneId === currentUser?.id || match?.playerTwoId === currentUser?.id) ||
+                    (currentUser?.username && (match?.playerOneUsername === currentUser?.username || match?.playerTwoUsername === currentUser?.username))
+                  );
 
                   return (
-                    <div key={sIdx} className="relative flex flex-col gap-2 my-2">
+                    <div key={sIdx} className="relative flex flex-col gap-1.5 my-2">
+                      <div className="text-[10px] font-bold text-amber-300/70 mb-0.5">
+                        Mesa {sIdx + 1}
+                      </div>
+
                       {/* Jugador 1 */}
                       <div className={`flex items-center justify-between px-3.5 py-2.5 rounded-lg border text-xs font-bold transition-all ${
                         p1Won
@@ -237,6 +389,31 @@ export default function TournamentBracketModal({
                         <span className="truncate max-w-[120px]">{p2}</span>
                         {p2Won && <span className="text-[10px] text-emerald-400">FINALISTA 🏆</span>}
                       </div>
+
+                      {/* Botón de Entrada / Estado por Mesa */}
+                      {match && (
+                        <div className="flex items-center justify-between pt-0.5">
+                          <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                            match.status === 'Finalizado'
+                              ? 'bg-emerald-500/20 text-emerald-300'
+                              : match.status === 'EnJuego'
+                              ? 'bg-amber-500/20 text-amber-300 animate-pulse'
+                              : 'bg-white/10 text-white/40'
+                          }`}>
+                            {match.status === 'Finalizado' ? '✅ Finalizada' : (match.status === 'EnJuego' ? '🔴 En Juego' : '⏳ Pendiente')}
+                          </span>
+
+                          {match.status === 'EnJuego' && (
+                            <button
+                              onClick={() => handleEnterMatch(match)}
+                              className="text-[10px] font-black text-amber-300 hover:text-white bg-amber-500/30 hover:bg-amber-500/50 px-2 py-0.5 rounded transition flex items-center gap-1 cursor-pointer"
+                            >
+                              <Play size={9} fill="currentColor" />
+                              <span>{isUserInMatch ? 'Jugar' : 'Entrar'}</span>
+                            </button>
+                          )}
+                        </div>
+                      )}
 
                       {/* Conector Ortogonal hacia Gran Final */}
                       <div className="absolute -right-6 top-1/2 -translate-y-1/2 w-6 h-[80px] border-r-2 border-t-2 border-b-2 border-amber-500/40 rounded-r-md pointer-events-none" />
@@ -280,6 +457,31 @@ export default function TournamentBracketModal({
                     )}
                   </div>
 
+                  {/* Botón de Entrada a la Final */}
+                  {fMatch && (
+                    <div className="flex items-center justify-between pt-0.5">
+                      <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${
+                        fMatch.status === 'Finalizado'
+                          ? 'bg-yellow-500/20 text-yellow-300'
+                          : fMatch.status === 'EnJuego'
+                          ? 'bg-amber-500/20 text-amber-300 animate-pulse'
+                          : 'bg-white/10 text-white/40'
+                      }`}>
+                        {fMatch.status === 'Finalizado' ? '🏆 Finalizado' : (fMatch.status === 'EnJuego' ? '🔴 En Juego' : '⏳ Esperando')}
+                      </span>
+
+                      {fMatch.status === 'EnJuego' && (
+                        <button
+                          onClick={() => handleEnterMatch(fMatch)}
+                          className="text-[10px] font-black text-amber-300 hover:text-white bg-amber-500/30 hover:bg-amber-500/50 px-2.5 py-0.5 rounded transition flex items-center gap-1 cursor-pointer"
+                        >
+                          <Play size={10} fill="currentColor" />
+                          <span>Jugar Final</span>
+                        </button>
+                      )}
+                    </div>
+                  )}
+
                   {/* Conector Ortogonal hacia Trofeo */}
                   <div className="absolute -right-6 top-1/2 -translate-y-1/2 w-6 h-0.5 bg-amber-500/60 pointer-events-none" />
                 </div>
@@ -306,7 +508,7 @@ export default function TournamentBracketModal({
                   </span>
 
                   <span className="mt-1 text-[10px] font-semibold text-amber-200/60">
-                    Premio: 🪙 {Math.round((t?.totalPot || 200) * 0.7 * 0.9)}
+                    Premio: 🪙 {Math.round((t?.totalPot || 200) * 0.9)}
                   </span>
                 </div>
               </div>
@@ -473,7 +675,7 @@ export default function TournamentBracketModal({
                   </span>
 
                   <span className="mt-1 text-[10px] font-semibold text-amber-200/60">
-                    Premio: 🪙 {Math.round((t?.totalPot || 400) * 0.7 * 0.9)}
+                    Premio: 🪙 {Math.round((t?.totalPot || 400) * 0.9)}
                   </span>
                 </div>
               </div>
@@ -486,13 +688,13 @@ export default function TournamentBracketModal({
         <div className="mt-4 pt-3 border-t border-white/10 flex items-center justify-between text-xs text-amber-200/60">
           <div className="flex items-center gap-2">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
-            <span>Sincronización en tiempo real activa</span>
+            <span>Sincronización en tiempo real activa (3.5s)</span>
           </div>
 
           <button
             onClick={fetchTournament}
             disabled={loading}
-            className="flex items-center gap-1.5 text-amber-400 hover:text-amber-300 font-bold transition"
+            className="flex items-center gap-1.5 text-amber-400 hover:text-amber-300 font-bold transition cursor-pointer"
           >
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
             Actualizar Llave

@@ -220,6 +220,15 @@ export default function Desk() {
   const [referralOpen, setReferralOpen] = useState(false);
   const [dailyStreakOpen, setDailyStreakOpen] = useState(false);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("tournament") === "active" || params.get("tournament") === "1") {
+        setTournamentOpen(true);
+      }
+    }
+  }, []);
+
   interface AnnouncementPayload {
     id?: number;
     title?: string;
