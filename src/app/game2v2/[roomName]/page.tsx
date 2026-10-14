@@ -1288,7 +1288,7 @@ export default function GameTwoVsTwo() {
 
     const remainingCards = hand.filter(c => !myPlayedIds.includes(c.id));
     setMyCards(remainingCards);
-    if (remainingCards.length === 0 && !(data.pointsTeam1 >= 10 || data.pointsTeam2 >= 10)) {
+    if (remainingCards.length === 0 && !data.isGameOver && !isGameOverRef.current) {
       setIsWaitingNextHand(true);
       isWaitingNextHandRef.current = true;
       setTimeout(() => {
