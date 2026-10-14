@@ -578,10 +578,10 @@ export default function Desk() {
               </div>
               <div className="text-xl sm:text-2xl mt-1 group-hover:scale-110 transition">🏆</div>
               <span className="text-[10px] sm:text-xs font-black text-amber-300 uppercase tracking-wide mt-0.5">
-                TORNEO 8P
+                TORNEO 4P
               </span>
               <span className="text-[8px] sm:text-[9px] text-amber-200/80 font-medium">
-                Llaves en vivo
+                4 Jugadores • En vivo
               </span>
             </button>
 

@@ -75,7 +75,7 @@ const Duel = ({ open, duelToggle, }: any) => {
         nameone: nplayer_1, 
         usertwo: player_2, 
         nametwo: nplayer_2, 
-        coins: duelMode?.credits ? parseInt(duelMode.credits) : 100, 
+        coins: duelMode?.credits ? parseInt(duelMode.credits) : 200, 
         turn: "01", 
         flag: turnplay 
       };
@@ -87,7 +87,7 @@ const Duel = ({ open, duelToggle, }: any) => {
       console.log("¡MatchFound2v2 recibido desde el servidor!", modelo);
       const parts = modelo.content.split(' ');
       const gameId = parts[0];
-      const betVal = parts[1] || '100';
+      const betVal = parts[1] || '200';
       const matchRoomKey = parts[parts.length - 1] || `match-${gameId}`;
       router.push(`/game2v2/${matchRoomKey}?bet=${betVal}&match=auto`);
     });

@@ -13,13 +13,13 @@ interface DuelmodeProps {
 
 const Duelmode: React.FC<DuelmodeProps> = ({ onMode, duelToggle }) => {
   const [selectedValue, setSelectedValue] = React.useState<string>("1 vs 1");
-  const [selectedCredits, setSelectedCredits] = React.useState<string>("100");
+  const [selectedCredits, setSelectedCredits] = React.useState<string>("200");
 
   const betOptions = [
-    { value: "100", label: "100", badge: "Bronce" },
-    { value: "200", label: "200", badge: "Plata" },
-    { value: "500", label: "500", badge: "Oro" },
-    { value: "1000", label: "1000", badge: "Diamante" },
+    { value: "200", label: "200", badge: "Bronce" },
+    { value: "500", label: "500", badge: "Plata" },
+    { value: "1000", label: "1000", badge: "Oro" },
+    { value: "1500", label: "1500", badge: "Diamante" },
   ];
 
   return (

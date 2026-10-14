@@ -92,7 +92,9 @@ export default function TournamentBracketModal({
     }
   };
 
-  // Cuartos de Final (4 matches)
+  const isFourPlayer = (t?.maxParticipants === 4) || (matches.length > 0 && !matches.some((m: any) => m.round === 'Cuartos')) || (!t?.maxParticipants || t?.maxParticipants === 4);
+
+  // Cuartos de Final (4 matches para 8 jugadores)
   const qMatches = matches.filter((m: any) => m.round === 'Cuartos');
   // Semifinales (2 matches)
   const sMatches = matches.filter((m: any) => m.round === 'Semifinal');
@@ -130,7 +132,7 @@ export default function TournamentBracketModal({
                 )}
               </div>
               <p className="text-xs text-amber-200/60 font-medium">
-                Llave de Eliminación Directa (8 Jugadores) • Pozo: 🪙 {t?.totalPot || 400} monedas
+                Llave de Eliminación Directa ({isFourPlayer ? "4 Jugadores" : "8 Jugadores"}) • Pozo: 🪙 {t?.totalPot || (isFourPlayer ? 200 : 400)} monedas
               </p>
             </div>
           </div>
@@ -175,7 +177,7 @@ export default function TournamentBracketModal({
         {isUserJoined && (
           <div className="mb-4 rounded-xl border border-emerald-500/40 bg-emerald-950/20 px-3.5 py-2 text-xs font-bold text-emerald-300 flex items-center justify-between">
             <span>✅ Ya estás inscrito en este torneo. ¡Prepárate para jugar tu llave!</span>
-            <span className="text-emerald-400 font-mono">Cupos: {participants.length}/{t?.maxParticipants || 8}</span>
+            <span className="text-emerald-400 font-mono">Cupos: {participants.length}/{t?.maxParticipants || (isFourPlayer ? 4 : 8)}</span>
           </div>
         )}
 
@@ -191,173 +193,293 @@ export default function TournamentBracketModal({
           </div>
         )}
 
-        {/* DIAGRAMA DE LLAVES DEL TORNEO (Idéntico al Diagrama de la Imagen) */}
+        {/* DIAGRAMA DE LLAVES DEL TORNEO */}
         <div className="relative overflow-x-auto py-4">
-          <div className="min-w-[780px] grid grid-cols-4 gap-4 items-center">
+          {isFourPlayer ? (
+            /* LLAVE DE 4 JUGADORES (SEMIFINALES -> GRAN FINAL -> TROFEO) */
+            <div className="min-w-[620px] max-w-4xl mx-auto grid grid-cols-3 gap-6 items-center">
 
-            {/* COLUMNA 1: CUARTOS DE FINAL (8 Casillas en 4 Parejas) */}
-            <div className="flex flex-col justify-between h-[480px]">
-              <div className="text-[11px] font-black uppercase tracking-wider text-amber-400 text-center mb-1">
-                Cuartos de Final
-              </div>
-
-              {[0, 1, 2, 3].map((mIdx) => {
-                const match = qMatches.find((m: any) => m.matchIndex === mIdx);
-                const p1 = match?.playerOneUsername || participants[mIdx * 2]?.username || `Jugador ${mIdx * 2 + 1}`;
-                const p2 = match?.playerTwoUsername || participants[mIdx * 2 + 1]?.username || `Jugador ${mIdx * 2 + 2}`;
-                const p1Won = match?.winnerUsername && match?.winnerUsername === p1;
-                const p2Won = match?.winnerUsername && match?.winnerUsername === p2;
-
-                return (
-                  <div key={mIdx} className="relative flex flex-col gap-1.5 my-1">
-                    {/* Caja Jugador 1 */}
-                    <div className={`flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-bold transition-all ${
-                      p1Won
-                        ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.3)]'
-                        : match?.winnerUsername && !p1Won
-                        ? 'border-red-500/40 bg-red-950/20 text-red-300/50'
-                        : 'border-white/20 bg-slate-900/80 text-white'
-                    }`}>
-                      <span className="truncate max-w-[110px]">{p1}</span>
-                      {p1Won && <span className="text-[10px] text-emerald-400">WIN 🏆</span>}
-                    </div>
-
-                    {/* Caja Jugador 2 */}
-                    <div className={`flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-bold transition-all ${
-                      p2Won
-                        ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.3)]'
-                        : match?.winnerUsername && !p2Won
-                        ? 'border-red-500/40 bg-red-950/20 text-red-300/50'
-                        : 'border-white/20 bg-slate-900/80 text-white'
-                    }`}>
-                      <span className="truncate max-w-[110px]">{p2}</span>
-                      {p2Won && <span className="text-[10px] text-emerald-400">WIN 🏆</span>}
-                    </div>
-
-                    {/* Conector Ortogonal hacia Semis */}
-                    <div className="absolute -right-4 top-1/2 -translate-y-1/2 w-4 h-[44px] border-r-2 border-t-2 border-b-2 border-amber-500/40 rounded-r-md pointer-events-none" />
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* COLUMNA 2: SEMIFINALES (4 Casillas en 2 Parejas) */}
-            <div className="flex flex-col justify-around h-[480px] pl-2">
-              <div className="text-[11px] font-black uppercase tracking-wider text-amber-400 text-center mb-1">
-                Semifinales
-              </div>
-
-              {[0, 1].map((sIdx) => {
-                const match = sMatches.find((m: any) => m.matchIndex === sIdx);
-                const p1 = match?.playerOneUsername || (sIdx === 0 ? "Ganador Q1" : "Ganador Q3");
-                const p2 = match?.playerTwoUsername || (sIdx === 0 ? "Ganador Q2" : "Ganador Q4");
-                const p1Won = match?.winnerUsername && match?.winnerUsername === p1;
-                const p2Won = match?.winnerUsername && match?.winnerUsername === p2;
-
-                return (
-                  <div key={sIdx} className="relative flex flex-col gap-2 my-2">
-                    {/* Caja Semifinalista 1 */}
-                    <div className={`flex items-center justify-between px-3 py-2.5 rounded-lg border text-xs font-bold transition-all ${
-                      p1Won
-                        ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.3)]'
-                        : match?.winnerUsername && !p1Won
-                        ? 'border-red-500/40 bg-red-950/20 text-red-300/50'
-                        : p1.startsWith("Ganador")
-                        ? 'border-dashed border-white/10 bg-slate-900/40 text-white/40'
-                        : 'border-amber-400/50 bg-amber-950/30 text-amber-200'
-                    }`}>
-                      <span className="truncate max-w-[120px]">{p1}</span>
-                      {p1Won && <span className="text-[10px] text-emerald-400">FINALISTA</span>}
-                    </div>
-
-                    {/* Caja Semifinalista 2 */}
-                    <div className={`flex items-center justify-between px-3 py-2.5 rounded-lg border text-xs font-bold transition-all ${
-                      p2Won
-                        ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.3)]'
-                        : match?.winnerUsername && !p2Won
-                        ? 'border-red-500/40 bg-red-950/20 text-red-300/50'
-                        : p2.startsWith("Ganador")
-                        ? 'border-dashed border-white/10 bg-slate-900/40 text-white/40'
-                        : 'border-amber-400/50 bg-amber-950/30 text-amber-200'
-                    }`}>
-                      <span className="truncate max-w-[120px]">{p2}</span>
-                      {p2Won && <span className="text-[10px] text-emerald-400">FINALISTA</span>}
-                    </div>
-
-                    {/* Conector Ortogonal hacia Final */}
-                    <div className="absolute -right-4 top-1/2 -translate-y-1/2 w-4 h-[90px] border-r-2 border-t-2 border-b-2 border-amber-500/40 rounded-r-md pointer-events-none" />
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* COLUMNA 3: GRAN FINAL (2 Casillas) */}
-            <div className="flex flex-col justify-center h-[480px] pl-2">
-              <div className="text-[11px] font-black uppercase tracking-wider text-amber-400 text-center mb-2">
-                Gran Final
-              </div>
-
-              <div className="relative flex flex-col gap-3 my-auto">
-                {/* Finalista 1 */}
-                <div className={`flex items-center justify-between px-3.5 py-3 rounded-xl border text-xs font-bold transition-all ${
-                  fMatch?.winnerUsername && fMatch?.winnerUsername === fMatch?.playerOneUsername
-                    ? 'border-yellow-400 bg-yellow-500/20 text-yellow-300 shadow-[0_0_15px_rgba(250,204,21,0.5)]'
-                    : fMatch?.playerOneUsername
-                    ? 'border-amber-400/60 bg-amber-950/40 text-amber-200'
-                    : 'border-dashed border-white/10 bg-slate-900/40 text-white/40'
-                }`}>
-                  <span className="truncate max-w-[130px]">{fMatch?.playerOneUsername || "Finalista 1"}</span>
-                  {fMatch?.winnerUsername && fMatch?.winnerUsername === fMatch?.playerOneUsername && (
-                    <Crown size={14} className="text-yellow-400" />
-                  )}
+              {/* COLUMNA 1: SEMIFINALES (4 Casillas en 2 Cruces) */}
+              <div className="flex flex-col justify-around h-[420px]">
+                <div className="text-[11px] font-black uppercase tracking-wider text-amber-400 text-center mb-1">
+                  Semifinales
                 </div>
 
-                {/* Finalista 2 */}
-                <div className={`flex items-center justify-between px-3.5 py-3 rounded-xl border text-xs font-bold transition-all ${
-                  fMatch?.winnerUsername && fMatch?.winnerUsername === fMatch?.playerTwoUsername
-                    ? 'border-yellow-400 bg-yellow-500/20 text-yellow-300 shadow-[0_0_15px_rgba(250,204,21,0.5)]'
-                    : fMatch?.playerTwoUsername
-                    ? 'border-amber-400/60 bg-amber-950/40 text-amber-200'
-                    : 'border-dashed border-white/10 bg-slate-900/40 text-white/40'
-                }`}>
-                  <span className="truncate max-w-[130px]">{fMatch?.playerTwoUsername || "Finalista 2"}</span>
-                  {fMatch?.winnerUsername && fMatch?.winnerUsername === fMatch?.playerTwoUsername && (
-                    <Crown size={14} className="text-yellow-400" />
-                  )}
+                {[0, 1].map((sIdx) => {
+                  const match = sMatches.find((m: any) => m.matchIndex === sIdx);
+                  const p1 = match?.playerOneUsername || participants[sIdx * 2]?.username || `Jugador ${sIdx * 2 + 1}`;
+                  const p2 = match?.playerTwoUsername || participants[sIdx * 2 + 1]?.username || `Jugador ${sIdx * 2 + 2}`;
+                  const p1Won = match?.winnerUsername && match?.winnerUsername === p1;
+                  const p2Won = match?.winnerUsername && match?.winnerUsername === p2;
+
+                  return (
+                    <div key={sIdx} className="relative flex flex-col gap-2 my-2">
+                      {/* Jugador 1 */}
+                      <div className={`flex items-center justify-between px-3.5 py-2.5 rounded-lg border text-xs font-bold transition-all ${
+                        p1Won
+                          ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.3)]'
+                          : match?.winnerUsername && !p1Won
+                          ? 'border-red-500/40 bg-red-950/20 text-red-300/50'
+                          : 'border-white/20 bg-slate-900/80 text-white'
+                      }`}>
+                        <span className="truncate max-w-[120px]">{p1}</span>
+                        {p1Won && <span className="text-[10px] text-emerald-400">FINALISTA 🏆</span>}
+                      </div>
+
+                      {/* Jugador 2 */}
+                      <div className={`flex items-center justify-between px-3.5 py-2.5 rounded-lg border text-xs font-bold transition-all ${
+                        p2Won
+                          ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.3)]'
+                          : match?.winnerUsername && !p2Won
+                          ? 'border-red-500/40 bg-red-950/20 text-red-300/50'
+                          : 'border-white/20 bg-slate-900/80 text-white'
+                      }`}>
+                        <span className="truncate max-w-[120px]">{p2}</span>
+                        {p2Won && <span className="text-[10px] text-emerald-400">FINALISTA 🏆</span>}
+                      </div>
+
+                      {/* Conector Ortogonal hacia Gran Final */}
+                      <div className="absolute -right-6 top-1/2 -translate-y-1/2 w-6 h-[80px] border-r-2 border-t-2 border-b-2 border-amber-500/40 rounded-r-md pointer-events-none" />
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* COLUMNA 2: GRAN FINAL (2 Finalistas) */}
+              <div className="flex flex-col justify-center h-[420px] pl-2">
+                <div className="text-[11px] font-black uppercase tracking-wider text-amber-400 text-center mb-2">
+                  Gran Final
                 </div>
 
-                {/* Conector Ortogonal hacia Trofeo */}
-                <div className="absolute -right-4 top-1/2 -translate-y-1/2 w-4 h-0.5 bg-amber-500/60 pointer-events-none" />
-              </div>
-            </div>
-
-            {/* COLUMNA 4: TROFEO DE CAMPEÓN (Idéntico a la imagen) */}
-            <div className="flex flex-col items-center justify-center h-[480px]">
-              <div className="relative flex flex-col items-center justify-center w-full max-w-[170px] p-5 rounded-2xl border-2 border-amber-400/80 bg-gradient-to-b from-[#241a0d] to-[#120c06] shadow-[0_0_35px_rgba(245,158,11,0.3)] animate-pulse">
-                
-                {/* Corona y Trofeo */}
-                <div className="relative mb-2">
-                  <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-yellow-300 via-amber-400 to-amber-600 text-slate-950 shadow-[0_0_25px_rgba(250,204,21,0.6)]">
-                    <Trophy className="h-10 w-10 sm:h-12 sm:w-12" />
+                <div className="relative flex flex-col gap-3 my-auto">
+                  {/* Finalista 1 */}
+                  <div className={`flex items-center justify-between px-3.5 py-3 rounded-xl border text-xs font-bold transition-all ${
+                    fMatch?.winnerUsername && fMatch?.winnerUsername === fMatch?.playerOneUsername
+                      ? 'border-yellow-400 bg-yellow-500/20 text-yellow-300 shadow-[0_0_15px_rgba(250,204,21,0.5)]'
+                      : fMatch?.playerOneUsername
+                      ? 'border-amber-400/60 bg-amber-950/40 text-amber-200'
+                      : 'border-dashed border-white/10 bg-slate-900/40 text-white/40'
+                  }`}>
+                    <span className="truncate max-w-[130px]">{fMatch?.playerOneUsername || (sMatches[0]?.winnerUsername || "Finalista 1")}</span>
+                    {fMatch?.winnerUsername && fMatch?.winnerUsername === fMatch?.playerOneUsername && (
+                      <Crown size={14} className="text-yellow-400" />
+                    )}
                   </div>
-                  <Crown className="absolute -top-3 left-1/2 -translate-x-1/2 h-6 w-6 text-yellow-200" />
+
+                  {/* Finalista 2 */}
+                  <div className={`flex items-center justify-between px-3.5 py-3 rounded-xl border text-xs font-bold transition-all ${
+                    fMatch?.winnerUsername && fMatch?.winnerUsername === fMatch?.playerTwoUsername
+                      ? 'border-yellow-400 bg-yellow-500/20 text-yellow-300 shadow-[0_0_15px_rgba(250,204,21,0.5)]'
+                      : fMatch?.playerTwoUsername
+                      ? 'border-amber-400/60 bg-amber-950/40 text-amber-200'
+                      : 'border-dashed border-white/10 bg-slate-900/40 text-white/40'
+                  }`}>
+                    <span className="truncate max-w-[130px]">{fMatch?.playerTwoUsername || (sMatches[1]?.winnerUsername || "Finalista 2")}</span>
+                    {fMatch?.winnerUsername && fMatch?.winnerUsername === fMatch?.playerTwoUsername && (
+                      <Crown size={14} className="text-yellow-400" />
+                    )}
+                  </div>
+
+                  {/* Conector Ortogonal hacia Trofeo */}
+                  <div className="absolute -right-6 top-1/2 -translate-y-1/2 w-6 h-0.5 bg-amber-500/60 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* COLUMNA 3: TROFEO DE CAMPEÓN */}
+              <div className="flex flex-col items-center justify-center h-[420px]">
+                <div className="relative flex flex-col items-center justify-center w-full max-w-[180px] p-5 rounded-2xl border-2 border-amber-400/80 bg-gradient-to-b from-[#241a0d] to-[#120c06] shadow-[0_0_35px_rgba(245,158,11,0.3)] animate-pulse">
+                  
+                  {/* Corona y Trofeo */}
+                  <div className="relative mb-2">
+                    <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-yellow-300 via-amber-400 to-amber-600 text-slate-950 shadow-[0_0_25px_rgba(250,204,21,0.6)]">
+                      <Trophy className="h-10 w-10 sm:h-12 sm:w-12" />
+                    </div>
+                    <Crown className="absolute -top-3 left-1/2 -translate-x-1/2 h-6 w-6 text-yellow-200" />
+                  </div>
+
+                  <span className="text-[11px] font-black uppercase tracking-widest text-yellow-300 text-center">
+                    Campeón
+                  </span>
+
+                  <span className="mt-1 text-xs sm:text-sm font-extrabold text-white text-center truncate max-w-full">
+                    {t?.winnerUsername || fMatch?.winnerUsername || "En Disputa"}
+                  </span>
+
+                  <span className="mt-1 text-[10px] font-semibold text-amber-200/60">
+                    Premio: 🪙 {Math.round((t?.totalPot || 200) * 0.7 * 0.9)}
+                  </span>
+                </div>
+              </div>
+
+            </div>
+          ) : (
+            /* LLAVE DE 8 JUGADORES (CUARTOS -> SEMIS -> FINAL -> TROFEO) */
+            <div className="min-w-[780px] grid grid-cols-4 gap-4 items-center">
+
+              {/* COLUMNA 1: CUARTOS DE FINAL (8 Casillas en 4 Parejas) */}
+              <div className="flex flex-col justify-between h-[480px]">
+                <div className="text-[11px] font-black uppercase tracking-wider text-amber-400 text-center mb-1">
+                  Cuartos de Final
                 </div>
 
-                <span className="text-[11px] font-black uppercase tracking-widest text-yellow-300 text-center">
-                  Campeón
-                </span>
+                {[0, 1, 2, 3].map((mIdx) => {
+                  const match = qMatches.find((m: any) => m.matchIndex === mIdx);
+                  const p1 = match?.playerOneUsername || participants[mIdx * 2]?.username || `Jugador ${mIdx * 2 + 1}`;
+                  const p2 = match?.playerTwoUsername || participants[mIdx * 2 + 1]?.username || `Jugador ${mIdx * 2 + 2}`;
+                  const p1Won = match?.winnerUsername && match?.winnerUsername === p1;
+                  const p2Won = match?.winnerUsername && match?.winnerUsername === p2;
 
-                <span className="mt-1 text-xs sm:text-sm font-extrabold text-white text-center truncate max-w-full">
-                  {t?.winnerUsername || "En Disputa"}
-                </span>
+                  return (
+                    <div key={mIdx} className="relative flex flex-col gap-1.5 my-1">
+                      {/* Caja Jugador 1 */}
+                      <div className={`flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-bold transition-all ${
+                        p1Won
+                          ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.3)]'
+                          : match?.winnerUsername && !p1Won
+                          ? 'border-red-500/40 bg-red-950/20 text-red-300/50'
+                          : 'border-white/20 bg-slate-900/80 text-white'
+                      }`}>
+                        <span className="truncate max-w-[110px]">{p1}</span>
+                        {p1Won && <span className="text-[10px] text-emerald-400">WIN 🏆</span>}
+                      </div>
 
-                <span className="mt-1 text-[10px] font-semibold text-amber-200/60">
-                  Premio: 🪙 {Math.round((t?.totalPot || 400) * 0.7 * 0.9)}
-                </span>
+                      {/* Caja Jugador 2 */}
+                      <div className={`flex items-center justify-between px-3 py-2 rounded-lg border text-xs font-bold transition-all ${
+                        p2Won
+                          ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.3)]'
+                          : match?.winnerUsername && !p2Won
+                          ? 'border-red-500/40 bg-red-950/20 text-red-300/50'
+                          : 'border-white/20 bg-slate-900/80 text-white'
+                      }`}>
+                        <span className="truncate max-w-[110px]">{p2}</span>
+                        {p2Won && <span className="text-[10px] text-emerald-400">WIN 🏆</span>}
+                      </div>
+
+                      {/* Conector Ortogonal hacia Semis */}
+                      <div className="absolute -right-4 top-1/2 -translate-y-1/2 w-4 h-[44px] border-r-2 border-t-2 border-b-2 border-amber-500/40 rounded-r-md pointer-events-none" />
+                    </div>
+                  );
+                })}
               </div>
-            </div>
 
-          </div>
+              {/* COLUMNA 2: SEMIFINALES (4 Casillas en 2 Parejas) */}
+              <div className="flex flex-col justify-around h-[480px] pl-2">
+                <div className="text-[11px] font-black uppercase tracking-wider text-amber-400 text-center mb-1">
+                  Semifinales
+                </div>
+
+                {[0, 1].map((sIdx) => {
+                  const match = sMatches.find((m: any) => m.matchIndex === sIdx);
+                  const p1 = match?.playerOneUsername || (sIdx === 0 ? "Ganador Q1" : "Ganador Q3");
+                  const p2 = match?.playerTwoUsername || (sIdx === 0 ? "Ganador Q2" : "Ganador Q4");
+                  const p1Won = match?.winnerUsername && match?.winnerUsername === p1;
+                  const p2Won = match?.winnerUsername && match?.winnerUsername === p2;
+
+                  return (
+                    <div key={sIdx} className="relative flex flex-col gap-2 my-2">
+                      {/* Caja Semifinalista 1 */}
+                      <div className={`flex items-center justify-between px-3 py-2.5 rounded-lg border text-xs font-bold transition-all ${
+                        p1Won
+                          ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.3)]'
+                          : match?.winnerUsername && !p1Won
+                          ? 'border-red-500/40 bg-red-950/20 text-red-300/50'
+                          : p1.startsWith("Ganador")
+                          ? 'border-dashed border-white/10 bg-slate-900/40 text-white/40'
+                          : 'border-amber-400/50 bg-amber-950/30 text-amber-200'
+                      }`}>
+                        <span className="truncate max-w-[120px]">{p1}</span>
+                        {p1Won && <span className="text-[10px] text-emerald-400">FINALISTA</span>}
+                      </div>
+
+                      {/* Caja Semifinalista 2 */}
+                      <div className={`flex items-center justify-between px-3 py-2.5 rounded-lg border text-xs font-bold transition-all ${
+                        p2Won
+                          ? 'border-emerald-400 bg-emerald-500/20 text-emerald-300 shadow-[0_0_12px_rgba(52,211,153,0.3)]'
+                          : match?.winnerUsername && !p2Won
+                          ? 'border-red-500/40 bg-red-950/20 text-red-300/50'
+                          : p2.startsWith("Ganador")
+                          ? 'border-dashed border-white/10 bg-slate-900/40 text-white/40'
+                          : 'border-amber-400/50 bg-amber-950/30 text-amber-200'
+                      }`}>
+                        <span className="truncate max-w-[120px]">{p2}</span>
+                        {p2Won && <span className="text-[10px] text-emerald-400">FINALISTA</span>}
+                      </div>
+
+                      {/* Conector Ortogonal hacia Final */}
+                      <div className="absolute -right-4 top-1/2 -translate-y-1/2 w-4 h-[90px] border-r-2 border-t-2 border-b-2 border-amber-500/40 rounded-r-md pointer-events-none" />
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* COLUMNA 3: GRAN FINAL (2 Casillas) */}
+              <div className="flex flex-col justify-center h-[480px] pl-2">
+                <div className="text-[11px] font-black uppercase tracking-wider text-amber-400 text-center mb-2">
+                  Gran Final
+                </div>
+
+                <div className="relative flex flex-col gap-3 my-auto">
+                  {/* Finalista 1 */}
+                  <div className={`flex items-center justify-between px-3.5 py-3 rounded-xl border text-xs font-bold transition-all ${
+                    fMatch?.winnerUsername && fMatch?.winnerUsername === fMatch?.playerOneUsername
+                      ? 'border-yellow-400 bg-yellow-500/20 text-yellow-300 shadow-[0_0_15px_rgba(250,204,21,0.5)]'
+                      : fMatch?.playerOneUsername
+                      ? 'border-amber-400/60 bg-amber-950/40 text-amber-200'
+                      : 'border-dashed border-white/10 bg-slate-900/40 text-white/40'
+                  }`}>
+                    <span className="truncate max-w-[130px]">{fMatch?.playerOneUsername || "Finalista 1"}</span>
+                    {fMatch?.winnerUsername && fMatch?.winnerUsername === fMatch?.playerOneUsername && (
+                      <Crown size={14} className="text-yellow-400" />
+                    )}
+                  </div>
+
+                  {/* Finalista 2 */}
+                  <div className={`flex items-center justify-between px-3.5 py-3 rounded-xl border text-xs font-bold transition-all ${
+                    fMatch?.winnerUsername && fMatch?.winnerUsername === fMatch?.playerTwoUsername
+                      ? 'border-yellow-400 bg-yellow-500/20 text-yellow-300 shadow-[0_0_15px_rgba(250,204,21,0.5)]'
+                      : fMatch?.playerTwoUsername
+                      ? 'border-amber-400/60 bg-amber-950/40 text-amber-200'
+                      : 'border-dashed border-white/10 bg-slate-900/40 text-white/40'
+                  }`}>
+                    <span className="truncate max-w-[130px]">{fMatch?.playerTwoUsername || "Finalista 2"}</span>
+                    {fMatch?.winnerUsername && fMatch?.winnerUsername === fMatch?.playerTwoUsername && (
+                      <Crown size={14} className="text-yellow-400" />
+                    )}
+                  </div>
+
+                  {/* Conector Ortogonal hacia Trofeo */}
+                  <div className="absolute -right-4 top-1/2 -translate-y-1/2 w-4 h-0.5 bg-amber-500/60 pointer-events-none" />
+                </div>
+              </div>
+
+              {/* COLUMNA 4: TROFEO DE CAMPEÓN */}
+              <div className="flex flex-col items-center justify-center h-[480px]">
+                <div className="relative flex flex-col items-center justify-center w-full max-w-[170px] p-5 rounded-2xl border-2 border-amber-400/80 bg-gradient-to-b from-[#241a0d] to-[#120c06] shadow-[0_0_35px_rgba(245,158,11,0.3)] animate-pulse">
+                  
+                  {/* Corona y Trofeo */}
+                  <div className="relative mb-2">
+                    <div className="flex h-16 w-16 sm:h-20 sm:w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-yellow-300 via-amber-400 to-amber-600 text-slate-950 shadow-[0_0_25px_rgba(250,204,21,0.6)]">
+                      <Trophy className="h-10 w-10 sm:h-12 sm:w-12" />
+                    </div>
+                    <Crown className="absolute -top-3 left-1/2 -translate-x-1/2 h-6 w-6 text-yellow-200" />
+                  </div>
+
+                  <span className="text-[11px] font-black uppercase tracking-widest text-yellow-300 text-center">
+                    Campeón
+                  </span>
+
+                  <span className="mt-1 text-xs sm:text-sm font-extrabold text-white text-center truncate max-w-full">
+                    {t?.winnerUsername || "En Disputa"}
+                  </span>
+
+                  <span className="mt-1 text-[10px] font-semibold text-amber-200/60">
+                    Premio: 🪙 {Math.round((t?.totalPot || 400) * 0.7 * 0.9)}
+                  </span>
+                </div>
+              </div>
+
+            </div>
+          )}
         </div>
 
         {/* Footer con controles */}

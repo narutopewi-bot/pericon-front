@@ -18,7 +18,7 @@ const NewDuelmode = ({ onMode, duelToggle, }: any) => {
 
   const [isOptionsOpen, setIsOptionsOpen] = React.useState(false);
   const [selectedValue, setSelectedValue] = React.useState("Solitario");
-  const [selectedCredits, setSelectedCredits] = React.useState("100");
+  const [selectedCredits, setSelectedCredits] = React.useState("200");
 
   const onSelectChange = (value: string) => {
     setSelectedValue(value);
@@ -43,7 +43,7 @@ const NewDuelmode = ({ onMode, duelToggle, }: any) => {
   
   // Esto ha de cambiarse a futuro
 
-  const creditOptions = ["100", "200", "500", "1000"];
+  const creditOptions = ["200", "500", "1000", "1500"];
   const filteredCreditOptions = creditOptions.filter(option => option !== selectedCredits);
 
   const [player, setPlayer] = React.useState<Players[]>([]);

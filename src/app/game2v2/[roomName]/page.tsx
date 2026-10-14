@@ -170,7 +170,7 @@ export default function GameTwoVsTwo() {
 
   const isFriendlyRoom = searchParams.get('friendly') === '1' ||
     (searchParams.get('match') !== 'auto' && !roomName.toLowerCase().startsWith('match-'));
-  const initialBet = isFriendlyRoom ? 10 : parseInt(searchParams.get('bet') || '100', 10);
+  const initialBet = isFriendlyRoom ? 10 : parseInt(searchParams.get('bet') || '200', 10);
   const [betAmount, setBetAmount] = useState<number>(initialBet);
 
   // Estado de Sala Multijugador (4 personas reales)

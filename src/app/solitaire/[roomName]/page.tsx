@@ -56,7 +56,7 @@ export default function Duel() {
   // Get roomName from the URL
   const { roomName } = useParams();
   const gameplayer = useAppSelector((state: RootState) => state.gameplayer);
-  const betAmount = parseInt(searchParams?.get('bet') || '50', 10);
+  const betAmount = parseInt(searchParams?.get('bet') || '200', 10);
 
   // Game state
   const isDesktop = useMediaQuery('(min-width: 768px)')

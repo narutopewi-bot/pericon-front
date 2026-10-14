@@ -12,7 +12,7 @@ const Duelmode = ({
 }: any) => {
   const [isOptionsOpen, setIsOptionsOpen] = React.useState(false);
   const [selectedValue, setSelectedValue] = React.useState("1 vs 1");
-  const [selectedCredits, setSelectedCredits] = React.useState("10");
+  const [selectedCredits, setSelectedCredits] = React.useState("200");
 
   const onSelectChange = (value: string) => {
     setSelectedValue(value);
@@ -34,7 +34,7 @@ const Duelmode = ({
   // \Duel Options
 
   // Credit Options: Filtramos para que el crédito seleccionado no aparezca en las opciones desplegables
-  const creditOptions = ["10", "20", "50"];
+  const creditOptions = ["200", "500", "1000", "1500"];
   const filteredCreditOptions = creditOptions.filter(option => option !== selectedCredits);
   // \Credit Options
 
