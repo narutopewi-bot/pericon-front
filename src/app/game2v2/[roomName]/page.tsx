@@ -302,10 +302,17 @@ export default function GameTwoVsTwo() {
   const tumbaCountdownTimerRef = useRef<any>(null);
   const [isWaitingOppTumba, setIsWaitingOppTumba] = useState<boolean>(false);
 
-  // Temporizador oficial de 30 segundos por turno
+  // Temporizador oficial de 30 segundos por turno con Epoch de reinicio forzado
   const [timeLeft, setTimeLeft] = useState<number>(30);
   const timeLeftRef = useRef<number>(30);
+  const [turnEpoch, setTurnEpoch] = useState<number>(0);
   const handleTurnTimeoutRef = useRef<() => void>(() => {});
+
+  const restartTurnTimer = (seconds: number = 30) => {
+    setTimeLeft(seconds);
+    timeLeftRef.current = seconds;
+    setTurnEpoch(prev => prev + 1);
+  };
 
   // Guardia estricta de deduplicación de voz para fin de partida (evita que se repita la voz)
   const hasPlayedGameOverVoiceRef = useRef<boolean>(false);
@@ -316,9 +323,22 @@ export default function GameTwoVsTwo() {
   }, []);
 
   useEffect(() => {
-    setTimeLeft(30);
-    timeLeftRef.current = 30;
+    restartTurnTimer(30);
   }, [currentTurn]);
+
+  // Guardia de auto-desbloqueo de seguridad: si isProcessingMove queda atrapado >3.5s, liberar
+  useEffect(() => {
+    if (isProcessingMove) {
+      const timer = setTimeout(() => {
+        if (isProcessingMoveRef.current) {
+          console.warn("[Watchdog Move 2v2] isProcessingMove colgado por >3.5s. Desbloqueando mesa...");
+          isProcessingMoveRef.current = false;
+          setIsProcessingMove(false);
+        }
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [isProcessingMove]);
 
   useEffect(() => {
     if (isDealing || isCleaningTable || myCards.length === 0 || tumbaCountdown !== null || isWaitingOppTumba || isStakePending) {
@@ -331,6 +351,9 @@ export default function GameTwoVsTwo() {
           clearInterval(interval);
           if (currentTurnRef.current === mySeatIndexRef.current && !isProcessingMoveRef.current && myCards.length > 0) {
             handleTurnTimeoutRef.current();
+          } else if (connection) {
+            // Si el turno era de otro jugador y expiró, solicitar auto-jugada al servidor
+            connection.invoke("AutoPlayTurn2v2", roomName, currentTurnRef.current).catch(() => {});
           }
           return 0;
         }
@@ -339,7 +362,7 @@ export default function GameTwoVsTwo() {
     }, 1000);
 
     return () => clearInterval(interval);
-  }, [currentTurn, isDealing, isCleaningTable, myCards.length, tumbaCountdown, isWaitingOppTumba, isStakePending]);
+  }, [turnEpoch, isDealing, isCleaningTable, myCards.length, tumbaCountdown, isWaitingOppTumba, isStakePending]);
 
   // Anuncios y resultados de baza
   const [announcement, setAnnouncement] = useState<AnnouncementData | null>(null);
@@ -588,6 +611,7 @@ export default function GameTwoVsTwo() {
       if (tumbaCountdownTimerRef.current) clearInterval(tumbaCountdownTimerRef.current);
       setTumbaCountdown(null);
       Swal.close();
+      restartTurnTimer(30);
 
       updatePoints(data.pointsTeam1, data.pointsTeam2, false);
       if (typeof data.isTumbaDeParaAtrasTeam1 === 'boolean') {
@@ -688,15 +712,19 @@ export default function GameTwoVsTwo() {
       }
     });
 
-    connection.on('TumbaAcceptedNotice2v2', (data: { seatIndex: number; acceptingTeam: number; message: string }) => {
+    connection.on('TumbaAcceptedNotice2v2', (data: { seatIndex: number; acceptingTeam: number; currentTurn?: number; message: string }) => {
       console.log('[TumbaAcceptedNotice2v2 recibido]', data);
       setIsWaitingOppTumba(false);
       isProcessingMoveRef.current = false;
       setIsProcessingMove(false);
-      setTimeLeft(30);
       if (tumbaCountdownTimerRef.current) clearInterval(tumbaCountdownTimerRef.current);
       setTumbaCountdown(null);
       Swal.close();
+      if (typeof data.currentTurn === 'number') {
+        setCurrentTurn(data.currentTurn);
+        currentTurnRef.current = data.currentTurn;
+      }
+      restartTurnTimer(30);
 
       triggerAnnouncement({
         type: 'tumba',
@@ -1002,7 +1030,7 @@ export default function GameTwoVsTwo() {
               }, 2000);
               isProcessingMoveRef.current = false;
               setIsProcessingMove(false);
-              setTimeLeft(30);
+              restartTurnTimer(30);
               if (connection) {
                 try {
                   await connection.invoke("AcceptTumba2v2", roomName, mySeatIndexRef.current);
@@ -1025,6 +1053,10 @@ export default function GameTwoVsTwo() {
                 }
               }
             }
+          }).finally(() => {
+            isProcessingMoveRef.current = false;
+            setIsProcessingMove(false);
+            restartTurnTimer(30);
           });
         }
       }, 1000);
@@ -1041,25 +1073,26 @@ export default function GameTwoVsTwo() {
       setIsWaitingOppTumba(true);
       isProcessingMoveRef.current = true;
       setIsProcessingMove(true);
-      setTimeLeft(30);
+      restartTurnTimer(30);
 
-      // Watchdog de seguridad sincronizado: 10s análisis + 8s decisión + 10s margen red móvil = 28 segundos
+      // Watchdog de seguridad sincronizado: 10s análisis + 8s decisión + 6s margen red móvil = 24 segundos
       setTimeout(() => {
         setIsWaitingOppTumba(prev => {
           if (prev) {
-            console.warn("[Watchdog Tumba 2v2] Tiempo agotado esperando a los rivales (28s). Desbloqueando mesa...");
-            setTimeLeft(30);
+            console.warn("[Watchdog Tumba 2v2] Tiempo agotado esperando a los rivales (24s). Desbloqueando mesa...");
             isProcessingMoveRef.current = false;
             setIsProcessingMove(false);
+            restartTurnTimer(30);
             return false;
           }
           return false;
         });
-      }, 28000);
+      }, 24000);
     } else {
       setIsWaitingOppTumba(false);
       isProcessingMoveRef.current = false;
       setIsProcessingMove(false);
+      restartTurnTimer(30);
       const starterName = players[starterPlayer]?.name || 'Jugador';
       triggerAnnouncement({
         type: 'dame_tres',
@@ -1128,6 +1161,7 @@ export default function GameTwoVsTwo() {
     leadPlayerRef.current = starter;
     setCurrentTurn(starter);
     currentTurnRef.current = starter;
+    restartTurnTimer(30);
 
     if (Array.isArray(data.seats)) {
       setPlayers(prev => {
@@ -1200,6 +1234,7 @@ export default function GameTwoVsTwo() {
     leadPlayerRef.current = starter;
     setCurrentTurn(starter);
     currentTurnRef.current = starter;
+    restartTurnTimer(30);
 
     setTimeout(() => {
       setIsDealing(false);
@@ -1310,8 +1345,13 @@ export default function GameTwoVsTwo() {
     handStarterRef.current = data.starterPlayer ?? 0;
 
     setDisconnectedNotice(null);
+    setIsWaitingOppTumba(false);
+    if (tumbaCountdownTimerRef.current) clearInterval(tumbaCountdownTimerRef.current);
+    setTumbaCountdown(null);
+    Swal.close();
     isProcessingMoveRef.current = false;
     setIsProcessingMove(false);
+    restartTurnTimer(30);
 
     // 8. Restaurar estado de apuesta pendiente si la había
     if (data.pendingStake && data.pendingStake > 0) {
@@ -1339,9 +1379,23 @@ export default function GameTwoVsTwo() {
 
   // Lanzar carta del jugador humano local
   const handlePlayMyCard = (card: Card) => {
+    // Si isProcessingMove quedó pegado de un click previo pero es mi turno, auto-desbloquear
+    if (isProcessingMoveRef.current && !isCleaningTable && !isDealing) {
+      console.warn("[handlePlayMyCard] Auto-desbloqueando isProcessingMoveRef colgado...");
+      isProcessingMoveRef.current = false;
+      setIsProcessingMove(false);
+    }
+    // Si isWaitingOppTumba quedó colgado de la fase previa, auto-desbloquear
+    if (isWaitingOppTumba && tumbaCountdown === null) {
+      console.warn("[handlePlayMyCard] Auto-desbloqueando isWaitingOppTumba colgado...");
+      setIsWaitingOppTumba(false);
+    }
+
     if (currentTurnRef.current !== mySeatIndexRef.current || isProcessingMoveRef.current || isCleaningTable || isWaitingOppTumba || tumbaCountdown !== null || isStakePendingRef.current) return;
 
     if (connection && connection.state !== signalR.HubConnectionState.Connected) {
+      isProcessingMoveRef.current = false;
+      setIsProcessingMove(false);
       if (connection.state === signalR.HubConnectionState.Reconnecting) {
         Swal.fire({
           title: "Reconectando señal...",
