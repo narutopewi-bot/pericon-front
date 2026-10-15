@@ -83,8 +83,9 @@ const VENEZUELAN_BANKS = [
   "Otro banco..."
 ];
 
-// Variable configurable para el monto mínimo de retiro en monedas (1 moneda = 1 Bs.)
+// Variable configurable para el monto mínimo y máximo de retiro en monedas (1 moneda = 1 Bs.)
 export const MIN_WITHDRAWAL_COINS = 1500;
+export const MAX_DAILY_WITHDRAWAL_COINS = 5000;
 
 // Horario estipulado para recargas y retiros: 6:00 AM a 9:30 PM (Hora de Venezuela, UTC-4)
 export function isWithinVenezuelaOperatingHours(): { isOpen: boolean; formattedVzlaTime: string } {
@@ -621,6 +622,13 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
       return;
     }
 
+    const isExempt = reduxPlayer?.name?.toLowerCase() === "guardian";
+
+    if (numCoins > MAX_DAILY_WITHDRAWAL_COINS && !isExempt) {
+      setWithdrawError(`El monto máximo permitido de retiro por día es de ${MAX_DAILY_WITHDRAWAL_COINS.toLocaleString()} monedas (Bs. ${MAX_DAILY_WITHDRAWAL_COINS.toLocaleString()}).`);
+      return;
+    }
+
     if (numCoins > currentCoins) {
       setWithdrawError(`Saldo insuficiente. Tienes ${currentCoins.toLocaleString()} monedas disponibles y deseas retirar ${numCoins.toLocaleString()}.`);
       return;
@@ -634,8 +642,6 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
       );
       return;
     }
-
-    const isExempt = reduxPlayer?.name?.toLowerCase() === "guardian";
 
     // REGLA FINANCIERA: Límite estricto de 1 retiro diario por usuario
     const todayWithdrawal = withdrawals.find(
@@ -1291,7 +1297,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
                     Cantidad de Monedas a Retirar:
                   </label>
                   <span className="text-[10px] text-amber-300 font-bold bg-amber-950/60 border border-amber-500/40 px-2 py-0.5 rounded-md">
-                    Mínimo: {MIN_WITHDRAWAL_COINS.toLocaleString()} monedas
+                    Mín: {MIN_WITHDRAWAL_COINS.toLocaleString()} | Máx: {MAX_DAILY_WITHDRAWAL_COINS.toLocaleString()} Bs.
                   </span>
                 </div>
                 <div className="relative">
@@ -1326,10 +1332,10 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
                     {currentCoins >= MIN_WITHDRAWAL_COINS && (
                       <button
                         type="button"
-                        onClick={() => setWithdrawCoins(currentCoins.toString())}
+                        onClick={() => setWithdrawCoins(Math.min(currentCoins, MAX_DAILY_WITHDRAWAL_COINS).toString())}
                         className="underline text-amber-300 hover:text-amber-200"
                       >
-                        Retirar todo ({currentCoins.toLocaleString()})
+                        Máx diario ({Math.min(currentCoins, MAX_DAILY_WITHDRAWAL_COINS).toLocaleString()})
                       </button>
                     )}
                   </div>
