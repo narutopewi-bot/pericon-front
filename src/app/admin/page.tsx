@@ -107,6 +107,7 @@ interface UserRow {
   avatarUrl?: string;
   isActive: boolean;
   isAdmin?: boolean;
+  botDifficulty?: "facil" | "medio" | "dificil";
 }
 
 interface PromoCodeRow {
@@ -313,6 +314,7 @@ export default function AdminPage() {
   const [botDifficultyLoading, setBotDifficultyLoading] = useState(false);
   const [virtualBots, setVirtualBots] = useState<VirtualBotItem[]>([]);
   const [updatingBotId, setUpdatingBotId] = useState<number | null>(null);
+  const [updatingUserDiffId, setUpdatingUserDiffId] = useState<number | null>(null);
   const [promos, setPromos] = useState<PromoCodeRow[]>([]);
   const [feedbacks, setFeedbacks] = useState<FeedbackRow[]>([]);
   const [feedbackStats, setFeedbackStats] = useState<{ total: number; averageRating: number }>({ total: 0, averageRating: 5.0 });
@@ -412,14 +414,14 @@ export default function AdminPage() {
           botDifficulty: {
             ...prev.botDifficulty,
             mode: mode,
-            housePercent: mode === "facil" ? 40 : mode === "dificil" ? 65 : 50,
-            userPercent: mode === "facil" ? 60 : mode === "dificil" ? 35 : 50,
+            housePercent: mode === "facil" ? 50 : mode === "dificil" ? 85 : 70,
+            userPercent: mode === "facil" ? 50 : mode === "dificil" ? 15 : 30,
           }
         } : prev);
         Swal.fire({
           icon: "success",
           title: "Dificultad Actualizada",
-          text: `El bot ahora está en Modo ${mode.toUpperCase()} (${mode === "facil" ? "40% Casa / 60% Jugador - El jugador gana con mayor frecuencia" : mode === "dificil" ? "65% Casa / 35% Jugador - Mayor dificultad para la casa" : "50% Casa / 50% Jugador - Balance equitativo"}).`,
+          text: `El bot ahora está en Modo ${mode.toUpperCase()} (${mode === "facil" ? "50% Casa / 50% Jugador - Modo Recreativo" : mode === "dificil" ? "85% Casa / 15% Jugador - Muro de Contención y Bloqueo Total" : "70% Casa / 30% Jugador - Recuperación de Tesorería"}).`,
           background: "#180e07",
           color: "#fef3c7",
           confirmButtonColor: "#f59e0b"
@@ -438,6 +440,43 @@ export default function AdminPage() {
       console.error("Error setting bot difficulty:", err);
     } finally {
       setBotDifficultyLoading(false);
+    }
+  };
+
+  const handleSetUserBotDifficulty = async (userId: number, difficulty: "facil" | "medio" | "dificil") => {
+    setUpdatingUserDiffId(userId);
+    try {
+      const res = await adminFetch(`${apiUrl}/api/admin/user/${userId}/bot-difficulty`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ difficulty })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, botDifficulty: difficulty } : u));
+        Swal.fire({
+          icon: "success",
+          title: "Dificultad de Jugador Actualizada",
+          text: data.message || `El jugador ahora está calibrado en modo ${difficulty.toUpperCase()}.`,
+          background: "#180e07",
+          color: "#fef3c7",
+          confirmButtonColor: "#f59e0b",
+          timer: 3500
+        });
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: errData.message || "No se pudo actualizar la dificultad del jugador.",
+          background: "#180e07",
+          color: "#fef3c7"
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setUpdatingUserDiffId(null);
     }
   };
 
@@ -2408,9 +2447,9 @@ export default function AdminPage() {
                     </span>
                   </div>
                   <p className="text-xs text-amber-200/70 mt-1">
-                    {botDifficultyMode === 'facil' && "🟢 Modo Fácil: 50% Casa / 50% Jugador. El usuario gana ~5 de cada 10 partidas. Calibrado para fluidez de jugadores."}
-                    {botDifficultyMode === 'medio' && "🟡 Modo Medio: 55% Casa / 45% Jugador. Ventaja gradual y balanceada con antirachas (máx 2 victorias del bot seguidas)."}
-                    {botDifficultyMode === 'dificil' && "🔴 Modo Difícil: 62% Casa / 38% Jugador. Mayor ventaja para la casa con antirachas activas."}
+                    {botDifficultyMode === 'facil' && "🟢 Modo Fácil: 50% Casa / 50% Jugador. El usuario gana ~5 de cada 10 partidas. Calibrado para fluidez y modo recreativo."}
+                    {botDifficultyMode === 'medio' && "🟡 Modo Medio (Estándar): 70% Casa / 30% Jugador. Recuperación constante de fondos con rotación sutil de triunfos."}
+                    {botDifficultyMode === 'dificil' && "🔴 Modo Difícil: 85% Casa / 15% Jugador. Muro de contención y bloqueo total de rachas para frenar desfalcos."}
                   </p>
                 </div>
               </div>
@@ -2425,10 +2464,10 @@ export default function AdminPage() {
                       ? "bg-green-600 text-white ring-2 ring-green-400"
                       : "bg-[#24140a] text-green-400 border border-green-500/40 hover:bg-green-950/40"
                   }`}
-                  title="40% Casa / 60% Jugador - Permite ganar más seguido a los usuarios (atracción de clientes)"
+                  title="50% Casa / 50% Jugador - Permite ganar más seguido a los usuarios (modo recreativo)"
                 >
                   <span>🟢</span>
-                  <span>Fácil (60% Jugador)</span>
+                  <span>Fácil (50/50)</span>
                 </button>
 
                 <button
@@ -2440,10 +2479,10 @@ export default function AdminPage() {
                       ? "bg-amber-500 text-black ring-2 ring-amber-300"
                       : "bg-[#24140a] text-amber-300 border border-amber-500/40 hover:bg-amber-950/40"
                   }`}
-                  title="50% Casa / 50% Jugador - Balance equitativo"
+                  title="70% Casa / 30% Jugador - Recuperación de tesorería ordenada por la banca"
                 >
                   <span>🟡</span>
-                  <span>Medio (50%)</span>
+                  <span>Medio (70/30)</span>
                 </button>
 
                 <button
@@ -2455,10 +2494,10 @@ export default function AdminPage() {
                       ? "bg-red-600 text-white ring-2 ring-red-400"
                       : "bg-[#24140a] text-red-400 border border-red-500/40 hover:bg-red-950/40"
                   }`}
-                  title="65% Casa / 35% Jugador - Mayor dificultad"
+                  title="85% Casa / 15% Jugador - Muro de contención para cortar fugas"
                 >
                   <span>🔴</span>
-                  <span>Difícil (65%)</span>
+                  <span>Difícil Muro (85%)</span>
                 </button>
               </div>
             </div>
@@ -2759,13 +2798,14 @@ export default function AdminPage() {
                       <th className="p-3.5">Nivel</th>
                       <th className="p-3.5">Estado</th>
                       <th className="p-3.5">Registro</th>
+                      <th className="p-3.5 text-center">Dificultad Bots</th>
                       <th className="p-3.5 text-center">Acciones</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-amber-500/10">
                     {filteredUsers.length === 0 ? (
                       <tr>
-                        <td colSpan={8} className="text-center py-10 text-amber-200/40">
+                        <td colSpan={9} className="text-center py-10 text-amber-200/40">
                           No se encontraron usuarios que coincidan con la búsqueda.
                         </td>
                       </tr>
@@ -2822,6 +2862,49 @@ export default function AdminPage() {
                             </td>
                             <td className="p-3.5 text-amber-200/50 text-[11px]">
                               {new Date(u.createdAt).toLocaleDateString()}
+                            </td>
+                            <td className="p-3.5 text-center">
+                              <div className="inline-flex rounded-lg bg-[#140b06] border border-amber-500/20 p-0.5 gap-1 shadow-inner">
+                                <button
+                                  type="button"
+                                  disabled={updatingUserDiffId === u.id || u.botDifficulty === "facil"}
+                                  onClick={() => handleSetUserBotDifficulty(u.id, "facil")}
+                                  className={`px-2 py-1 rounded text-[10px] font-black transition ${
+                                    u.botDifficulty === "facil"
+                                      ? "bg-green-600 text-white shadow ring-1 ring-green-400"
+                                      : "text-green-400/60 hover:text-green-300 hover:bg-green-950/40"
+                                  }`}
+                                  title="Fácil (50% Casa / 50% Jugador - Modo Recreativo)"
+                                >
+                                  🟢 Fácil
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={updatingUserDiffId === u.id || (u.botDifficulty === "medio" || !u.botDifficulty)}
+                                  onClick={() => handleSetUserBotDifficulty(u.id, "medio")}
+                                  className={`px-2 py-1 rounded text-[10px] font-black transition ${
+                                    u.botDifficulty === "medio" || !u.botDifficulty
+                                      ? "bg-amber-500 text-black shadow ring-1 ring-amber-300"
+                                      : "text-amber-300/60 hover:text-amber-200 hover:bg-amber-950/40"
+                                  }`}
+                                  title="Medio (70% Casa / 30% Jugador - Recuperación de Tesorería)"
+                                >
+                                  🟡 70/30
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={updatingUserDiffId === u.id || u.botDifficulty === "dificil"}
+                                  onClick={() => handleSetUserBotDifficulty(u.id, "dificil")}
+                                  className={`px-2 py-1 rounded text-[10px] font-black transition ${
+                                    u.botDifficulty === "dificil"
+                                      ? "bg-red-600 text-white shadow ring-1 ring-red-400 animate-pulse"
+                                      : "text-red-400/60 hover:text-red-300 hover:bg-red-950/40"
+                                  }`}
+                                  title="Difícil (85% Casa / 15% Jugador - Muro Total de Bloqueo de Ganancias)"
+                                >
+                                  🔴 Muro
+                                </button>
+                              </div>
                             </td>
                             <td className="p-3.5 text-center">
                               <div className="flex items-center justify-center gap-1.5">
@@ -4290,9 +4373,9 @@ export default function AdminPage() {
                     </span>
                   </div>
                   <p className="text-xs text-amber-200/70 mt-1">
-                    {botDifficultyMode === 'facil' && "🟢 Modo Fácil: 50% Casa / 50% Jugador. El usuario gana ~5 de cada 10 partidas. Fluidez para nuevos jugadores."}
-                    {botDifficultyMode === 'medio' && "🟡 Modo Medio: 60% Casa / 40% Jugador. Objetivo diario 60-40, equilibrio financiero y control antirachas estricto."}
-                    {botDifficultyMode === 'dificil' && "🔴 Modo Difícil: 65% Casa / 35% Jugador. Mayor ventaja para la casa con protección antirachas activa."}
+                    {botDifficultyMode === 'facil' && "🟢 Modo Fácil: 50% Casa / 50% Jugador. El usuario gana ~5 de cada 10 partidas. Fluidez y modo recreativo."}
+                    {botDifficultyMode === 'medio' && "🟡 Modo Medio (Estándar): 70% Casa / 30% Jugador. Recuperación constante de tesorería y control estricto de banca."}
+                    {botDifficultyMode === 'dificil' && "🔴 Modo Difícil: 85% Casa / 15% Jugador. Muro de contención y protección antirachas activa."}
                   </p>
                 </div>
               </div>
@@ -4307,10 +4390,10 @@ export default function AdminPage() {
                       ? "bg-green-600 text-white ring-2 ring-green-400"
                       : "bg-[#24140a] text-green-400 border border-green-500/40 hover:bg-green-950/40"
                   }`}
-                  title="40% Casa / 60% Jugador - Permite ganar más seguido a los usuarios (atracción de clientes)"
+                  title="50% Casa / 50% Jugador - Permite ganar más seguido a los usuarios (modo recreativo)"
                 >
                   <span>🟢</span>
-                  <span>Fácil (60% Jugador)</span>
+                  <span>Fácil (50/50)</span>
                 </button>
 
                 <button
@@ -4322,10 +4405,10 @@ export default function AdminPage() {
                       ? "bg-amber-500 text-black ring-2 ring-amber-300"
                       : "bg-[#24140a] text-amber-300 border border-amber-500/40 hover:bg-amber-950/40"
                   }`}
-                  title="50% Casa / 50% Jugador - Balance equitativo"
+                  title="70% Casa / 30% Jugador - Recuperación de tesorería"
                 >
                   <span>🟡</span>
-                  <span>Medio (50%)</span>
+                  <span>Medio (70/30)</span>
                 </button>
 
                 <button
@@ -4337,10 +4420,10 @@ export default function AdminPage() {
                       ? "bg-red-600 text-white ring-2 ring-red-400"
                       : "bg-[#24140a] text-red-400 border border-red-500/40 hover:bg-red-950/40"
                   }`}
-                  title="65% Casa / 35% Jugador - Mayor dificultad"
+                  title="85% Casa / 15% Jugador - Muro de contención para frenar desfalcos"
                 >
                   <span>🔴</span>
-                  <span>Difícil (65%)</span>
+                  <span>Difícil Muro (85%)</span>
                 </button>
               </div>
             </div>
