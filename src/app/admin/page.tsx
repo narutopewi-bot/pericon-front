@@ -107,7 +107,7 @@ interface UserRow {
   avatarUrl?: string;
   isActive: boolean;
   isAdmin?: boolean;
-  botDifficulty?: "facil" | "medio" | "dificil";
+  botDifficulty?: "general" | "facil" | "medio" | "dificil";
 }
 
 interface PromoCodeRow {
@@ -443,7 +443,7 @@ export default function AdminPage() {
     }
   };
 
-  const handleSetUserBotDifficulty = async (userId: number, difficulty: "facil" | "medio" | "dificil") => {
+  const handleSetUserBotDifficulty = async (userId: number, difficulty: "general" | "facil" | "medio" | "dificil") => {
     setUpdatingUserDiffId(userId);
     try {
       const res = await adminFetch(`${apiUrl}/api/admin/user/${userId}/bot-difficulty`, {
@@ -2904,6 +2904,19 @@ export default function AdminPage() {
                               <div className="inline-flex rounded-lg bg-[#140b06] border border-amber-500/20 p-0.5 gap-1 shadow-inner">
                                 <button
                                   type="button"
+                                  disabled={updatingUserDiffId === u.id || u.botDifficulty === "general" || !u.botDifficulty}
+                                  onClick={() => handleSetUserBotDifficulty(u.id, "general")}
+                                  className={`px-2 py-1 rounded text-[10px] font-black transition ${
+                                    u.botDifficulty === "general" || !u.botDifficulty
+                                      ? "bg-slate-700 text-amber-200 shadow ring-1 ring-slate-400"
+                                      : "text-slate-400/60 hover:text-slate-200 hover:bg-slate-900/60"
+                                  }`}
+                                  title="General (Hereda la dificultad global configurada para todos los bots)"
+                                >
+                                  🌐 General
+                                </button>
+                                <button
+                                  type="button"
                                   disabled={updatingUserDiffId === u.id || u.botDifficulty === "facil"}
                                   onClick={() => handleSetUserBotDifficulty(u.id, "facil")}
                                   className={`px-2 py-1 rounded text-[10px] font-black transition ${
@@ -2911,20 +2924,20 @@ export default function AdminPage() {
                                       ? "bg-green-600 text-white shadow ring-1 ring-green-400"
                                       : "text-green-400/60 hover:text-green-300 hover:bg-green-950/40"
                                   }`}
-                                  title="Fácil (50% Casa / 50% Jugador - Modo Recreativo)"
+                                  title="Individual Fácil (50% Casa / 50% Jugador - Modo Recreativo)"
                                 >
                                   🟢 Fácil
                                 </button>
                                 <button
                                   type="button"
-                                  disabled={updatingUserDiffId === u.id || (u.botDifficulty === "medio" || !u.botDifficulty)}
+                                  disabled={updatingUserDiffId === u.id || u.botDifficulty === "medio"}
                                   onClick={() => handleSetUserBotDifficulty(u.id, "medio")}
                                   className={`px-2 py-1 rounded text-[10px] font-black transition ${
-                                    u.botDifficulty === "medio" || !u.botDifficulty
+                                    u.botDifficulty === "medio"
                                       ? "bg-amber-500 text-black shadow ring-1 ring-amber-300"
                                       : "text-amber-300/60 hover:text-amber-200 hover:bg-amber-950/40"
                                   }`}
-                                  title="Medio (70% Casa / 30% Jugador - Recuperación de Tesorería)"
+                                  title="Individual Medio (70% Casa / 30% Jugador - Recuperación de Tesorería)"
                                 >
                                   🟡 70/30
                                 </button>
@@ -2937,7 +2950,7 @@ export default function AdminPage() {
                                       ? "bg-red-600 text-white shadow ring-1 ring-red-400 animate-pulse"
                                       : "text-red-400/60 hover:text-red-300 hover:bg-red-950/40"
                                   }`}
-                                  title="Difícil (85% Casa / 15% Jugador - Muro Total de Bloqueo de Ganancias)"
+                                  title="Individual Difícil (85% Casa / 15% Jugador - Muro Total de Bloqueo de Ganancias)"
                                 >
                                   🔴 Muro
                                 </button>

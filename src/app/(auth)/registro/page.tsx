@@ -68,6 +68,12 @@ const FormSchema = z
       .email({
         message: "El correo no es válido",
       }),
+    verificationCode: z
+      .string({
+        required_error: "Ingresa el código enviado a tu correo",
+      })
+      .length(6, { message: "El código debe tener exactamente 6 dígitos" })
+      .regex(/^\d+$/, { message: "Ingresa solo los 6 dígitos numéricos" }),
     phone: z
       .string({
         required_error: "Se requiere un número de WhatsApp / Pago Móvil",
@@ -123,11 +129,26 @@ export default function SignUp() {
   const [loading, setLoading] = React.useState(false);
   const [termsModalOpen, setTermsModalOpen] = React.useState(false);
 
+  // Estados para Código de Verificación OTP
+  const [isSendingCode, setIsSendingCode] = React.useState(false);
+  const [codeSent, setCodeSent] = React.useState(false);
+  const [codeCooldown, setCodeCooldown] = React.useState(0);
+  const [codeStatusMessage, setCodeStatusMessage] = React.useState<{ text: string; isError: boolean } | null>(null);
+
+  React.useEffect(() => {
+    if (codeCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setCodeCooldown((prev) => prev - 1);
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [codeCooldown]);
+
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
     defaultValues: {
       username: "",
       email: "",
+      verificationCode: "",
       phone: "",
       cedulaType: "V",
       cedulaNumber: "",
@@ -140,6 +161,52 @@ export default function SignUp() {
   });
 
   const { setError, handleSubmit, formState } = form;
+
+  const handleSendVerificationCode = async () => {
+    const emailVal = form.getValues("email")?.trim();
+    if (!emailVal || !emailVal.includes("@") || !emailVal.includes(".")) {
+      setError("email", { message: "Ingresa primero un correo válido para recibir el código" });
+      return;
+    }
+
+    setIsSendingCode(true);
+    setCodeStatusMessage(null);
+    setServerError(null);
+
+    try {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
+      const res = await fetch(`${apiUrl}/api/auth/send-verification-code`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: emailVal,
+          username: form.getValues("username")?.trim() || null,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setCodeSent(true);
+        setCodeCooldown(60);
+        setCodeStatusMessage({
+          text: "✅ Código de 6 dígitos enviado. Revisa tu bandeja de entrada o spam.",
+          isError: false,
+        });
+      } else {
+        setCodeStatusMessage({
+          text: `❌ ${data.message || "No se pudo enviar el código de verificación."}`,
+          isError: true,
+        });
+      }
+    } catch {
+      setCodeStatusMessage({
+        text: "❌ Error de conexión al servidor al solicitar el código.",
+        isError: true,
+      });
+    } finally {
+      setIsSendingCode(false);
+    }
+  };
 
   async function onSubmit(data: z.infer<typeof FormSchema>) {
     setServerError(null);
@@ -158,6 +225,7 @@ export default function SignUp() {
         body: JSON.stringify({
           username: data.username,
           email: data.email,
+          verificationCode: data.verificationCode.trim(),
           phoneNumber: data.phone,
           cedula: fullCedula,
           bankName: data.bankName,
@@ -233,15 +301,64 @@ export default function SignUp() {
                     </FormItem>
                   )}
                 />
+                {/* Correo Electrónico y Botón Solicitar Código */}
+                <div className="space-y-1">
+                  <div className="flex gap-2 items-center">
+                    <FormField
+                      control={form.control}
+                      name="email"
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
+                          <FormControl>
+                            <Input placeholder="Correo electrónico personal" autoComplete="off" {...field} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                    <button
+                      type="button"
+                      disabled={isSendingCode || codeCooldown > 0}
+                      onClick={handleSendVerificationCode}
+                      className="h-10 px-3 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/50 text-xs font-bold transition-all disabled:opacity-50 disabled:cursor-not-allowed flex-shrink-0"
+                    >
+                      {isSendingCode
+                        ? "Enviando..."
+                        : codeCooldown > 0
+                        ? `${codeCooldown}s`
+                        : codeSent
+                        ? "Reenviar"
+                        : "Enviar Código"}
+                    </button>
+                  </div>
+                  <FormMessage error={formState.errors.email} />
+                </div>
+
+                {/* Código de Verificación de 6 dígitos */}
                 <FormField
                   control={form.control}
-                  name="email"
+                  name="verificationCode"
                   render={({ field }) => (
                     <FormItem>
+                      <label className="text-[11px] font-bold text-amber-300 block text-left mb-0.5">
+                        🔢 Código de 6 dígitos enviado a tu correo:
+                      </label>
                       <FormControl>
-                        <Input placeholder="Correo electrónico" autoComplete="off" {...field} />
+                        <Input
+                          placeholder="Código de 6 dígitos (ej: 482915)"
+                          maxLength={6}
+                          type="text"
+                          inputMode="numeric"
+                          autoComplete="one-time-code"
+                          className="tracking-widest font-mono text-center text-amber-200 font-bold text-sm bg-black/60 border-amber-500/50"
+                          {...field}
+                        />
                       </FormControl>
-                      <FormMessage error={formState.errors.email} />
+                      <FormMessage error={formState.errors.verificationCode} />
+                      {codeStatusMessage && (
+                        <p className={`text-[11px] mt-1 font-semibold text-left ${codeStatusMessage.isError ? "text-red-400" : "text-emerald-400"}`}>
+                          {codeStatusMessage.text}
+                        </p>
+                      )}
                     </FormItem>
                   )}
                 />
