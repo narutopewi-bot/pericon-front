@@ -1285,6 +1285,43 @@ export default function AdminPage() {
     }
   };
 
+  // BANEAR MULTICUENTAS / CLONES POR DISPOSITIVO O SERIE
+  const handleBanDeviceClones = async (u: UserRow) => {
+    if (u.username.toLowerCase() === "guardian") {
+      alert("No es posible suspender la cuenta del Administrador Guardian.");
+      return;
+    }
+
+    const confirmBan = window.confirm(
+      `¿Deseas suspender a "${u.username}" y a TODAS las multicuentas/clones creados desde su mismo dispositivo o serie?\n\nEsto desactivará y vaciará las monedas de todas las cuentas vinculadas.`
+    );
+    if (!confirmBan) return;
+
+    try {
+      const res = await adminFetch(`${apiUrl}/api/admin/users/ban-device-clones`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: u.id }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        Swal.fire({
+          icon: "success",
+          title: "Multicuentas Suspendidas",
+          text: data.message || `Se suspendieron ${data.bannedCount} cuentas vinculadas exitosamente.`,
+          background: "#180e07",
+          color: "#fef3c7",
+          confirmButtonColor: "#f59e0b",
+        });
+        loadData();
+      } else {
+        alert(data.message || "Error al banear multicuentas.");
+      }
+    } catch {
+      alert("Error al conectar con el servidor.");
+    }
+  };
+
   // AJUSTAR MONEDAS (ACREDITAR O QUITAR)
   const handleSaveCoinsAdjustment = async () => {
     if (!adjustingUser) return;
@@ -2933,17 +2970,26 @@ export default function AdminPage() {
 
                                 {/* Botón Banear / Habilitar */}
                                 {!isGuardian && (
-                                  <button
-                                    onClick={() => handleToggleBan(u)}
-                                    title={u.isActive ? "Suspender Usuario" : "Rehabilitar Usuario"}
-                                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
-                                      u.isActive
-                                        ? "bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-500/40"
-                                        : "bg-green-950/60 hover:bg-green-900 text-green-300 border border-green-500/40"
-                                    }`}
-                                  >
-                                    {u.isActive ? "🚫 Banear" : "✅ Activar"}
-                                  </button>
+                                  <>
+                                    <button
+                                      onClick={() => handleToggleBan(u)}
+                                      title={u.isActive ? "Suspender Usuario" : "Rehabilitar Usuario"}
+                                      className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+                                        u.isActive
+                                          ? "bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-500/40"
+                                          : "bg-green-950/60 hover:bg-green-900 text-green-300 border border-green-500/40"
+                                      }`}
+                                    >
+                                      {u.isActive ? "🚫 Banear" : "✅ Activar"}
+                                    </button>
+                                    <button
+                                      onClick={() => handleBanDeviceClones(u)}
+                                      title="Suspender este usuario y todas sus multicuentas vinculadas por dispositivo / serie"
+                                      className="px-2 py-1 bg-purple-950/70 hover:bg-purple-900 text-purple-200 border border-purple-500/50 rounded-lg text-xs font-bold transition-all"
+                                    >
+                                      🧹 Clones
+                                    </button>
+                                  </>
                                 )}
                               </div>
                             </td>
