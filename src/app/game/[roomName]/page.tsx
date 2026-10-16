@@ -242,7 +242,7 @@ export default function Duel1vs1() {
   const trickPauseTimeoutRef = useRef<any>(null);
   const returnDeckTimeoutRef = useRef<any>(null);
 
-  const BOT_NAMES = ['joel', 'maría', 'maria', 'gloria', 'la gorda', 'pedro', 'ramón', 'ramon', 'bot_ia', 'pericon'];
+  const BOT_NAMES = ['cheo', 'tibisay', 'coromoto', 'el catire', 'rosendo', 'oswaldo', 'joel', 'maría', 'maria', 'gloria', 'la gorda', 'pedro', 'ramón', 'ramon', 'bot_ia', 'pericon'];
   const isOpponentBot = () => {
     let oppCandidate = datos.current?.flag 
       ? (datos.current.nametwo || oponent?.username || '') 
