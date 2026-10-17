@@ -37,6 +37,18 @@ const Duel = ({
   const [errors, setErrors] = React.useState<{ credits: string; queue: string; playing: string } | null>(null);
 
   const onDuelmode = (mode: string, credits: string) => {
+    const bet = parseFloat(credits);
+
+    if (!validateCredits(credits)) {
+      console.error("Invalid bet amount");
+      return;
+    }
+
+    const currentCoins = (user as any)?.coins ?? 0;
+    if (currentCoins < bet) {
+      alert(`Saldo insuficiente. Tienes ${currentCoins} monedas y la apuesta mínima seleccionada requiere ${bet} monedas.`);
+      return;
+    }
 
     setDuelMode({ mode, credits });
     onSubmit({ mode, credits });

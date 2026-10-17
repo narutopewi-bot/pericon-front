@@ -54,6 +54,7 @@ interface MatchRow {
   winnerUsername: string;
   loserUsername: string;
   endReason: string;
+  isBotMatch?: boolean;
   createdAt: string;
 }
 
@@ -292,6 +293,7 @@ export default function AdminPage() {
   const [playerMatchSearch, setPlayerMatchSearch] = useState("");
   const [playerMatchFilter, setPlayerMatchFilter] = useState<"all" | "won" | "lost">("all");
   const [matchPeriodFilter, setMatchPeriodFilter] = useState<"dia" | "semana" | "mes" | "todo">("todo");
+  const [matchTypeFilter, setMatchTypeFilter] = useState<"pvp" | "bot" | "all">("pvp");
   const [matchesPeriodSummary, setMatchesPeriodSummary] = useState<MatchesPeriodSummary | null>(null);
   const [matchesDailyActivity, setMatchesDailyActivity] = useState<MatchesDailyActivity[]>([]);
   const [botMatches, setBotMatches] = useState<BotMatchRow[]>([]);
@@ -610,7 +612,7 @@ export default function AdminPage() {
         adminFetch(`${apiUrl}/api/admin/recharges?status=ALL`),
         adminFetch(`${apiUrl}/api/admin/withdrawals?status=ALL`),
         adminFetch(`${apiUrl}/api/admin/users`),
-        adminFetch(`${apiUrl}/api/admin/matches?period=${matchPeriodFilter}`),
+        adminFetch(`${apiUrl}/api/admin/matches?period=${matchPeriodFilter}&type=${matchTypeFilter}`),
         adminFetch(`${apiUrl}/api/admin/promos`),
         adminFetch(`${apiUrl}/api/admin/announcements`),
         adminFetch(`${apiUrl}/api/admin/bot-matches`),
@@ -664,7 +666,7 @@ export default function AdminPage() {
   const handleFilterMatchesPeriod = async (p: "dia" | "semana" | "mes" | "todo") => {
     setMatchPeriodFilter(p);
     try {
-      const res = await adminFetch(`${apiUrl}/api/admin/matches?period=${p}`);
+      const res = await adminFetch(`${apiUrl}/api/admin/matches?period=${p}&type=${matchTypeFilter}`);
       if (res.ok) {
         const mData = await res.json();
         if (Array.isArray(mData)) {
@@ -677,6 +679,25 @@ export default function AdminPage() {
       }
     } catch (e) {
       console.error("Error al filtrar partidas por período:", e);
+    }
+  };
+
+  const handleFilterMatchesType = async (t: "pvp" | "bot" | "all") => {
+    setMatchTypeFilter(t);
+    try {
+      const res = await adminFetch(`${apiUrl}/api/admin/matches?period=${matchPeriodFilter}&type=${t}`);
+      if (res.ok) {
+        const mData = await res.json();
+        if (Array.isArray(mData)) {
+          setMatches(mData);
+        } else {
+          setMatches(mData.matches || []);
+          if (mData.summary) setMatchesPeriodSummary(mData.summary);
+          if (mData.dailyActivity) setMatchesDailyActivity(mData.dailyActivity);
+        }
+      }
+    } catch (e) {
+      console.error("Error al filtrar partidas por tipo:", e);
     }
   };
 
@@ -4020,55 +4041,101 @@ export default function AdminPage() {
                     <span>Filtro de Período y Análisis de Actividad</span>
                   </h3>
                   <p className="text-[11px] text-amber-200/60 mt-0.5">
-                    Filtra por día, semana o mes para saber qué días juegan más los usuarios y planificar promociones.
+                    Filtra por tipo de contrincante (Humanos reales vs Bots) y por período de tiempo.
                   </p>
                 </div>
 
-                <div className="flex rounded-xl bg-[#24140a] border border-amber-500/30 p-1 text-xs font-bold flex-wrap gap-1">
-                  <button
-                    type="button"
-                    onClick={() => handleFilterMatchesPeriod("dia")}
-                    className={`px-3 py-1.5 rounded-lg transition-all ${
-                      matchPeriodFilter === "dia"
-                        ? "bg-amber-500 text-amber-950 font-black shadow"
-                        : "text-amber-200/60 hover:text-white"
-                    }`}
-                  >
-                    Hoy (Día)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleFilterMatchesPeriod("semana")}
-                    className={`px-3 py-1.5 rounded-lg transition-all ${
-                      matchPeriodFilter === "semana"
-                        ? "bg-amber-500 text-amber-950 font-black shadow"
-                        : "text-amber-200/60 hover:text-white"
-                    }`}
-                  >
-                    7 Días (Semana)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleFilterMatchesPeriod("mes")}
-                    className={`px-3 py-1.5 rounded-lg transition-all ${
-                      matchPeriodFilter === "mes"
-                        ? "bg-amber-500 text-amber-950 font-black shadow"
-                        : "text-amber-200/60 hover:text-white"
-                    }`}
-                  >
-                    30 Días (Mes)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => handleFilterMatchesPeriod("todo")}
-                    className={`px-3 py-1.5 rounded-lg transition-all ${
-                      matchPeriodFilter === "todo"
-                        ? "bg-amber-500 text-amber-950 font-black shadow"
-                        : "text-amber-200/60 hover:text-white"
-                    }`}
-                  >
-                    Histórico (Todo)
-                  </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Selector de Tipo: Solo Humanos | Solo Bots | Todas */}
+                  <div className="flex rounded-xl bg-[#24140a] border border-amber-500/30 p-1 text-xs font-bold gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleFilterMatchesType("pvp")}
+                      className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                        matchTypeFilter === "pvp"
+                          ? "bg-emerald-500 text-black font-black shadow"
+                          : "text-amber-200/60 hover:text-white"
+                      }`}
+                      title="Mostrar únicamente partidas entre dos jugadores humanos reales"
+                    >
+                      <span>👤</span>
+                      <span>Solo Humanos</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleFilterMatchesType("bot")}
+                      className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                        matchTypeFilter === "bot"
+                          ? "bg-amber-500 text-amber-950 font-black shadow"
+                          : "text-amber-200/60 hover:text-white"
+                      }`}
+                      title="Mostrar únicamente partidas jugadas contra los bots de IA"
+                    >
+                      <span>🤖</span>
+                      <span>Solo Bots</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleFilterMatchesType("all")}
+                      className={`px-3 py-1.5 rounded-lg transition-all flex items-center gap-1.5 ${
+                        matchTypeFilter === "all"
+                          ? "bg-yellow-500 text-black font-black shadow"
+                          : "text-amber-200/60 hover:text-white"
+                      }`}
+                      title="Mostrar todas las partidas (Humanos y Bots)"
+                    >
+                      <span>📋</span>
+                      <span>Todas</span>
+                    </button>
+                  </div>
+
+                  {/* Selector de Período */}
+                  <div className="flex rounded-xl bg-[#24140a] border border-amber-500/30 p-1 text-xs font-bold flex-wrap gap-1">
+                    <button
+                      type="button"
+                      onClick={() => handleFilterMatchesPeriod("dia")}
+                      className={`px-3 py-1.5 rounded-lg transition-all ${
+                        matchPeriodFilter === "dia"
+                          ? "bg-amber-500 text-amber-950 font-black shadow"
+                          : "text-amber-200/60 hover:text-white"
+                      }`}
+                    >
+                      Hoy (Día)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleFilterMatchesPeriod("semana")}
+                      className={`px-3 py-1.5 rounded-lg transition-all ${
+                        matchPeriodFilter === "semana"
+                          ? "bg-amber-500 text-amber-950 font-black shadow"
+                          : "text-amber-200/60 hover:text-white"
+                      }`}
+                    >
+                      7 Días (Semana)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleFilterMatchesPeriod("mes")}
+                      className={`px-3 py-1.5 rounded-lg transition-all ${
+                        matchPeriodFilter === "mes"
+                          ? "bg-amber-500 text-amber-950 font-black shadow"
+                          : "text-amber-200/60 hover:text-white"
+                      }`}
+                    >
+                      30 Días (Mes)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleFilterMatchesPeriod("todo")}
+                      className={`px-3 py-1.5 rounded-lg transition-all ${
+                        matchPeriodFilter === "todo"
+                          ? "bg-amber-500 text-amber-950 font-black shadow"
+                          : "text-amber-200/60 hover:text-white"
+                      }`}
+                    >
+                      Histórico (Todo)
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -4285,6 +4352,16 @@ export default function AdminPage() {
                                 >
                                   {m.playerTwoName}
                                 </button>
+
+                                {m.isBotMatch ? (
+                                  <span className="ml-1 text-[9px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded font-black inline-flex items-center gap-1 shrink-0">
+                                    <span>🤖</span> Bot IA
+                                  </span>
+                                ) : (
+                                  <span className="ml-1 text-[9px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.5 rounded font-black inline-flex items-center gap-1 shrink-0">
+                                    <span>👤</span> PvP Real
+                                  </span>
+                                )}
 
                                 {isPlayerWon && (
                                   <span className="ml-1 text-[9.5px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.5 rounded font-black">

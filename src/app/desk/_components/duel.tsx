@@ -36,6 +36,24 @@ const Duel = ({ open, duelToggle, }: any) => {
   const [errors, setErrors] = React.useState<{ credits: string; queue: string; playing: string } | null>(null);
 
   const onDuelmode = (mode: string, credits: string) => {
+    const bet = parseInt(credits);
+
+    if (!validateCredits(credits)) {
+      console.error("Invalid bet amount");
+      return;
+    }
+
+    const currentCoins = user?.coins ?? 0;
+    if (currentCoins < bet) {
+      alert(`Saldo insuficiente. Tienes ${currentCoins} monedas y la apuesta mínima seleccionada requiere ${bet} monedas.`);
+      return;
+    }
+
+    if (mode === "Solitario") {
+      router.push(`/solitaire/999?bet=${bet}`);
+      return;
+    }
+
     setDuelMode({ mode, credits });
     onSubmit({ mode, credits });
   }
@@ -115,6 +133,8 @@ const Duel = ({ open, duelToggle, }: any) => {
     const currentCoins = user?.coins ?? 0;
     if (currentCoins < bet) {
       alert(`Saldo insuficiente. Tienes ${currentCoins} monedas y la apuesta mínima seleccionada requiere ${bet} monedas.`);
+      setDuelMode(null);
+      setOnQueue(false);
       return;
     }
 
