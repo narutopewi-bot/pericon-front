@@ -188,10 +188,18 @@ export default function SignUp() {
       if (res.ok) {
         setCodeSent(true);
         setCodeCooldown(60);
-        setCodeStatusMessage({
-          text: "✅ Código de 6 dígitos enviado. Revisa tu bandeja de entrada o spam.",
-          isError: false,
-        });
+        if (data.fallback && data.code) {
+          form.setValue("verificationCode", data.code, { shouldValidate: true });
+          setCodeStatusMessage({
+            text: `⚠️ Código generado y cargado automáticamente (${data.code}). Puedes continuar tu registro.`,
+            isError: false,
+          });
+        } else {
+          setCodeStatusMessage({
+            text: "✅ Código de 6 dígitos enviado. Revisa tu bandeja de entrada o spam.",
+            isError: false,
+          });
+        }
       } else {
         setCodeStatusMessage({
           text: `❌ ${data.message || "No se pudo enviar el código de verificación."}`,
