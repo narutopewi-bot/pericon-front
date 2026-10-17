@@ -242,6 +242,49 @@ export default function Duel1vs1() {
   const trickPauseTimeoutRef = useRef<any>(null);
   const returnDeckTimeoutRef = useRef<any>(null);
 
+  // Sistema de Mofa Criolla (Reacciones visuales y habladas)
+  interface ActiveTaunt {
+    text: string;
+    emoji: string;
+    senderName: string;
+  }
+  const [playerTaunt, setPlayerTaunt] = useState<ActiveTaunt | null>(null);
+  const [opponentTaunt, setOpponentTaunt] = useState<ActiveTaunt | null>(null);
+  const playerTauntTimer = useRef<any>(null);
+  const opponentTauntTimer = useRef<any>(null);
+  const [showTauntMenu, setShowTauntMenu] = useState<boolean>(false);
+  const [tauntCooldown, setTauntCooldown] = useState<number>(0);
+
+  const TAUNT_PRESETS = [
+    { key: 'te_tumbe', text: '¡Te tumbé, papá!', emoji: '🪓' },
+    { key: 'mantequilla', text: '¡Qué mantequilla!', emoji: '🧈' },
+    { key: 'pide_guapo', text: '¡Pide si eres guapo!', emoji: '🔥' },
+    { key: 'perrera', text: "¡Ta' barata la perrera!", emoji: '🐕' },
+    { key: 'llora_pues', text: '¡Llora pues!', emoji: '😭' },
+    { key: 'sopa', text: '¡Se te enfría la sopa!', emoji: '⏳' },
+  ];
+
+  const handleSendTaunt = async (t: { key: string; text: string; emoji: string }) => {
+    if (tauntCooldown > 0 || !connection || !idGame.current || idGame.current <= 0) return;
+    setShowTauntMenu(false);
+    setTauntCooldown(4);
+    vibrateDevice([50]);
+
+    try {
+      await safeSignalRInvoke(connection, 'SendGameReaction', idGame.current, t.key, t.text, t.emoji);
+    } catch (err) {
+      console.error('[SendGameReaction error]', err);
+    }
+  };
+
+  useEffect(() => {
+    if (tauntCooldown <= 0) return;
+    const timer = setTimeout(() => {
+      setTauntCooldown(prev => (prev > 0 ? prev - 1 : 0));
+    }, 1000);
+    return () => clearTimeout(timer);
+  }, [tauntCooldown]);
+
   const BOT_NAMES = ['cheo', 'tibisay', 'coromoto', 'el catire', 'rosendo', 'oswaldo', 'joel', 'maría', 'maria', 'gloria', 'la gorda', 'pedro', 'ramón', 'ramon', 'bot_ia', 'pericon'];
   const isOpponentBot = () => {
     let oppCandidate = datos.current?.flag 
@@ -3267,6 +3310,69 @@ export default function Duel1vs1() {
     };
   }, [connection, router, user]);
 
+  // Listener para Mofa Criolla y Reacciones en Juego
+  useEffect(() => {
+    if (!connection) return;
+
+    const handleReceiveGameReaction = (payload: any) => {
+      console.log("[ReceiveGameReaction] Reacción recibida:", payload);
+      if (!payload || !payload.reactionText) return;
+      if (idGame.current > 0 && payload.gameId && payload.gameId !== idGame.current) return;
+
+      const isOwnReaction = (payload.isPlayerOne === datos.current.flag);
+
+      if (isOwnReaction) {
+        if (playerTauntTimer.current) clearTimeout(playerTauntTimer.current);
+        setPlayerTaunt({
+          text: payload.reactionText,
+          emoji: payload.emoji || '💬',
+          senderName: payload.senderName || 'Tú'
+        });
+        playerTauntTimer.current = setTimeout(() => {
+          setPlayerTaunt(null);
+        }, 3500);
+
+        speakPhrase(payload.reactionText, 1.05, 1.0);
+      } else {
+        if (opponentTauntTimer.current) clearTimeout(opponentTauntTimer.current);
+        setOpponentTaunt({
+          text: payload.reactionText,
+          emoji: payload.emoji || '💬',
+          senderName: payload.senderName || 'Rival'
+        });
+        opponentTauntTimer.current = setTimeout(() => {
+          setOpponentTaunt(null);
+        }, 3500);
+
+        let pitch = 1.0;
+        let rate = 1.05;
+        const sName = (payload.senderName || '').toLowerCase();
+        if (sName.includes('tibisay') || sName.includes('coromoto') || sName.includes('maría') || sName.includes('maria') || sName.includes('gloria')) {
+          pitch = 1.25;
+          rate = 1.1;
+        } else if (sName.includes('rosendo')) {
+          pitch = 0.85;
+          rate = 0.95;
+        } else if (sName.includes('cheo')) {
+          pitch = 0.9;
+          rate = 1.05;
+        }
+
+        speakPhrase(payload.reactionText, rate, pitch);
+        playSynthSound('canto');
+        vibrateDevice([60, 40, 60]);
+      }
+    };
+
+    connection.on('ReceiveGameReaction', handleReceiveGameReaction);
+
+    return () => {
+      connection.off('ReceiveGameReaction', handleReceiveGameReaction);
+      if (playerTauntTimer.current) clearTimeout(playerTauntTimer.current);
+      if (opponentTauntTimer.current) clearTimeout(opponentTauntTimer.current);
+    };
+  }, [connection]);
+
   useEffect(() => {
     if (cardEffect) {
       const clock = setTimeout(() => {
@@ -3767,7 +3873,17 @@ export default function Duel1vs1() {
                 style={{ height: 'calc(100vh - 160px)' }}
               >
                 {/* Oponente */}
-                <div className='flex justify-center'>
+                <div className='flex justify-center relative'>
+                  {/* Burbuja de Mofa Oponente */}
+                  {opponentTaunt && (
+                    <div className='absolute top-full mt-1 sm:mt-2 left-1/2 -translate-x-1/2 z-50 pointer-events-none animate-in zoom-in-75 fade-in duration-200'>
+                      <div className='relative bg-stone-900/95 border-2 border-amber-400 text-amber-200 px-3 py-1.5 rounded-2xl shadow-2xl flex items-center gap-1.5 text-xs sm:text-sm font-black whitespace-nowrap drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)] ring-2 ring-black/60'>
+                        <span className='text-base sm:text-lg animate-bounce'>{opponentTaunt.emoji}</span>
+                        <span className='tracking-wide'>{opponentTaunt.text}</span>
+                        <div className='absolute -top-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[8px] border-b-amber-400'></div>
+                      </div>
+                    </div>
+                  )}
                   <div className={`flex flex-col items-center rounded-2xl p-1 sm:p-1.5 transition-all duration-300 ${
                     !isMyTurn 
                       ? 'glow-gold-life border-2 border-yellow-400 bg-yellow-950/70 shadow-ground scale-105' 
@@ -3996,7 +4112,17 @@ export default function Duel1vs1() {
                 )}
 
                 {/* Player */}
-                <div className='flex justify-center mb-2 sm:mb-4'>
+                <div className='flex justify-center mb-2 sm:mb-4 relative'>
+                  {/* Burbuja de Mofa Jugador */}
+                  {playerTaunt && (
+                    <div className='absolute -top-12 sm:-top-14 left-1/2 -translate-x-1/2 z-50 pointer-events-none animate-in zoom-in-75 fade-in duration-200'>
+                      <div className='relative bg-stone-900/95 border-2 border-yellow-400 text-yellow-300 px-3 py-1.5 rounded-2xl shadow-2xl flex items-center gap-1.5 text-xs sm:text-sm font-black whitespace-nowrap drop-shadow-[0_4px_12px_rgba(0,0,0,0.9)] ring-2 ring-black/60'>
+                        <span className='text-base sm:text-lg animate-bounce'>{playerTaunt.emoji}</span>
+                        <span className='tracking-wide'>{playerTaunt.text}</span>
+                        <div className='absolute -bottom-2 left-1/2 -translate-x-1/2 w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-t-[8px] border-t-yellow-400'></div>
+                      </div>
+                    </div>
+                  )}
                   <div className={`flex flex-col items-center rounded-2xl p-1 sm:p-1.5 transition-all duration-300 ${
                     isMyTurn && !isProcessingMove && tumbaCountdown === null && !isWaitingOppTumba
                       ? 'glow-gold-life border-2 border-yellow-400 bg-yellow-950/70 shadow-ground scale-105' 
@@ -4100,6 +4226,48 @@ export default function Duel1vs1() {
 
                 {/* Botones de Acción y Temporizador */}
                 <div className='fixed right-2 bottom-3 sm:bottom-6 sm:right-6 z-30 flex flex-row items-center gap-1.5'>
+                  {/* Menú Flotante de Mofa Criolla */}
+                  <div className='relative'>
+                    {showTauntMenu && (
+                      <div className='absolute bottom-full mb-2 right-0 z-50 bg-stone-900/95 border-2 border-amber-500/80 rounded-2xl p-2 shadow-2xl backdrop-blur-md flex flex-col gap-1 min-w-[200px] sm:min-w-[220px] animate-in zoom-in-95 fade-in duration-150'>
+                        <div className='text-[10px] font-black uppercase text-amber-400/90 px-2 py-0.5 border-b border-amber-500/30 flex justify-between items-center'>
+                          <span>🎭 Mofa Criolla</span>
+                          <button onClick={() => setShowTauntMenu(false)} className='text-stone-400 hover:text-white p-0.5 text-xs'>✕</button>
+                        </div>
+                        {TAUNT_PRESETS.map((t) => (
+                          <button
+                            key={t.key}
+                            disabled={tauntCooldown > 0}
+                            onClick={() => handleSendTaunt(t)}
+                            className='flex items-center gap-2 px-2.5 py-1.5 rounded-xl hover:bg-amber-950/80 active:bg-amber-900 text-left text-xs font-bold text-stone-100 transition-all hover:text-amber-300 disabled:opacity-40 disabled:cursor-not-allowed'
+                          >
+                            <span className='text-base'>{t.emoji}</span>
+                            <span className='truncate'>{t.text}</span>
+                          </button>
+                        ))}
+                        {tauntCooldown > 0 && (
+                          <div className='text-[10px] text-center text-amber-400 font-semibold py-0.5'>
+                            Espera {tauntCooldown}s...
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <button
+                      className={`bg-stone-900/90 hover:bg-stone-800 active:scale-95 text-amber-300 font-extrabold py-1.5 px-2.5 sm:py-2 sm:px-3 rounded-full shadow-lg transition-all duration-150 text-xs sm:text-sm border border-amber-500/50 flex items-center gap-1.5 ${showTauntMenu ? 'ring-2 ring-amber-400 bg-amber-950/80' : ''}`}
+                      onClick={() => setShowTauntMenu(!showTauntMenu)}
+                      title='Mofa criolla'
+                    >
+                      <span className='text-sm sm:text-base'>🎭</span>
+                      <span className='hidden sm:inline text-xs font-black'>Mofa</span>
+                      {tauntCooldown > 0 && (
+                        <span className='text-[9px] bg-amber-500/20 text-amber-300 px-1 rounded-full'>
+                          {tauntCooldown}s
+                        </span>
+                      )}
+                    </button>
+                  </div>
+
                   {/* Temporizador de 30s con Auto-juego en segundo plano (sin duplicar el reloj de cabecera) */}
                   <GameTurnTimer
                     isMyTurn={switchturn.current && !isProcessingMove && !isDealing && playerCards.length > 0 && tumbaCountdown === null && !isWaitingOppTumba}
