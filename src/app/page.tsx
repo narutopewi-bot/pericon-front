@@ -56,17 +56,17 @@ export default function Home() {
   };
 
   return (
-    <React.Fragment>
+    <div className="relative w-full max-w-full min-h-screen flex flex-col overflow-x-hidden">
       <LiveTicker />
-      <div className="absolute inset-6 bg-diablo mix-blend-soft-light opacity-20 z-[-1]"></div>
+      <div className="absolute inset-0 bg-diablo mix-blend-soft-light opacity-20 pointer-events-none z-0"></div>
 
-      <div className="flex flex-col items-center justify-center pb-2 relative z-10">
+      <div className="flex-1 flex flex-col items-center justify-center py-4 px-3 relative z-10 w-full max-w-full overflow-x-hidden">
         <Image
           src="/goat.svg"
           width={230}
           height={230}
           alt="Mascota oficial de El Pericón - Chivo de Carora"
-          className="w-[200px] h-[200px] xl:w-[320px] xl:h-[220px]"
+          className="w-[180px] h-[180px] sm:w-[200px] sm:h-[200px] xl:w-[280px] xl:h-[220px]"
           priority
         />
         <h1 className="sr-only">El Pericón - Juego de Cartas Venezolano Tradicional en Vivo</h1>
@@ -75,21 +75,21 @@ export default function Home() {
           alt="El Pericón - Juego de Naipes"
           width={130}
           height={130}
-          className="w-[200px] xl:w-[260px] h-auto"
+          className="w-[190px] sm:w-[220px] xl:w-[260px] h-auto"
           priority
         />
 
-        <div className="pt-2 flex flex-col items-center gap-1.5">
+        <div className="pt-2 flex flex-col items-center gap-1.5 w-full max-w-xs px-2 text-center">
           <span className="text-[10px] sm:text-xs font-black tracking-widest text-amber-300 uppercase bg-black/60 border border-amber-500/40 px-3 py-0.5 rounded-full shadow backdrop-blur-sm">
             🌵 Carora • Estado Lara
           </span>
-          <h2 className={`${fonts.angkor.className} text-white font-bowly text-[16px] xl:text-[19px] leading-[22px] w-[330px] text-center drop-shadow-md`}>
+          <h2 className={`${fonts.angkor.className} text-white font-bowly text-[15px] sm:text-[17px] xl:text-[19px] leading-[22px] w-full text-center drop-shadow-md`}>
             ¡El legendario juego de naipes de la tierra del chivo y el cocuy!
           </h2>
         </div>
 
         {/* User Session Info / Action Buttons con Alta Presencia */}
-        <div className="mt-4 flex flex-col items-center gap-3 w-full max-w-[320px] bg-black/75 backdrop-blur-md border-2 border-amber-500/40 rounded-3xl p-5 shadow-2xl shadow-black/80">
+        <div className="mt-4 flex flex-col items-center gap-3 w-full max-w-[340px] bg-black/75 backdrop-blur-md border-2 border-amber-500/40 rounded-3xl p-4 sm:p-5 shadow-2xl shadow-black/80">
           {promoParam && (
             <div className="w-full p-2.5 bg-gradient-to-r from-amber-500/25 via-yellow-500/20 to-amber-500/25 border border-amber-400 rounded-2xl text-center shadow-lg">
               <p className="text-[10px] text-amber-300 font-black uppercase tracking-wider flex items-center justify-center gap-1">
@@ -133,10 +133,16 @@ export default function Home() {
               <Button
                 type="button"
                 onClick={() => router.push(promoParam ? `/demo?promo=${encodeURIComponent(promoParam)}` : "/demo")}
-                className={`${fonts.bowlbyOneSC.className} z-30 w-full bg-gradient-to-r from-emerald-500 via-green-600 to-emerald-500 hover:from-emerald-400 hover:to-green-500 py-3 text-white font-black shadow-xl shadow-emerald-950/60 rounded-2xl text-xs sm:text-sm border-2 border-emerald-300 tracking-wider hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-1.5`}>
-                <span>🃏</span>
-                <span>PROBAR 1 MANO GRATIS</span>
-                <span className="bg-black/50 text-emerald-200 text-[9px] px-1.5 py-0.5 rounded font-sans uppercase">SIN REGISTRO</span>
+                className="z-30 w-full h-auto py-2.5 px-3 bg-gradient-to-r from-emerald-500 via-green-600 to-emerald-500 hover:from-emerald-400 hover:to-green-500 text-white font-black shadow-xl shadow-emerald-950/60 rounded-2xl border-2 border-emerald-300 hover:scale-[1.02] active:scale-95 transition-all flex flex-col items-center justify-center gap-1 whitespace-normal">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-base">🃏</span>
+                  <span className={`${fonts.bowlbyOneSC.className} text-xs sm:text-sm tracking-wide text-white drop-shadow`}>
+                    PROBAR 1 MANO GRATIS
+                  </span>
+                </div>
+                <span className="bg-black/60 text-emerald-200 text-[9px] font-sans font-bold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                  ⚡ MODO DEMO • SIN REGISTRO
+                </span>
               </Button>
 
               {/* Botón Principal Iniciar Sesión: Negro & Oro */}
@@ -158,42 +164,42 @@ export default function Home() {
           )}
         </div>
 
-        <div>
-          <p className={`${fonts.angkor.className} text-white text-center mt-8 md:mt-6 text-[18px]`}>
+        <div className="w-full max-w-xs mt-6 flex flex-col items-center">
+          <p className={`${fonts.angkor.className} text-white text-center text-[16px] sm:text-[18px]`}>
             Redes sociales
           </p>
 
-          <div className="flex justify-center mt-4">
+          <div className="flex justify-center items-center gap-4 sm:gap-6 mt-3">
             <a
               href="https://www.instagram.com/pericon.lat"
               target="_blank"
               rel="noopener noreferrer"
-              className="mx-4 md:mx-6 cursor-pointer z-10 flex flex-col items-center group transition-transform hover:scale-110 active:scale-95"
+              className="cursor-pointer z-10 flex flex-col items-center group transition-transform hover:scale-110 active:scale-95"
               title="Síguenos en Instagram @pericon.lat (Gana 300 monedas)">
-              <Image width={40} height={40} src="/instagram.svg" alt="Instagram @pericon.lat" className="drop-shadow-[0_2px_10px_rgba(225,48,108,0.5)] cursor-pointer" />
+              <Image width={36} height={36} src="/instagram.svg" alt="Instagram @pericon.lat" className="drop-shadow-[0_2px_10px_rgba(225,48,108,0.5)] cursor-pointer" />
               <span className="text-[10px] text-amber-300 font-bold mt-1 group-hover:text-yellow-200">@pericon.lat</span>
             </a>
 
             <button
               type="button"
               onClick={() => alert("¡Facebook estará disponible muy pronto! Por ahora síguenos en Instagram oficial: @pericon.lat")}
-              className="mx-4 md:mx-6 cursor-pointer z-10 flex flex-col items-center opacity-80 hover:opacity-100 transition-transform hover:scale-110 active:scale-95"
+              className="cursor-pointer z-10 flex flex-col items-center opacity-80 hover:opacity-100 transition-transform hover:scale-110 active:scale-95"
               title="Facebook oficial (Próximamente)">
-              <Image width={40} height={40} src="/facebook.svg" alt="Facebook" className="cursor-pointer" />
+              <Image width={36} height={36} src="/facebook.svg" alt="Facebook" className="cursor-pointer" />
               <span className="text-[9px] text-white/50 font-semibold mt-1">Pronto</span>
             </button>
 
             <button
               type="button"
               onClick={() => alert("¡Comunidad de Telegram próximamente! Por ahora síguenos en Instagram oficial: @pericon.lat")}
-              className="mx-4 md:mx-6 cursor-pointer z-10 flex flex-col items-center opacity-80 hover:opacity-100 transition-transform hover:scale-110 active:scale-95"
+              className="cursor-pointer z-10 flex flex-col items-center opacity-80 hover:opacity-100 transition-transform hover:scale-110 active:scale-95"
               title="Telegram oficial (Próximamente)">
-              <Image width={40} height={40} src="/telegram.svg" alt="Telegram" className="cursor-pointer" />
+              <Image width={36} height={36} src="/telegram.svg" alt="Telegram" className="cursor-pointer" />
               <span className="text-[9px] text-white/50 font-semibold mt-1">Pronto</span>
             </button>
           </div>
 
-          <div className="mt-6 flex items-center justify-center gap-3 text-[11px] text-amber-300/70 font-semibold">
+          <div className="mt-5 flex flex-wrap items-center justify-center gap-2 sm:gap-3 text-[11px] text-amber-300/70 font-semibold text-center">
             <Link href="/tutorial-preview" className="hover:text-amber-200 underline transition-colors">
               ¿Cómo jugar El Pericón?
             </Link>
@@ -204,6 +210,6 @@ export default function Home() {
           </div>
         </div>
       </div>
-    </React.Fragment>
+    </div>
   );
 }
