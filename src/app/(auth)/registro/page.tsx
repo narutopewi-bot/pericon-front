@@ -21,28 +21,6 @@ import TermsModal from "@/components/terms-modal";
 import { playVoiceAudio } from "@/lib/gameEffects";
 import { getDeviceFingerprint } from "@/lib/fingerprint";
 
-const VENEZUELAN_BANKS = [
-  "0102 - Banco de Venezuela",
-  "0105 - Banco Mercantil",
-  "0108 - Banco Provincial (BBVA)",
-  "0134 - Banesco",
-  "0191 - Banco Nacional de Crédito (BNC)",
-  "0172 - Bancamiga",
-  "0114 - Bancaribe",
-  "0115 - Banco Exterior",
-  "0163 - Banco del Tesoro",
-  "0175 - Banco Bicentenario",
-  "0128 - Banco Caroní",
-  "0151 - BFC Banco Fondo Común",
-  "0174 - Banplus",
-  "0177 - BANFANB",
-  "0171 - Banco Activo",
-  "0169 - Mi Banco",
-  "0137 - Banco Sofitasa",
-  "0138 - Banco Plaza",
-  "0166 - Banco Agrícola de Venezuela"
-];
-
 type FormMessageProps = {
   error?: FieldError;
 };
@@ -61,6 +39,14 @@ const FormSchema = z
     username: z.string().min(3, {
       message: "El usuario debe tener al menos 3 caracteres",
     }),
+    phone: z
+      .string({
+        required_error: "Se requiere un número de WhatsApp",
+      })
+      .min(10, {
+        message: "Ingresa tu número de WhatsApp (11 dígitos, ej: 04121234567)",
+      })
+      .max(12, { message: "Número de teléfono inválido" }),
     email: z
       .string({
         required_error: "Se requiere un correo",
@@ -68,40 +54,6 @@ const FormSchema = z
       .email({
         message: "El correo no es válido",
       }),
-    verificationCode: z.string().optional(),
-    phone: z
-      .string({
-        required_error: "Se requiere un número de WhatsApp / Pago Móvil",
-      })
-      .min(10, {
-        message: "Ingresa tu número de Pago Móvil (11 dígitos, ej: 04121234567)",
-      })
-      .max(12, { message: "Número de teléfono inválido" }),
-    cedulaType: z.enum(["V", "E"], {
-      required_error: "Selecciona tipo de cédula",
-    }),
-    cedulaNumber: z
-      .string()
-      .min(6, { message: "La cédula debe tener al menos 6 dígitos" })
-      .max(9, { message: "La cédula no debe exceder 9 dígitos" })
-      .regex(/^\d+$/, { message: "Ingresa solo números sin puntos" }),
-    bankName: z.string().min(2, {
-      message: "Debes seleccionar tu banco para Pago Móvil",
-    }),
-    birthDate: z.string().min(1, { message: "La fecha de nacimiento es requerida" }).refine((val) => {
-      if (!val) return false;
-      const bDate = new Date(val);
-      if (isNaN(bDate.getTime())) return false;
-      const today = new Date();
-      let age = today.getFullYear() - bDate.getFullYear();
-      const m = today.getMonth() - bDate.getMonth();
-      if (m < 0 || (m === 0 && today.getDate() < bDate.getDate())) {
-        age--;
-      }
-      return age >= 18;
-    }, {
-      message: "Debes tener al menos 18 años cumplidos para jugar",
-    }),
     password: z.string().min(6, {
       message: "La contraseña debe tener al menos 6 caracteres",
     }),
@@ -109,7 +61,7 @@ const FormSchema = z
       message: "Confirma la contraseña",
     }),
     terms: z.boolean().refine((val) => val === true, {
-      message: "Debes aceptar los Términos y Condiciones para registrarte",
+      message: "Debes declarar ser mayor de 18 años y aceptar los Términos",
     }),
   })
   .refine((data) => data.password === data.password_confirmation, {
@@ -139,13 +91,8 @@ export default function SignUp() {
     resolver: zodResolver(FormSchema),
     defaultValues: {
       username: "",
-      email: "",
-      verificationCode: "",
       phone: "",
-      cedulaType: "V",
-      cedulaNumber: "",
-      bankName: "",
-      birthDate: "",
+      email: "",
       password: "",
       password_confirmation: "",
       terms: false,
@@ -160,7 +107,6 @@ export default function SignUp() {
     try {
       // 1. Obtener la huella digital física del dispositivo
       const deviceFingerprint = await getDeviceFingerprint();
-      const fullCedula = `${data.cedulaType}-${data.cedulaNumber.trim()}`;
 
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
       const response = await fetch(`${apiUrl}/api/auth/register`, {
@@ -169,13 +115,9 @@ export default function SignUp() {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          username: data.username,
-          email: data.email,
-          verificationCode: data.verificationCode?.trim() || "",
-          phoneNumber: data.phone,
-          cedula: fullCedula,
-          bankName: data.bankName,
-          birthDate: data.birthDate,
+          username: data.username.trim(),
+          email: data.email.trim(),
+          phoneNumber: data.phone.trim(),
           deviceFingerprint: deviceFingerprint,
           password: data.password,
           promoCode: promoCode || undefined,
@@ -282,7 +224,7 @@ export default function SignUp() {
                     <FormItem>
                       <FormControl>
                         <Input
-                          placeholder="Teléfono Pago Móvil / WhatsApp (ej: 04121234567)"
+                          placeholder="WhatsApp / Teléfono (ej: 04121234567)"
                           type="tel"
                           inputMode="tel"
                           autoComplete="tel"
@@ -290,99 +232,6 @@ export default function SignUp() {
                         />
                       </FormControl>
                       <FormMessage error={formState.errors.phone} />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Fecha de Nacimiento (Mayor de 18 años) */}
-                <FormField
-                  control={form.control}
-                  name="birthDate"
-                  render={({ field }) => (
-                    <FormItem>
-                      <label className="text-[11px] font-bold text-amber-300 block text-left mb-0.5">
-                        🎂 Fecha de Nacimiento (+18 obligatorio):
-                      </label>
-                      <FormControl>
-                        <Input
-                          type="date"
-                          max={new Date(new Date().setFullYear(new Date().getFullYear() - 18)).toISOString().split("T")[0]}
-                          className="bg-black/60 text-white border-amber-500/40"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormMessage error={formState.errors.birthDate} />
-                    </FormItem>
-                  )}
-                />
-
-                {/* Cédula de Identidad */}
-                <div className="space-y-1">
-                  <label className="text-[11px] font-bold text-amber-300 block text-left">
-                    🪪 Cédula de Identidad (Para cobros y retiros):
-                  </label>
-                  <div className="flex gap-2">
-                    <FormField
-                      control={form.control}
-                      name="cedulaType"
-                      render={({ field }) => (
-                        <FormItem className="w-20">
-                          <FormControl>
-                            <select
-                              {...field}
-                              className="w-full h-10 px-2 rounded-xl bg-black/60 border border-amber-500/40 text-amber-200 text-xs font-bold focus:outline-none focus:border-amber-400"
-                            >
-                              <option value="V">V-</option>
-                              <option value="E">E-</option>
-                            </select>
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="cedulaNumber"
-                      render={({ field }) => (
-                        <FormItem className="flex-1">
-                          <FormControl>
-                            <Input
-                              placeholder="Número de cédula (ej. 26554121)"
-                              type="text"
-                              inputMode="numeric"
-                              autoComplete="off"
-                              {...field}
-                            />
-                          </FormControl>
-                        </FormItem>
-                      )}
-                    />
-                  </div>
-                  <FormMessage error={formState.errors.cedulaNumber} />
-                </div>
-
-                {/* Banco de Pago Móvil */}
-                <FormField
-                  control={form.control}
-                  name="bankName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <label className="text-[11px] font-bold text-amber-300 block text-left mb-0.5">
-                        🏦 Banco para Pago Móvil / Retiros:
-                      </label>
-                      <FormControl>
-                        <select
-                          {...field}
-                          className="w-full h-10 px-3 rounded-xl bg-black/60 border border-amber-500/40 text-amber-100 text-xs font-medium focus:outline-none focus:border-amber-400"
-                        >
-                          <option value="">-- Selecciona tu Banco --</option>
-                          {VENEZUELAN_BANKS.map((bank) => (
-                            <option key={bank} value={bank} className="bg-slate-900 text-white">
-                              {bank}
-                            </option>
-                          ))}
-                        </select>
-                      </FormControl>
-                      <FormMessage error={formState.errors.bankName} />
                     </FormItem>
                   )}
                 />
