@@ -29,6 +29,7 @@ import Swal from "sweetalert2";
 
 export default function Desk() {
   const router = useRouter();
+  const dispatch = useDispatch();
   const [open, setOpen] = React.useState(false);
   const [newopen, setNewopen] = React.useState(false);
 
@@ -226,8 +227,53 @@ export default function Desk() {
       if (params.get("tournament") === "active" || params.get("tournament") === "1") {
         setTournamentOpen(true);
       }
+      const promo = params.get("promo") || params.get("codigo");
+      if (promo) {
+        const stored = localStorage.getItem("pericon_user");
+        if (stored) {
+          try {
+            const u = JSON.parse(stored);
+            const uid = u.id || u.userId;
+            if (uid && !isNaN(Number(uid))) {
+              const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
+              fetch(`${apiUrl}/api/user/redeem-promo`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ userId: Number(uid), code: promo.trim().toUpperCase() })
+              })
+                .then(r => r.json())
+                .then(data => {
+                  if (data.success) {
+                    Swal.fire({
+                      icon: "success",
+                      title: "¡CUPÓN DEL FLYER CANJEADO!",
+                      background: "#1c1917",
+                      color: "#fef08a",
+                      confirmButtonColor: "#f59e0b",
+                      html: `<p style="color:#e2e8f0; font-size:14px; margin-top:8px;">Has escaneado el flyer promocional y se te han acreditado <strong>+${data.coinsAwarded} monedas</strong> a tu saldo.</p>`
+                    });
+                    fetch(`${apiUrl}/api/user/${uid}/profile`)
+                      .then(pr => pr.ok ? pr.json() : null)
+                      .then(prof => {
+                        if (prof) {
+                          dispatch(setGamePlayer({
+                            ...u,
+                            coins: prof.coins ?? data.newBalance,
+                            bonusCoins: prof.bonusCoins,
+                          }));
+                        }
+                      });
+                  }
+                })
+                .catch(() => {});
+            }
+          } catch {}
+        }
+        const newUrl = window.location.pathname;
+        window.history.replaceState({}, document.title, newUrl);
+      }
     }
-  }, []);
+  }, [dispatch]);
 
   interface AnnouncementPayload {
     id?: number;
@@ -247,7 +293,6 @@ export default function Desk() {
     setGlobalAnnouncement(null);
   };
 
-  const dispatch = useDispatch();
   const connection = useSignalRContext(); 
   const hasConnected = React.useRef(false);
   const gamep = useSelector((state: RootState) => state.gameplayer);

@@ -550,7 +550,45 @@ export default function MoneyTutorialModal({
                 </span>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {/* Flyer 3: Promo QR */}
+                <div className="bg-black/60 border-2 border-amber-400/80 rounded-2xl p-3 flex flex-col gap-2 shadow-lg relative overflow-hidden">
+                  <div className="absolute top-0 right-0 bg-gradient-to-r from-amber-500 to-yellow-400 text-neutral-950 font-black text-[9px] px-2 py-0.5 rounded-bl-lg uppercase tracking-wider shadow">
+                    🔥 Regalo +100
+                  </div>
+                  <div
+                    onClick={() => setSelectedFlyer("/flyer_qr_promo.jpg")}
+                    className="relative aspect-[3/4] w-full rounded-xl overflow-hidden cursor-pointer group border border-amber-400/60"
+                  >
+                    <Image
+                      src="/flyer_qr_promo.jpg"
+                      alt="Flyer Promocional QR"
+                      fill
+                      className="object-cover group-hover:scale-105 transition-transform duration-300"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                      <span className="bg-amber-500 text-black font-black text-xs px-3 py-1.5 rounded-xl shadow-lg">
+                        🔍 Ver en Grande
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-black text-amber-300">
+                      Flyer 1: Escanea QR y Gana Monedas
+                    </h4>
+                    <p className="text-[10px] text-amber-100/70">
+                      Trae código QR activo. El jugador que escanea recibe +100 monedas de regalo.
+                    </p>
+                  </div>
+                  <a
+                    href="/flyer_qr_promo.jpg"
+                    download="Flyer_El_Pericon_QR_Promo.jpg"
+                    className="w-full py-2 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-neutral-950 font-black text-xs rounded-xl text-center shadow hover:brightness-110 transition cursor-pointer"
+                  >
+                    📥 Descargar Flyer QR
+                  </a>
+                </div>
+
                 {/* Flyer 1 */}
                 <div className="bg-black/60 border border-amber-500/30 rounded-2xl p-3 flex flex-col gap-2 shadow-lg">
                   <div
@@ -571,7 +609,7 @@ export default function MoneyTutorialModal({
                   </div>
                   <div>
                     <h4 className="text-xs font-black text-amber-300">
-                      Flyer 1: Recarga y Retira con Pago Móvil
+                      Flyer 2: Recargas y Retiros Pago Móvil
                     </h4>
                     <p className="text-[10px] text-amber-100/70">
                       Explica el uso de Pago Móvil, monedas de oro y rapidez de cobro.
@@ -582,7 +620,7 @@ export default function MoneyTutorialModal({
                     download="Flyer_El_Pericon_Pago_Movil.jpg"
                     className="w-full py-2 bg-gradient-to-r from-amber-500 to-yellow-500 text-neutral-950 font-black text-xs rounded-xl text-center shadow hover:brightness-110 transition cursor-pointer"
                   >
-                    📥 Descargar Flyer 1
+                    📥 Descargar Flyer 2
                   </a>
                 </div>
 
@@ -606,7 +644,7 @@ export default function MoneyTutorialModal({
                   </div>
                   <div>
                     <h4 className="text-xs font-black text-red-300">
-                      Flyer 2: Dinero Real y Juego Responsable +18
+                      Flyer 3: Dinero Real y +18
                     </h4>
                     <p className="text-[10px] text-amber-100/70">
                       Informa que se juega con dinero real y destaca el juego responsable.
@@ -617,7 +655,7 @@ export default function MoneyTutorialModal({
                     download="Flyer_El_Pericon_Dinero_Real.jpg"
                     className="w-full py-2 bg-gradient-to-r from-red-600 to-rose-600 text-white font-black text-xs rounded-xl text-center shadow hover:brightness-110 transition cursor-pointer"
                   >
-                    📥 Descargar Flyer 2
+                    📥 Descargar Flyer 3
                   </a>
                 </div>
               </div>

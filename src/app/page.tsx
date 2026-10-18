@@ -14,10 +14,15 @@ export default function Home() {
   const dispatch = useAppDispatch();
   const player = useAppSelector((state: RootState) => state.gameplayer);
   const [mounted, setMounted] = React.useState(false);
+  const [promoParam, setPromoParam] = React.useState<string>("");
 
   React.useEffect(() => {
     setMounted(true);
     if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const p = params.get("promo") || params.get("codigo") || params.get("ref");
+      if (p) setPromoParam(p.trim().toUpperCase());
+
       const stored = localStorage.getItem("pericon_user");
       if (stored) {
         try {
@@ -83,6 +88,16 @@ export default function Home() {
 
         {/* User Session Info / Action Buttons con Alta Presencia */}
         <div className="mt-4 flex flex-col items-center gap-3 w-full max-w-[320px] bg-black/75 backdrop-blur-md border-2 border-amber-500/40 rounded-3xl p-5 shadow-2xl shadow-black/80">
+          {promoParam && (
+            <div className="w-full p-2.5 bg-gradient-to-r from-amber-500/25 via-yellow-500/20 to-amber-500/25 border border-amber-400 rounded-2xl text-center shadow-lg">
+              <p className="text-[10px] text-amber-300 font-black uppercase tracking-wider flex items-center justify-center gap-1">
+                <span>🎁</span> CUPÓN DE FLYER: {promoParam}
+              </p>
+              <p className="text-[11px] text-amber-100 font-bold mt-0.5">
+                ¡Recibe +100 monedas extra de regalo al entrar!
+              </p>
+            </div>
+          )}
           {isLoggedIn ? (
             <>
               <div className="bg-[#18131e]/90 border border-amber-500/50 rounded-2xl px-4 py-2.5 text-center text-white w-full shadow-inner">
@@ -96,7 +111,7 @@ export default function Home() {
 
               <Button
                 type="button"
-                onClick={() => router.push("/desk")}
+                onClick={() => router.push(promoParam ? `/desk?promo=${encodeURIComponent(promoParam)}` : "/desk")}
                 className={`${fonts.bowlbyOneSC.className} z-30 w-full bg-gradient-to-r from-amber-400 via-amber-500 to-yellow-400 hover:from-amber-300 hover:to-yellow-300 py-3.5 text-slate-950 font-black shadow-xl shadow-amber-500/30 rounded-2xl text-base border-2 border-yellow-100 hover:scale-[1.02] active:scale-95 transition-all`}>
                 <span className="flex items-center justify-center gap-2">
                   <span>JUGAR AHORA</span>
@@ -115,7 +130,7 @@ export default function Home() {
               {/* Botón Principal Iniciar Sesión: Negro & Oro */}
               <Button
                 type="button"
-                onClick={() => router.push("/iniciar-sesion")}
+                onClick={() => router.push(promoParam ? `/iniciar-sesion?promo=${encodeURIComponent(promoParam)}` : "/iniciar-sesion")}
                 className={`${fonts.bowlbyOneSC.className} z-30 w-full bg-black/90 hover:bg-black py-3.5 text-amber-400 hover:text-amber-300 font-black shadow-2xl shadow-black/90 rounded-2xl text-sm sm:text-base border-2 border-amber-400 tracking-wider hover:scale-[1.02] active:scale-95 transition-all`}>
                 INICIAR SESIÓN
               </Button>
@@ -123,7 +138,7 @@ export default function Home() {
               {/* Botón Crear Cuenta Nueva: Negro & Plata */}
               <Button
                 type="button"
-                onClick={() => router.push("/registro")}
+                onClick={() => router.push(promoParam ? `/registro?promo=${encodeURIComponent(promoParam)}` : "/registro")}
                 className="w-full bg-black/85 hover:bg-black border-2 border-slate-300 hover:border-white text-white py-3 rounded-2xl text-sm font-extrabold shadow-xl shadow-black/90 tracking-wide hover:scale-[1.02] active:scale-95 transition-all">
                 Crear Cuenta Nueva
               </Button>

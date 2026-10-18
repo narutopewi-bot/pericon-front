@@ -123,6 +123,17 @@ export default function SignUp() {
   const [serverError, setServerError] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(false);
   const [termsModalOpen, setTermsModalOpen] = React.useState(false);
+  const [promoCode, setPromoCode] = React.useState<string>("");
+
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const p = params.get("promo") || params.get("codigo") || params.get("ref");
+      if (p) {
+        setPromoCode(p.trim().toUpperCase());
+      }
+    }
+  }, []);
 
   const form = useForm<z.infer<typeof FormSchema>>({
     resolver: zodResolver(FormSchema),
@@ -167,6 +178,7 @@ export default function SignUp() {
           birthDate: data.birthDate,
           deviceFingerprint: deviceFingerprint,
           password: data.password,
+          promoCode: promoCode || undefined,
         }),
       });
 
@@ -219,6 +231,20 @@ export default function SignUp() {
 
             <Form {...form}>
               <form onSubmit={handleSubmit(onSubmit)} className="space-y-3 w-full">
+                {promoCode && (
+                  <div className="p-3 bg-gradient-to-r from-amber-500/25 via-yellow-500/20 to-amber-500/25 border border-amber-400 rounded-2xl flex items-center gap-2.5 shadow-[0_0_15px_rgba(245,158,11,0.25)]">
+                    <span className="text-2xl animate-bounce">🎁</span>
+                    <div className="text-left flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[10px] font-black uppercase text-amber-300 tracking-wider">¡CUPÓN DEL FLYER!</span>
+                        <span className="bg-amber-400 text-neutral-950 font-black text-[9px] px-1.5 py-0.5 rounded uppercase tracking-wider">{promoCode}</span>
+                      </div>
+                      <p className="text-[10px] text-amber-100 font-medium leading-tight mt-0.5">
+                        Recibirás tus 300 monedas + <strong className="text-amber-300">+100 MONEDAS DE REGALO</strong> al completar tu registro.
+                      </p>
+                    </div>
+                  </div>
+                )}
                 {serverError && (
                   <div className="bg-red-950/80 border border-red-500 text-red-200 text-xs px-3 py-2 rounded-lg text-center font-bold">
                     {serverError}
