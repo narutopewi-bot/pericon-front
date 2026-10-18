@@ -8,6 +8,7 @@ import * as fonts from "@/components/fonts";
 import { Button } from "@/components/ui/button";
 import { useAppDispatch, useAppSelector, RootState } from "@/store/store";
 import { setGamePlayer, clearGamePlayer } from "@/store/slices/gameplayerSlice";
+import LiveTicker from "@/components/live-ticker";
 
 export default function Home() {
   const router = useRouter();
@@ -56,6 +57,7 @@ export default function Home() {
 
   return (
     <React.Fragment>
+      <LiveTicker />
       <div className="absolute inset-6 bg-diablo mix-blend-soft-light opacity-20 z-[-1]"></div>
 
       <div className="flex flex-col items-center justify-center pb-2 relative z-10">
@@ -127,11 +129,21 @@ export default function Home() {
             </>
           ) : (
             <>
+              {/* Botón Manotazo de Prueba (Modo Demo de 1 mano sin registro) */}
+              <Button
+                type="button"
+                onClick={() => router.push(promoParam ? `/demo?promo=${encodeURIComponent(promoParam)}` : "/demo")}
+                className={`${fonts.bowlbyOneSC.className} z-30 w-full bg-gradient-to-r from-emerald-500 via-green-600 to-emerald-500 hover:from-emerald-400 hover:to-green-500 py-3 text-white font-black shadow-xl shadow-emerald-950/60 rounded-2xl text-xs sm:text-sm border-2 border-emerald-300 tracking-wider hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-1.5`}>
+                <span>🃏</span>
+                <span>PROBAR 1 MANO GRATIS</span>
+                <span className="bg-black/50 text-emerald-200 text-[9px] px-1.5 py-0.5 rounded font-sans uppercase">SIN REGISTRO</span>
+              </Button>
+
               {/* Botón Principal Iniciar Sesión: Negro & Oro */}
               <Button
                 type="button"
                 onClick={() => router.push(promoParam ? `/iniciar-sesion?promo=${encodeURIComponent(promoParam)}` : "/iniciar-sesion")}
-                className={`${fonts.bowlbyOneSC.className} z-30 w-full bg-black/90 hover:bg-black py-3.5 text-amber-400 hover:text-amber-300 font-black shadow-2xl shadow-black/90 rounded-2xl text-sm sm:text-base border-2 border-amber-400 tracking-wider hover:scale-[1.02] active:scale-95 transition-all`}>
+                className={`${fonts.bowlbyOneSC.className} z-30 w-full bg-black/90 hover:bg-black py-3 text-amber-400 hover:text-amber-300 font-black shadow-2xl shadow-black/90 rounded-2xl text-sm border-2 border-amber-400 tracking-wider hover:scale-[1.02] active:scale-95 transition-all`}>
                 INICIAR SESIÓN
               </Button>
 
@@ -139,7 +151,7 @@ export default function Home() {
               <Button
                 type="button"
                 onClick={() => router.push(promoParam ? `/registro?promo=${encodeURIComponent(promoParam)}` : "/registro")}
-                className="w-full bg-black/85 hover:bg-black border-2 border-slate-300 hover:border-white text-white py-3 rounded-2xl text-sm font-extrabold shadow-xl shadow-black/90 tracking-wide hover:scale-[1.02] active:scale-95 transition-all">
+                className="w-full bg-black/85 hover:bg-black border-2 border-slate-300 hover:border-white text-white py-2.5 rounded-2xl text-xs font-extrabold shadow-xl shadow-black/90 tracking-wide hover:scale-[1.02] active:scale-95 transition-all">
                 Crear Cuenta Nueva
               </Button>
             </>

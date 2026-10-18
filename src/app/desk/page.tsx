@@ -26,6 +26,7 @@ import DailyStreakRouletteModal from "@/components/daily-streak-roulette-modal";
 import { playChatPopSound } from "@/lib/soundEffects";
 import { safeSignalRInvoke } from "@/lib/safeSignalR";
 import Swal from "sweetalert2";
+import LiveTicker from "@/components/live-ticker";
 
 export default function Desk() {
   const router = useRouter();
@@ -554,6 +555,7 @@ export default function Desk() {
 
   return (
     <React.Fragment>
+      <LiveTicker />
       {/* Menú Superior y Barra de Estado del Jugador */}
       <GameHeaderMenu
         player={dataplayer}
