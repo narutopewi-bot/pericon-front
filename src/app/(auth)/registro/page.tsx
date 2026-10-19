@@ -20,6 +20,7 @@ import { setGamePlayer } from "@/store/slices/gameplayerSlice"
 import TermsModal from "@/components/terms-modal";
 import { playVoiceAudio } from "@/lib/gameEffects";
 import { getDeviceFingerprint } from "@/lib/fingerprint";
+import Swal from "sweetalert2";
 
 type FormMessageProps = {
   error?: FieldError;
@@ -145,6 +146,35 @@ export default function SignUp() {
         if (typeof window !== "undefined") {
           localStorage.setItem("pericon_user", JSON.stringify(result));
         }
+
+        if (result.coins === 0 || result.isDeviceAlreadyUsed) {
+          await Swal.fire({
+            title: '¡CUENTA CREADA CON ÉXITO!',
+            html: `
+              <div style="text-align: center; font-size: 14px; padding: 4px 0;">
+                <p style="color: #cbd5e1; margin-bottom: 8px;">
+                  Bienvenido, <strong>${result.username}</strong>. Tu cuenta ha sido registrada correctamente.
+                </p>
+                <div style="background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 12px; padding: 12px; color: #fde68a; font-size: 13px; text-align: left; line-height: 1.4;">
+                  📱 <strong>Dispositivo compartido detectado:</strong><br>
+                  Para garantizar el juego limpio y prevenir multi-cuentas de bonos, tu cuenta inicia con <strong>0 monedas</strong>.
+                </div>
+                <p style="color: #94a3b8; font-size: 12px; margin-top: 10px;">
+                  ¡Puedes jugar el <strong>Modo Demo</strong> gratis, recibir transferencias de monedas o recargar en el cajero para entrar a las mesas de juego!
+                </p>
+              </div>
+            `,
+            icon: 'info',
+            confirmButtonText: 'Entendido, ir al Lobby',
+            confirmButtonColor: '#f59e0b',
+            background: '#15091e',
+            color: '#fff',
+            customClass: {
+              popup: 'border-2 border-amber-500/50 rounded-3xl shadow-2xl'
+            }
+          });
+        }
+
         router.push("/desk");
       }
     } catch (error) {
