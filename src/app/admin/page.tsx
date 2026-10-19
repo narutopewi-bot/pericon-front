@@ -523,6 +523,81 @@ export default function AdminPage() {
     }
   };
 
+  const handleRenameVirtualBot = async (bot: VirtualBotItem) => {
+    const { value: newName } = await Swal.fire({
+      title: `Renombrar Bot #${bot.id}`,
+      text: `Ingresa el nuevo nombre visible para '${bot.username}':`,
+      input: "text",
+      inputValue: bot.username,
+      inputPlaceholder: "Ej: Don Vicente, La Catira, etc.",
+      showCancelButton: true,
+      confirmButtonText: "💾 Guardar Nombre",
+      cancelButtonText: "Cancelar",
+      background: "#180e07",
+      color: "#fef3c7",
+      confirmButtonColor: "#f59e0b",
+      cancelButtonColor: "#451a03",
+      inputValidator: (value) => {
+        if (!value || !value.trim()) {
+          return "¡El nombre no puede estar vacío!";
+        }
+        if (value.trim().length < 2) {
+          return "El nombre debe tener al menos 2 caracteres.";
+        }
+        if (value.trim().length > 25) {
+          return "El nombre no puede superar los 25 caracteres.";
+        }
+        return null;
+      }
+    });
+
+    if (!newName || newName.trim() === bot.username) return;
+
+    setUpdatingBotId(bot.id);
+    try {
+      const res = await adminFetch(`${apiUrl}/api/admin/virtual-bots/rename`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ botId: bot.id, newName: newName.trim() })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const updatedName = newName.trim();
+        setVirtualBots(prev => prev.map(b => b.id === bot.id ? { ...b, username: updatedName } : b));
+        setBotMatches(prev => prev.map(m => m.botName.toLowerCase() === bot.username.toLowerCase() ? { ...m, botName: updatedName } : m));
+        Swal.fire({
+          icon: "success",
+          title: "¡Nombre Actualizado!",
+          text: `El bot ahora se llama '${updatedName}'. Los usuarios lo verán con este nombre en todas las partidas.`,
+          background: "#180e07",
+          color: "#fef3c7",
+          confirmButtonColor: "#f59e0b"
+        });
+      } else {
+        const err = await res.json().catch(() => ({}));
+        Swal.fire({
+          icon: "error",
+          title: "No se pudo renombrar",
+          text: err.message || "Ocurrió un error al actualizar el nombre del bot.",
+          background: "#180e07",
+          color: "#fef3c7",
+          confirmButtonColor: "#f59e0b"
+        });
+      }
+    } catch {
+      Swal.fire({
+        icon: "error",
+        title: "Error de Conexión",
+        text: "No se pudo comunicar con el servidor.",
+        background: "#180e07",
+        color: "#fef3c7"
+      });
+    } finally {
+      setUpdatingBotId(null);
+    }
+  };
+
   // Verificar sesión existente en sessionStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -4736,7 +4811,7 @@ export default function AdminPage() {
                       </span>
                     </div>
                     <p className="text-xs text-amber-200/70 mt-0.5">
-                      Personajes autónomos que entran a jugar 1vs1 si un usuario espera entre 30 y 40 segundos sin encontrar rival humano. Poseen perfil real y aparecen en el ranking.
+                      Personajes autónomos que entran a jugar 1vs1 si un usuario espera sin encontrar rival humano. Puedes cambiarles el nombre manualmente en cualquier momento con el botón ✏️.
                     </p>
                   </div>
                 </div>
@@ -4771,9 +4846,19 @@ export default function AdminPage() {
                               )}
                             </div>
                             <div className="min-w-0">
-                              <div className="flex items-center gap-1.5">
+                              <div className="flex items-center gap-1.5 flex-wrap">
                                 <h3 className="text-sm font-black text-white truncate">{bot.username}</h3>
-                                <span className="text-[9px] font-bold text-amber-400/90 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-500/30">
+                                <button
+                                  type="button"
+                                  disabled={isUpdating}
+                                  onClick={() => handleRenameVirtualBot(bot)}
+                                  className="text-amber-400 hover:text-amber-200 text-xs px-1.5 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 transition flex items-center gap-1 shrink-0"
+                                  title={`Cambiar nombre de ${bot.username}`}
+                                >
+                                  <span>✏️</span>
+                                  <span className="text-[10px] font-bold">Cambiar</span>
+                                </button>
+                                <span className="text-[9px] font-bold text-amber-400/90 bg-amber-950/60 px-1.5 py-0.5 rounded border border-amber-500/30 shrink-0">
                                   ID #{bot.id}
                                 </span>
                               </div>

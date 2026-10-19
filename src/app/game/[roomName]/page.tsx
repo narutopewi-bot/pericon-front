@@ -291,15 +291,22 @@ export default function Duel1vs1() {
       ? (datos.current.nametwo || oponent?.username || '') 
       : (datos.current.nameone || oponent?.username || '');
 
-    if (!oppCandidate && typeof window !== 'undefined') {
+    let oppUserCandidate = datos.current?.flag
+      ? (datos.current.usertwo || '')
+      : (datos.current.userone || '');
+
+    if ((!oppCandidate || !oppUserCandidate) && typeof window !== 'undefined') {
       try {
         const raw = searchParams.get('datos');
         if (raw) {
           const parsed = JSON.parse(decodeURIComponent(raw));
-          oppCandidate = parsed.flag ? parsed.nametwo : parsed.nameone;
+          if (!oppCandidate) oppCandidate = parsed.flag ? parsed.nametwo : parsed.nameone;
+          if (!oppUserCandidate) oppUserCandidate = parsed.flag ? parsed.usertwo : parsed.userone;
         }
       } catch (e) {}
     }
+
+    if (oppUserCandidate && oppUserCandidate.toUpperCase().startsWith('BOT_')) return true;
 
     const cleanOpp = (oppCandidate || '').toLowerCase().trim().replace(/^@/, '');
     return BOT_NAMES.includes(cleanOpp) || cleanOpp.startsWith('bot_');
@@ -1484,7 +1491,7 @@ export default function Duel1vs1() {
 
         // Conectar canal de voz WebRTC solo si el rival es un humano real
         const oppLower = (oppName || '').toLowerCase().trim();
-        const isBotOpp = BOT_NAMES.includes(oppLower) || oppLower.startsWith('bot_');
+        const isBotOpp = (playeropp.current && playeropp.current.toUpperCase().startsWith('BOT_')) || BOT_NAMES.includes(oppLower) || oppLower.startsWith('bot_');
         if (!isBotOpp) {
           const mySeat = isFlag ? 0 : 1;
           const rivalSeat = isFlag ? 1 : 0;
