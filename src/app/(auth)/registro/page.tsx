@@ -160,7 +160,7 @@ export default function SignUp() {
                   Para garantizar el juego limpio y prevenir multi-cuentas de bonos, tu cuenta inicia con <strong>0 monedas</strong>.
                 </div>
                 <p style="color: #94a3b8; font-size: 12px; margin-top: 10px;">
-                  ¡Puedes jugar el <strong>Modo Demo</strong> gratis, recibir transferencias de monedas o recargar en el cajero para entrar a las mesas de juego!
+                  ¡Puedes jugar el <strong>Modo Demo</strong> gratis, girar la <strong>Ruleta Diaria</strong> o recargar en el <strong>Cajero Oficial</strong> para entrar a las mesas de juego!
                 </p>
               </div>
             `,
