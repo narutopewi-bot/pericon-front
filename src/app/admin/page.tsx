@@ -230,6 +230,7 @@ interface BotTodaySummary {
   totalCoinsWagered: number;
   coinsWonByUser: number;
   coinsWonByHouse: number;
+  houseCommission?: number;
   netHouseProfit: number;
   targetWinRate: number;
 }
@@ -309,7 +310,10 @@ export default function AdminPage() {
     netHouseProfit: 0,
   });
   const [botTodaySummary, setBotTodaySummary] = useState<BotTodaySummary | null>(null);
+  const [botYesterdaySummary, setBotYesterdaySummary] = useState<BotTodaySummary | null>(null);
   const [botDailyBreakdown, setBotDailyBreakdown] = useState<BotDailyRow[]>([]);
+  const [botDateFilter, setBotDateFilter] = useState<string>("today"); // "today" | "yesterday" | "last7" | "all" | "YYYY-MM-DD"
+  const [customBotDate, setCustomBotDate] = useState<string>("");
   const [botSearch, setBotSearch] = useState("");
   const [botResultFilter, setBotResultFilter] = useState<"all" | "user_won" | "bot_won">("all");
   const [botDifficultyMode, setBotDifficultyMode] = useState<"facil" | "medio" | "dificil">("medio");
@@ -651,6 +655,7 @@ export default function AdminPage() {
         setBotMatches(botData.matches || []);
         if (botData.summary) setBotSummary(botData.summary);
         if (botData.todaySummary) setBotTodaySummary(botData.todaySummary);
+        if (botData.yesterdaySummary) setBotYesterdaySummary(botData.yesterdaySummary);
         if (botData.dailyBreakdown) setBotDailyBreakdown(botData.dailyBreakdown);
       }
       await fetchErrorLogs();
@@ -709,6 +714,7 @@ export default function AdminPage() {
         setBotMatches(data.matches || []);
         if (data.summary) setBotSummary(data.summary);
         if (data.todaySummary) setBotTodaySummary(data.todaySummary);
+        if (data.yesterdaySummary) setBotYesterdaySummary(data.yesterdaySummary);
         if (data.dailyBreakdown) setBotDailyBreakdown(data.dailyBreakdown);
       }
     } catch (e) {
@@ -1597,8 +1603,11 @@ export default function AdminPage() {
     });
   }, [users, whatsappSearch, whatsappFilter]);
 
-  // Partidas contra el Bot filtradas y buscadas
+  // Partidas contra el Bot filtradas por búsqueda, resultado Y FECHA / PERIODO
   const filteredBotMatches = useMemo(() => {
+    const todayStr = botTodaySummary?.date || new Date().toISOString().split("T")[0];
+    const yesterdayStr = botYesterdaySummary?.date || "";
+
     return botMatches.filter((m) => {
       const q = botSearch.toLowerCase().trim();
       const matchSearch = !q || m.username.toLowerCase().includes(q) || m.botName.toLowerCase().includes(q);
@@ -1606,9 +1615,153 @@ export default function AdminPage() {
 
       if (botResultFilter === "user_won") return m.userWon;
       if (botResultFilter === "bot_won") return !m.userWon;
-      return true;
+
+      if (botDateFilter === "all") return true;
+
+      const matchDate = m.createdAt ? m.createdAt.substring(0, 10) : "";
+      if (botDateFilter === "today") return matchDate === todayStr;
+      if (botDateFilter === "yesterday") return matchDate === yesterdayStr;
+      if (botDateFilter === "last7") {
+        const last7Dates = new Set(botDailyBreakdown.slice(0, 7).map((d) => d.date));
+        return last7Dates.has(matchDate);
+      }
+      // Fecha específica seleccionada
+      return matchDate === botDateFilter;
     });
-  }, [botMatches, botSearch, botResultFilter]);
+  }, [botMatches, botSearch, botResultFilter, botDateFilter, botTodaySummary, botYesterdaySummary, botDailyBreakdown]);
+
+  // Métricas dinámicas para los Boxes superiores basadas en el periodo o fecha seleccionada
+  const currentBotMetrics = useMemo(() => {
+    if (botDateFilter === "all") {
+      return {
+        title: "Acumulado Histórico Global",
+        subtitle: "Todas las fechas registradas en la base de datos.",
+        badge: "Histórico Completo",
+        totalMatches: botSummary.totalBotMatches,
+        userWins: botSummary.userWinsCount,
+        botWins: botSummary.botWinsCount,
+        userWinRate: botSummary.userWinRate,
+        botWinRate: botSummary.botWinRate,
+        totalCoinsWagered: botSummary.totalCoinsWagered,
+        coinsWonByUser: botSummary.totalCoinsWonByUser,
+        coinsWonByHouse: botSummary.totalCoinsWonByHouse,
+        houseCommission: botDailyBreakdown.reduce((acc, d) => acc + (d.houseCommission || 0), 0),
+        netHouseProfit: botSummary.netHouseProfit,
+      };
+    }
+
+    if (botDateFilter === "today") {
+      return {
+        title: `Rendimiento de Hoy (${botTodaySummary?.date || "Hoy"})`,
+        subtitle: "El contador reinicia a las 00:00 (Hora Venezuela). Meta dinámica 60% Bot / 40% Jugador.",
+        badge: "Hoy",
+        totalMatches: botTodaySummary?.totalMatches ?? 0,
+        userWins: botTodaySummary?.userWins ?? 0,
+        botWins: botTodaySummary?.botWins ?? 0,
+        userWinRate: botTodaySummary?.userWinRate ?? 0,
+        botWinRate: botTodaySummary?.botWinRate ?? 0,
+        totalCoinsWagered: botTodaySummary?.totalCoinsWagered ?? 0,
+        coinsWonByUser: botTodaySummary?.coinsWonByUser ?? 0,
+        coinsWonByHouse: botTodaySummary?.coinsWonByHouse ?? 0,
+        houseCommission: botTodaySummary?.houseCommission ?? 0,
+        netHouseProfit: botTodaySummary?.netHouseProfit ?? 0,
+      };
+    }
+
+    if (botDateFilter === "yesterday") {
+      const yDate = botYesterdaySummary?.date || "";
+      const yRow = botDailyBreakdown.find((d) => d.date === yDate) || botYesterdaySummary;
+      return {
+        title: `Rendimiento de Ayer (${yDate || "Ayer"})`,
+        subtitle: "Jornada completa consolidada del día de ayer (Hora Venezuela).",
+        badge: "Ayer",
+        totalMatches: yRow?.totalMatches ?? 0,
+        userWins: yRow?.userWins ?? 0,
+        botWins: yRow?.botWins ?? 0,
+        userWinRate: yRow?.userWinRate ?? 0,
+        botWinRate: yRow?.botWinRate ?? 0,
+        totalCoinsWagered: yRow?.totalCoinsWagered ?? 0,
+        coinsWonByUser: yRow?.coinsWonByUser ?? 0,
+        coinsWonByHouse: yRow?.coinsWonByHouse ?? 0,
+        houseCommission: yRow?.houseCommission ?? 0,
+        netHouseProfit: yRow?.netHouseProfit ?? 0,
+      };
+    }
+
+    if (botDateFilter === "last7") {
+      const slice7 = botDailyBreakdown.slice(0, 7);
+      const totalMatches = slice7.reduce((acc, d) => acc + d.totalMatches, 0);
+      const userWins = slice7.reduce((acc, d) => acc + d.userWins, 0);
+      const botWins = slice7.reduce((acc, d) => acc + d.botWins, 0);
+      const totalCoinsWagered = slice7.reduce((acc, d) => acc + d.totalCoinsWagered, 0);
+      const coinsWonByUser = slice7.reduce((acc, d) => acc + d.coinsWonByUser, 0);
+      const coinsWonByHouse = slice7.reduce((acc, d) => acc + d.coinsWonByHouse, 0);
+      const houseCommission = slice7.reduce((acc, d) => acc + (d.houseCommission || 0), 0);
+      const netHouseProfit = slice7.reduce((acc, d) => acc + d.netHouseProfit, 0);
+      return {
+        title: "Rendimiento de los Últimos 7 Días",
+        subtitle: "Balance consolidado de los últimos 7 días de juego contra el Bot.",
+        badge: "Últimos 7 Días",
+        totalMatches,
+        userWins,
+        botWins,
+        userWinRate: totalMatches > 0 ? Math.round((userWins / totalMatches) * 1000) / 10 : 0,
+        botWinRate: totalMatches > 0 ? Math.round((botWins / totalMatches) * 1000) / 10 : 0,
+        totalCoinsWagered,
+        coinsWonByUser,
+        coinsWonByHouse,
+        houseCommission,
+        netHouseProfit,
+      };
+    }
+
+    // Fecha específica (ej: "2026-10-18")
+    const matchRow = botDailyBreakdown.find((d) => d.date === botDateFilter);
+    if (matchRow) {
+      return {
+        title: `Rendimiento del Día (${botDateFilter})`,
+        subtitle: `Registro consolidado de la jornada del ${botDateFilter} (Hora Venezuela).`,
+        badge: botDateFilter,
+        totalMatches: matchRow.totalMatches,
+        userWins: matchRow.userWins,
+        botWins: matchRow.botWins,
+        userWinRate: matchRow.userWinRate,
+        botWinRate: matchRow.botWinRate,
+        totalCoinsWagered: matchRow.totalCoinsWagered,
+        coinsWonByUser: matchRow.coinsWonByUser,
+        coinsWonByHouse: matchRow.coinsWonByHouse,
+        houseCommission: matchRow.houseCommission ?? 0,
+        netHouseProfit: matchRow.netHouseProfit,
+      };
+    }
+
+    // Si no está en breakdown, calcular directamente de las partidas filtradas
+    const dayMatches = botMatches.filter((m) => m.createdAt?.startsWith(botDateFilter));
+    const totalMatches = dayMatches.length;
+    const userWins = dayMatches.filter((m) => m.userWon).length;
+    const botWins = dayMatches.filter((m) => !m.userWon).length;
+    const totalCoinsWagered = dayMatches.reduce((acc, m) => acc + m.betAmount, 0);
+    const coinsWonByUser = dayMatches.reduce((acc, m) => acc + m.coinsWon, 0);
+    const coinsWonByHouse = dayMatches.reduce((acc, m) => acc + m.coinsLost, 0);
+    const houseCommission = dayMatches.reduce((acc, m) => acc + (m.houseCommission || 0), 0);
+    const netHouseProfit = dayMatches.reduce((acc, m) => acc + m.houseProfit, 0);
+
+    return {
+      title: `Rendimiento del Día (${botDateFilter})`,
+      subtitle: `Registro de partidas para la fecha ${botDateFilter}.`,
+      badge: botDateFilter,
+      totalMatches,
+      userWins,
+      botWins,
+      userWinRate: totalMatches > 0 ? Math.round((userWins / totalMatches) * 1000) / 10 : 0,
+      botWinRate: totalMatches > 0 ? Math.round((botWins / totalMatches) * 1000) / 10 : 0,
+      totalCoinsWagered,
+      coinsWonByUser,
+      coinsWonByHouse,
+      houseCommission,
+      netHouseProfit,
+    };
+  }, [botDateFilter, botTodaySummary, botYesterdaySummary, botSummary, botDailyBreakdown, botMatches]);
 
   // Partidas Multijugador (PvP) filtradas y análisis estadístico por jugador
   const { filteredPvpMatches, searchedPlayerSummary } = useMemo(() => {
@@ -4722,63 +4875,150 @@ export default function AdminPage() {
               </div>
             </div>
 
-            {/* Rendimiento de Hoy (Operación Diaria - Reinicia a Medianoche) */}
-            <div className="bg-[#180e07] border-2 border-amber-500/40 rounded-2xl p-4 shadow-xl space-y-3">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-amber-500/20 pb-2.5">
-                <div className="flex items-center gap-2">
-                  <span className="text-xl">📅</span>
+            {/* Rendimiento y Selector de Periodo (Hoy, Ayer, 7 Días, Histórico o Fecha) */}
+            <div id="bot-performance-boxes" className="bg-[#180e07] border-2 border-amber-500/40 rounded-2xl p-4 shadow-xl space-y-4">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 border-b border-amber-500/20 pb-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-2xl">📅</span>
                   <div>
-                    <h2 className="text-sm font-black text-amber-300">
-                      Rendimiento de Hoy ({botTodaySummary?.date || "Hoy"}) · Operación Diaria (Meta 60/40)
-                    </h2>
-                    <p className="text-[11px] text-amber-200/70">
-                      El contador inicia en CERO a las 00:00 (Hora Venezuela) cada día. El bot calibra dinámicamente sus manos para ganar ~60% de partidas y ~60% de dinero.
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h2 className="text-sm font-black text-amber-300">
+                        {currentBotMetrics.title}
+                      </h2>
+                      <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-black">
+                        {currentBotMetrics.badge}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-amber-200/70 mt-0.5">
+                      {currentBotMetrics.subtitle}
                     </p>
                   </div>
                 </div>
-                <div className="px-3 py-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/40 text-[11px] font-black self-start sm:self-auto">
-                  Objetivo: 60% Bot / 40% Jugador
+
+                {/* Barra de Selección de Periodo */}
+                <div className="flex flex-wrap items-center gap-1.5 bg-[#120803] border border-amber-500/30 p-1.5 rounded-xl">
+                  <button
+                    onClick={() => {
+                      setBotDateFilter("today");
+                      setCustomBotDate("");
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1 ${
+                      botDateFilter === "today"
+                        ? "bg-amber-500 text-amber-950 shadow-md"
+                        : "text-amber-200/70 hover:text-white hover:bg-amber-500/10"
+                    }`}
+                  >
+                    <span>📅</span>
+                    <span>Hoy</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setBotDateFilter("yesterday");
+                      setCustomBotDate("");
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1 ${
+                      botDateFilter === "yesterday"
+                        ? "bg-amber-500 text-amber-950 shadow-md"
+                        : "text-amber-200/70 hover:text-white hover:bg-amber-500/10"
+                    }`}
+                  >
+                    <span>⏪</span>
+                    <span>Ayer</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setBotDateFilter("last7");
+                      setCustomBotDate("");
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1 ${
+                      botDateFilter === "last7"
+                        ? "bg-amber-500 text-amber-950 shadow-md"
+                        : "text-amber-200/70 hover:text-white hover:bg-amber-500/10"
+                    }`}
+                  >
+                    <span>🗓️</span>
+                    <span>7 Días</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      setBotDateFilter("all");
+                      setCustomBotDate("");
+                    }}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-black transition flex items-center gap-1 ${
+                      botDateFilter === "all"
+                        ? "bg-amber-500 text-amber-950 shadow-md"
+                        : "text-amber-200/70 hover:text-white hover:bg-amber-500/10"
+                    }`}
+                  >
+                    <span>📈</span>
+                    <span>Todo</span>
+                  </button>
+
+                  <div className="flex items-center gap-1 pl-1.5 border-l border-amber-500/20">
+                    <span className="text-[10px] text-amber-200/60 hidden sm:inline">Fecha:</span>
+                    <input
+                      type="date"
+                      value={customBotDate}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setCustomBotDate(val);
+                        if (val) {
+                          setBotDateFilter(val);
+                        }
+                      }}
+                      className="bg-[#1e1008] border border-amber-500/40 rounded-lg px-2 py-1 text-xs text-amber-200 focus:outline-none focus:border-amber-400 font-mono"
+                    />
+                  </div>
                 </div>
               </div>
 
+              {/* Los 4 Boxes Dinámicos de Métricas */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-3.5">
-                <div className="bg-[#24140a] border border-amber-500/20 rounded-xl p-3.5">
-                  <span className="text-[10px] text-amber-200/60 block uppercase font-bold">Partidas vs Bot Hoy</span>
+                <div className="bg-[#24140a] border border-amber-500/20 rounded-xl p-3.5 shadow">
+                  <span className="text-[10px] text-amber-200/60 block uppercase font-bold">Partidas vs Bot</span>
                   <div className="text-2xl font-black text-white mt-1">
-                    {botTodaySummary?.totalMatches ?? 0}
+                    {currentBotMetrics.totalMatches}
                   </div>
                   <span className="text-[11px] text-amber-200/50 block mt-0.5">
-                    🪙 {(botTodaySummary?.totalCoinsWagered ?? 0).toLocaleString()} apostadas hoy
+                    🪙 {currentBotMetrics.totalCoinsWagered.toLocaleString()} apostadas
                   </span>
                 </div>
 
-                <div className="bg-[#24140a] border border-amber-500/20 rounded-xl p-3.5">
-                  <span className="text-[10px] text-amber-200/60 block uppercase font-bold">Victorias Jugadores Hoy</span>
+                <div className="bg-[#24140a] border border-amber-500/20 rounded-xl p-3.5 shadow">
+                  <span className="text-[10px] text-amber-200/60 block uppercase font-bold">Victorias Jugadores</span>
                   <div className="text-2xl font-black text-emerald-400 mt-1">
-                    {botTodaySummary?.userWins ?? 0} <span className="text-xs font-bold text-emerald-300/80">({botTodaySummary?.userWinRate ?? 0}%)</span>
+                    {currentBotMetrics.userWins} <span className="text-xs font-bold text-emerald-300/80">({currentBotMetrics.userWinRate}%)</span>
                   </div>
                   <span className="text-[11px] text-emerald-300/60 block mt-0.5">
-                    Meta ~40% · 🪙 {(botTodaySummary?.coinsWonByUser ?? 0).toLocaleString()} pagadas
+                    🪙 {currentBotMetrics.coinsWonByUser.toLocaleString()} entregadas en premios
                   </span>
                 </div>
 
-                <div className="bg-[#24140a] border border-amber-500/20 rounded-xl p-3.5">
-                  <span className="text-[10px] text-amber-200/60 block uppercase font-bold">Victorias Bot Hoy</span>
+                <div className="bg-[#24140a] border border-amber-500/20 rounded-xl p-3.5 shadow">
+                  <span className="text-[10px] text-amber-200/60 block uppercase font-bold">Victorias Bot</span>
                   <div className="text-2xl font-black text-amber-400 mt-1">
-                    {botTodaySummary?.botWins ?? 0} <span className="text-xs font-bold text-amber-300/80">({botTodaySummary?.botWinRate ?? 0}%)</span>
+                    {currentBotMetrics.botWins} <span className="text-xs font-bold text-amber-300/80">({currentBotMetrics.botWinRate}%)</span>
                   </div>
                   <span className="text-[11px] text-amber-300/60 block mt-0.5">
-                    Meta ~60% · 🪙 {(botTodaySummary?.coinsWonByHouse ?? 0).toLocaleString()} retenidas
+                    🪙 {currentBotMetrics.coinsWonByHouse.toLocaleString()} retenidas por bot
                   </span>
                 </div>
 
-                <div className="bg-[#24140a] border border-amber-500/20 rounded-xl p-3.5">
-                  <span className="text-[10px] text-amber-200/60 block uppercase font-bold">Balance Neto Casa Hoy</span>
-                  <div className={`text-2xl font-black mt-1 ${(botTodaySummary?.netHouseProfit ?? 0) >= 0 ? "text-emerald-400" : "text-red-400"}`}>
-                    🪙 {(botTodaySummary?.netHouseProfit ?? 0) >= 0 ? "+" : ""}{(botTodaySummary?.netHouseProfit ?? 0).toLocaleString()}
+                <div className="bg-[#24140a] border border-amber-500/20 rounded-xl p-3.5 shadow">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] text-amber-200/60 block uppercase font-bold">Balance Neto Casa</span>
+                    {currentBotMetrics.houseCommission > 0 && (
+                      <span className="text-[10px] text-yellow-400 font-bold">Com: 🪙{currentBotMetrics.houseCommission.toLocaleString()}</span>
+                    )}
+                  </div>
+                  <div className={`text-2xl font-black mt-1 ${currentBotMetrics.netHouseProfit >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                    🪙 {currentBotMetrics.netHouseProfit >= 0 ? "+" : ""}{currentBotMetrics.netHouseProfit.toLocaleString()}
                   </div>
                   <span className="text-[11px] text-amber-200/50 block mt-0.5">
-                    {(botTodaySummary?.netHouseProfit ?? 0) >= 0 ? "Superávit diario en caja" : "Usuarios arriba hoy"}
+                    {currentBotMetrics.netHouseProfit >= 0 ? "Superávit neto para la casa" : "Premios superan balance"}
                   </span>
                 </div>
               </div>
@@ -4793,7 +5033,7 @@ export default function AdminPage() {
                     <span>Historial Diario del Bot (Desglose Día por Día)</span>
                   </h3>
                   <p className="text-[11px] text-amber-200/60 mt-0.5">
-                    Registro de partidas jugadas, efectividad y ganancia en monedas día por día (Hora de Venezuela).
+                    Haz clic en "Ver día" en cualquier fecha para filtrar los boxes superiores y la lista de partidas.
                   </p>
                 </div>
                 <span className="text-xs text-amber-200/60 font-semibold self-start sm:self-auto">
@@ -4802,7 +5042,7 @@ export default function AdminPage() {
               </div>
 
               <div className="overflow-x-auto rounded-xl border border-amber-500/20">
-                <table className="w-full text-left text-xs min-w-[720px]">
+                <table className="w-full text-left text-xs min-w-[760px]">
                   <thead className="bg-[#24140a] border-b border-amber-500/30 text-amber-300 font-bold uppercase tracking-wider">
                     <tr>
                       <th className="p-3">Fecha (Vzla)</th>
@@ -4815,44 +5055,89 @@ export default function AdminPage() {
                       <th className="p-3 text-right">Casa Retuvo</th>
                       <th className="p-3 text-right">Pagado Jugador</th>
                       <th className="p-3 text-right">Balance Neto</th>
+                      <th className="p-3 text-center">Acción</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-amber-500/10">
                     {botDailyBreakdown.length === 0 ? (
                       <tr>
-                        <td colSpan={10} className="text-center py-6 text-amber-200/40">
+                        <td colSpan={11} className="text-center py-6 text-amber-200/40">
                           No hay historial diario previo registrado.
                         </td>
                       </tr>
                     ) : (
-                      botDailyBreakdown.map((d) => (
-                        <tr key={d.date} className="hover:bg-amber-500/5 transition">
-                          <td className="p-3 font-mono font-bold text-amber-200">{d.date}</td>
-                          <td className="p-3 text-center font-bold text-white">{d.totalMatches}</td>
-                          <td className="p-3 text-center text-amber-400 font-bold">{d.botWins}</td>
-                          <td className="p-3 text-center text-emerald-400 font-bold">{d.userWins}</td>
-                          <td className="p-3 text-center">
-                            <span className={`px-2 py-0.5 rounded-full font-black text-[11px] ${
-                              d.botWinRate >= 58 && d.botWinRate <= 65
-                                ? "bg-green-500/20 text-green-300 border border-green-500/40"
-                                : d.botWinRate > 65
-                                ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
-                                : "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
-                            }`}>
-                              {d.botWinRate}%
-                            </span>
-                          </td>
-                          <td className="p-3 text-right font-mono text-amber-200/80">🪙 {d.totalCoinsWagered.toLocaleString()}</td>
-                          <td className="p-3 text-right font-mono text-yellow-400 font-bold">🪙 {(d.houseCommission ?? 0).toLocaleString()}</td>
-                          <td className="p-3 text-right font-mono text-emerald-400 font-bold">🪙 {d.coinsWonByHouse.toLocaleString()}</td>
-                          <td className="p-3 text-right font-mono text-red-300">🪙 {d.coinsWonByUser.toLocaleString()}</td>
-                          <td className="p-3 text-right font-mono font-black">
-                            <span className={d.netHouseProfit >= 0 ? "text-emerald-400" : "text-red-400"}>
-                              {d.netHouseProfit >= 0 ? "+🪙 " : "-🪙 "}{Math.abs(d.netHouseProfit).toLocaleString()}
-                            </span>
-                          </td>
-                        </tr>
-                      ))
+                      botDailyBreakdown.map((d) => {
+                        const isSelected = botDateFilter === d.date;
+                        return (
+                          <tr
+                            key={d.date}
+                            className={`transition ${
+                              isSelected
+                                ? "bg-amber-500/15 border-l-4 border-amber-400"
+                                : "hover:bg-amber-500/5"
+                            }`}
+                          >
+                            <td className="p-3 font-mono font-bold text-amber-200">
+                              <div className="flex items-center gap-1.5">
+                                <span>{d.date}</span>
+                                {d.date === botTodaySummary?.date && (
+                                  <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.5 rounded font-black border border-emerald-500/30">
+                                    HOY
+                                  </span>
+                                )}
+                                {d.date === botYesterdaySummary?.date && (
+                                  <span className="text-[9px] bg-amber-500/20 text-amber-300 px-1.5 py-0.5 rounded font-black border border-amber-500/30">
+                                    AYER
+                                  </span>
+                                )}
+                              </div>
+                            </td>
+                            <td className="p-3 text-center font-bold text-white">{d.totalMatches}</td>
+                            <td className="p-3 text-center text-amber-400 font-bold">{d.botWins}</td>
+                            <td className="p-3 text-center text-emerald-400 font-bold">{d.userWins}</td>
+                            <td className="p-3 text-center">
+                              <span
+                                className={`px-2 py-0.5 rounded-full font-black text-[11px] ${
+                                  d.botWinRate >= 58 && d.botWinRate <= 65
+                                    ? "bg-green-500/20 text-green-300 border border-green-500/40"
+                                    : d.botWinRate > 65
+                                    ? "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                                    : "bg-cyan-500/20 text-cyan-300 border border-cyan-500/40"
+                                }`}
+                              >
+                                {d.botWinRate}%
+                              </span>
+                            </td>
+                            <td className="p-3 text-right font-mono text-amber-200/80">🪙 {d.totalCoinsWagered.toLocaleString()}</td>
+                            <td className="p-3 text-right font-mono text-yellow-400 font-bold">🪙 {(d.houseCommission ?? 0).toLocaleString()}</td>
+                            <td className="p-3 text-right font-mono text-emerald-400 font-bold">🪙 {d.coinsWonByHouse.toLocaleString()}</td>
+                            <td className="p-3 text-right font-mono text-red-300">🪙 {d.coinsWonByUser.toLocaleString()}</td>
+                            <td className="p-3 text-right font-mono font-black">
+                              <span className={d.netHouseProfit >= 0 ? "text-emerald-400" : "text-red-400"}>
+                                {d.netHouseProfit >= 0 ? "+🪙 " : "-🪙 "}{Math.abs(d.netHouseProfit).toLocaleString()}
+                              </span>
+                            </td>
+                            <td className="p-3 text-center">
+                              <button
+                                onClick={() => {
+                                  setBotDateFilter(d.date);
+                                  setCustomBotDate(d.date);
+                                  document.getElementById("bot-performance-boxes")?.scrollIntoView({ behavior: "smooth" });
+                                }}
+                                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 mx-auto ${
+                                  isSelected
+                                    ? "bg-amber-500 text-amber-950 font-black shadow"
+                                    : "bg-[#24140a] hover:bg-amber-500/20 text-amber-300 border border-amber-500/30"
+                                }`}
+                                title={`Ver métricas y partidas del ${d.date}`}
+                              >
+                                <span>👁️</span>
+                                <span>{isSelected ? "Viendo" : "Ver día"}</span>
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
                     )}
                   </tbody>
                 </table>
@@ -4914,6 +5199,31 @@ export default function AdminPage() {
               </div>
             </div>
 
+            {/* Aviso de Filtro de Fecha Activo */}
+            {botDateFilter !== "all" && (
+              <div className="bg-amber-500/10 border border-amber-500/30 rounded-2xl px-4 py-2.5 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <div className="flex items-center gap-2 text-amber-200">
+                  <span className="text-amber-400 font-bold">📅 Mostrando partidas de:</span>
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-black border border-amber-500/40">
+                    {currentBotMetrics.badge}
+                  </span>
+                  <span className="text-amber-200/70">
+                    ({filteredBotMatches.length} partidas en tabla)
+                  </span>
+                </div>
+                <button
+                  onClick={() => {
+                    setBotDateFilter("all");
+                    setCustomBotDate("");
+                  }}
+                  className="px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 text-xs font-bold transition flex items-center gap-1"
+                >
+                  <span>✕</span>
+                  <span>Ver todo el historial completo</span>
+                </button>
+              </div>
+            )}
+
             {/* Filtros y Buscador */}
             <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-[#180e07] border border-amber-500/20 rounded-2xl p-3">
               <div className="relative w-full sm:w-80">
@@ -4941,7 +5251,7 @@ export default function AdminPage() {
                     botResultFilter === "all" ? "bg-amber-500 text-amber-950 font-black" : "text-amber-200/60 hover:text-white"
                   }`}
                 >
-                  Todas ({botMatches.length})
+                  Todas ({botDateFilter === "all" ? botMatches.length : currentBotMetrics.totalMatches})
                 </button>
                 <button
                   onClick={() => setBotResultFilter("user_won")}
@@ -4949,7 +5259,7 @@ export default function AdminPage() {
                     botResultFilter === "user_won" ? "bg-emerald-500 text-emerald-950 font-black" : "text-emerald-300/60 hover:text-white"
                   }`}
                 >
-                  🏆 Ganó Usuario ({botSummary.userWinsCount})
+                  🏆 Ganó Usuario ({botDateFilter === "all" ? botSummary.userWinsCount : currentBotMetrics.userWins})
                 </button>
                 <button
                   onClick={() => setBotResultFilter("bot_won")}
@@ -4957,7 +5267,7 @@ export default function AdminPage() {
                     botResultFilter === "bot_won" ? "bg-red-500 text-white font-black" : "text-red-300/60 hover:text-white"
                   }`}
                 >
-                  🤖 Ganó Bot ({botSummary.botWinsCount})
+                  🤖 Ganó Bot ({botDateFilter === "all" ? botSummary.botWinsCount : currentBotMetrics.botWins})
                 </button>
               </div>
             </div>
