@@ -59,18 +59,18 @@ export default function LiveTicker() {
   const current = items[currentIndex] || items[0];
 
   return (
-    <div className="w-full max-w-full overflow-hidden bg-gradient-to-r from-black/95 via-neutral-900/90 to-black/95 border-b border-amber-500/30 px-2 sm:px-3 py-1.5 backdrop-blur-md shadow-md z-40 relative">
-      <div className="max-w-4xl mx-auto flex items-center justify-between gap-2 overflow-hidden text-xs">
+    <div className="w-full max-w-full overflow-hidden bg-gradient-to-r from-black/95 via-neutral-900/90 to-black/95 border-b border-amber-500/30 px-2 sm:px-3 py-1 sm:py-1.5 backdrop-blur-md shadow-md z-40 relative select-none">
+      <div className="w-full max-w-4xl mx-auto flex items-center justify-between gap-1.5 sm:gap-2 overflow-hidden text-xs">
         {/* Badge en vivo */}
-        <div className="flex items-center gap-1.5 shrink-0 bg-red-950/80 border border-red-500/40 px-2 py-0.5 rounded-full">
-          <span className="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
-          <span className="text-[10px] font-black uppercase text-red-300 tracking-wider">EN VIVO</span>
+        <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 bg-red-950/80 border border-red-500/40 px-1.5 sm:px-2 py-0.5 rounded-full">
+          <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span>
+          <span className="text-[9px] sm:text-[10px] font-black uppercase text-red-300 tracking-wider">EN VIVO</span>
         </div>
 
         {/* Noticia rotativa */}
-        <div className="flex-1 min-w-0 text-left truncate flex items-center gap-2 transition-all duration-500 ease-in-out">
-          <span className="text-sm shrink-0">{current.icon}</span>
-          <span className="text-[11px] sm:text-xs font-semibold text-slate-200 truncate">
+        <div className="flex-1 min-w-0 overflow-hidden flex items-center gap-1.5">
+          <span className="text-xs sm:text-sm shrink-0">{current.icon}</span>
+          <span className="text-[10px] sm:text-xs font-semibold text-slate-200 truncate block min-w-0 flex-1">
             {current.text}
           </span>
           <span className="text-[10px] text-amber-400/80 shrink-0 hidden sm:inline-block">

@@ -554,7 +554,7 @@ export default function Desk() {
   }, [connection, gamep]); 
 
   return (
-    <React.Fragment>
+    <div className="relative w-full max-w-full min-h-screen flex flex-col overflow-x-hidden">
       <LiveTicker />
       {/* Menú Superior y Barra de Estado del Jugador */}
       <GameHeaderMenu
@@ -897,6 +897,6 @@ export default function Desk() {
           dispatch(setGamePlayer({ ...dataplayer, coins: newBalance }));
         }}
       />
-    </React.Fragment>
+    </div>
   )
 }

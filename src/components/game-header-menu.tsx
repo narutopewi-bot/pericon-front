@@ -49,28 +49,28 @@ export default function GameHeaderMenu({
   };
 
   return (
-    <header className="w-full bg-black/60 backdrop-blur-md border-b border-amber-500/30 px-3 py-2 z-40 relative">
-      <div className="max-w-6xl mx-auto flex items-center justify-between gap-2">
+    <header className="w-full max-w-full overflow-hidden bg-black/60 backdrop-blur-md border-b border-amber-500/30 px-2 sm:px-3 py-1.5 sm:py-2 z-40 relative select-none">
+      <div className="max-w-6xl mx-auto flex items-center justify-between gap-1.5 sm:gap-2">
         {/* Brand / Logo & Inicio */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           <button
             onClick={() => router.push("/")}
             className="flex items-center gap-1.5 hover:opacity-90 transition"
             title="Volver al Inicio"
           >
-            <Image src="/brand.svg" width={110} height={35} alt="Pericón" priority className="h-7 w-auto" />
+            <Image src="/brand.svg" width={95} height={30} alt="Pericón" priority className="h-6 sm:h-7 w-auto" />
           </button>
         </div>
 
         {/* Ficha de Jugador con Nivel & Monedero */}
-        <div className="flex items-center gap-2 sm:gap-3">
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           {/* Tarjeta del Jugador (Clickeable -> Abre Perfil) */}
           <button
             onClick={onOpenProfile}
             title="Ver mi perfil y nivel"
-            className="flex items-center gap-2 bg-[#2a1708]/90 hover:bg-[#3d220c] border border-amber-500/50 rounded-full py-1 px-2.5 transition shadow-sm group"
+            className="flex items-center gap-1.5 sm:gap-2 bg-[#2a1708]/90 hover:bg-[#3d220c] border border-amber-500/50 rounded-full py-1 px-2 sm:px-2.5 transition shadow-sm group"
           >
-            <div className="relative w-7 h-7 rounded-full border border-amber-400 overflow-hidden bg-black/40 flex items-center justify-center text-xs font-black text-amber-300">
+            <div className="relative w-6 h-6 sm:w-7 sm:h-7 rounded-full border border-amber-400 overflow-hidden bg-black/40 flex items-center justify-center text-xs font-black text-amber-300 shrink-0">
               <img
                 src={player.avatarUrl && player.avatarUrl.length > 5 ? player.avatarUrl : "/avatar.png"}
                 alt={player.name || "Jugador"}
@@ -79,10 +79,10 @@ export default function GameHeaderMenu({
             </div>
 
             <div className="flex flex-col items-start text-left">
-              <span className="text-xs font-bold text-amber-100 group-hover:text-amber-300 transition max-w-[90px] sm:max-w-[130px] truncate">
+              <span className="text-[11px] sm:text-xs font-bold text-amber-100 group-hover:text-amber-300 transition max-w-[70px] sm:max-w-[130px] truncate">
                 {player.name || "Jugador"}
               </span>
-              <span className={`text-[9px] font-black uppercase tracking-wider flex items-center gap-0.5 ${levelInfo.badgeTextColor}`}>
+              <span className={`text-[8px] sm:text-[9px] font-black uppercase tracking-wider flex items-center gap-0.5 ${levelInfo.badgeTextColor}`}>
                 <span>{levelInfo.badge}</span>
                 <span>Nivel {levelInfo.level}</span>
               </span>
@@ -93,39 +93,39 @@ export default function GameHeaderMenu({
           <button
             onClick={onOpenWallet}
             title="Abrir Monedero y Recargas"
-            className="flex items-center gap-1.5 bg-gradient-to-r from-amber-950/90 to-yellow-950/90 hover:from-amber-900 hover:to-yellow-900 border border-amber-400/60 rounded-full py-1 px-2.5 transition shadow-sm group"
+            className="flex items-center gap-1 sm:gap-1.5 bg-gradient-to-r from-amber-950/90 to-yellow-950/90 hover:from-amber-900 hover:to-yellow-900 border border-amber-400/60 rounded-full py-1 px-2 sm:px-2.5 transition shadow-sm group"
           >
-            <div className="w-5 h-5 relative group-hover:rotate-12 transition transform">
+            <div className="w-4 h-4 sm:w-5 sm:h-5 relative group-hover:rotate-12 transition transform shrink-0">
               <Image src="/coin.png" fill alt="Moneda" className="object-contain" />
             </div>
-            <span className="text-xs font-black text-amber-200">
+            <span className="text-[11px] sm:text-xs font-black text-amber-200">
               {player.coins.toLocaleString()}
             </span>
-            <span className="w-4 h-4 bg-amber-500 text-black font-extrabold text-[10px] rounded-full flex items-center justify-center group-hover:scale-110 transition ml-0.5">
+            <span className="w-3.5 h-3.5 sm:w-4 sm:h-4 bg-amber-500 text-black font-extrabold text-[9px] sm:text-[10px] rounded-full flex items-center justify-center group-hover:scale-110 transition ml-0.5">
               +
             </span>
           </button>
 
-          {/* Botón Ranking Top 10 */}
+          {/* Botón Ranking Top 10 (Visible en desktop/tablet, en móvil accesible desde el menú ☰) */}
           {onOpenLeaderboard && (
             <button
               onClick={onOpenLeaderboard}
               title="Top 10 Mejores Jugadores"
-              className="flex items-center gap-1.5 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 border border-yellow-500/50 rounded-full py-1 px-2.5 text-xs font-bold transition shadow-sm"
+              className="hidden md:flex items-center gap-1.5 bg-yellow-500/20 hover:bg-yellow-500/30 text-yellow-300 border border-yellow-500/50 rounded-full py-1 px-2.5 text-xs font-bold transition shadow-sm"
             >
               <span>🏆</span>
-              <span className="hidden md:inline">Ranking</span>
+              <span>Ranking</span>
             </button>
           )}
 
-          {/* Botón Tutorial de la Cabrita (Siempre disponible) */}
+          {/* Botón Tutorial de la Cabrita */}
           <button
             onClick={onOpenTutorial}
             title="¿Cómo jugar? Tutorial con la Cabrita"
-            className="hidden sm:flex items-center gap-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/50 rounded-full py-1 px-2.5 text-xs font-bold transition"
+            className="hidden lg:flex items-center gap-1.5 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/50 rounded-full py-1 px-2.5 text-xs font-bold transition"
           >
             <span>🐐</span>
-            <span className="hidden md:inline">¿Cómo Jugar?</span>
+            <span>¿Cómo Jugar?</span>
           </button>
 
           {/* Botón ¿Qué tal el juego? / Tu Opinión */}
@@ -133,10 +133,10 @@ export default function GameHeaderMenu({
             <button
               onClick={onOpenFeedback}
               title="¿Qué te parece el juego? Comparte tu experiencia o sugerencias"
-              className="flex items-center gap-1.5 bg-gradient-to-r from-amber-500/25 to-yellow-500/25 hover:from-amber-500/40 hover:to-yellow-500/40 text-amber-300 border border-amber-400/60 rounded-full py-1 px-2.5 text-xs font-bold transition shadow-sm cursor-pointer"
+              className="hidden md:flex items-center gap-1.5 bg-gradient-to-r from-amber-500/25 to-yellow-500/25 hover:from-amber-500/40 hover:to-yellow-500/40 text-amber-300 border border-amber-400/60 rounded-full py-1 px-2.5 text-xs font-bold transition shadow-sm cursor-pointer"
             >
               <span>⭐</span>
-              <span className="hidden sm:inline">Tu Opinión</span>
+              <span>Tu Opinión</span>
             </button>
           )}
 
