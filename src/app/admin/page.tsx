@@ -348,6 +348,27 @@ export default function AdminPage() {
     return "";
   });
 
+  interface ReactivationCandidate {
+    id: number;
+    username: string;
+    originalPhone: string;
+    cleanPhone: string;
+    coins: number;
+    wins: number;
+    level: string;
+    createdAt: string;
+    lastReactivatedAt: string | null;
+    reactivationCount: number;
+    suggestedMessage: string;
+    waUrl: string;
+  }
+  const [reactivationCandidates, setReactivationCandidates] = useState<ReactivationCandidate[]>([]);
+  const [reactivationTotalEligible, setReactivationTotalEligible] = useState<number>(0);
+  const [reactivationLoading, setReactivationLoading] = useState<boolean>(false);
+  const [creditingIds, setCreditingIds] = useState<{ [key: number]: boolean }>({});
+  const [creditedIds, setCreditedIds] = useState<{ [key: number]: boolean }>({});
+
+
   // Formulario de Creación de Cupón
   const [newPromoCode, setNewPromoCode] = useState("");
   const [newPromoCoins, setNewPromoCoins] = useState(200);
@@ -391,6 +412,69 @@ export default function AdminPage() {
       ...init,
       headers,
     });
+  };
+
+  const fetchReactivationCandidates = async () => {
+    setReactivationLoading(true);
+    try {
+      const res = await adminFetch(`${apiUrl}/api/admin/reactivation/candidates`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.candidates) {
+          setReactivationCandidates(data.candidates);
+          setReactivationTotalEligible(data.totalEligible || 0);
+        }
+      }
+    } catch (err) {
+      console.error("Error al cargar candidatos de reactivación:", err);
+    } finally {
+      setReactivationLoading(false);
+    }
+  };
+
+  const handleCreditAndOpenWA = async (candidate: ReactivationCandidate) => {
+    setCreditingIds(prev => ({ ...prev, [candidate.id]: true }));
+    try {
+      const res = await adminFetch(`${apiUrl}/api/admin/reactivation/credit-user`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: candidate.id, bonusCoins: 300 })
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setCreditedIds(prev => ({ ...prev, [candidate.id]: true }));
+        setUsers(prev => prev.map(u => u.id === candidate.id ? { ...u, coins: data.newCoins } : u));
+        setReactivationCandidates(prev => prev.map(c => c.id === candidate.id ? { ...c, coins: data.newCoins, lastReactivatedAt: data.reactivatedAt } : c));
+
+        window.open(candidate.waUrl, "_blank");
+
+        Swal.fire({
+          icon: "success",
+          title: "¡300 Monedas Acreditadas!",
+          text: `Se recargaron +300 monedas a @${candidate.username} y se abrió WhatsApp. Saldo actual: ${data.newCoins} monedas.`,
+          timer: 3500,
+          showConfirmButton: false,
+          toast: true,
+          position: "top-end"
+        });
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        Swal.fire({
+          icon: "error",
+          title: "Error al acreditar",
+          text: errData.message || "No se pudo acreditar el bono."
+        });
+      }
+    } catch (err: any) {
+      Swal.fire({
+        icon: "error",
+        title: "Error de conexión",
+        text: err.message || "No se pudo conectar con el servidor."
+      });
+    } finally {
+      setCreditingIds(prev => ({ ...prev, [candidate.id]: false }));
+    }
   };
 
   const fetchBotDifficulty = async () => {
@@ -1517,6 +1601,7 @@ export default function AdminPage() {
   // APROBAR RECARGA
   const handleApproveRecharge = async (id: number) => {
     setActionMessage(null);
+      fetchReactivationCandidates();
     try {
       const res = await adminFetch(`${apiUrl}/api/admin/recharge/${id}/approve`, {
         method: "POST",
@@ -3345,6 +3430,111 @@ export default function AdminPage() {
                   <p className="text-2xl font-black text-amber-200/60">{usersWithoutPhone.length}</p>
                 </div>
               </div>
+            </div>
+
+            {/* ========================================================================= */}
+            {/* ASISTENTE DE REACTIVACIÓN POR LOTES (10 JUGADORES + 300 MONEDAS) */}
+            {/* ========================================================================= */}
+            <div className="bg-gradient-to-br from-[#0c2214] via-[#122e1b] to-[#1c0f07] border-2 border-emerald-500/60 rounded-3xl p-5 shadow-2xl relative overflow-hidden">
+              <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-emerald-500/30 pb-4 mb-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="px-2.5 py-0.5 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-black uppercase tracking-wider">
+                      🎯 Módulo Anti-Baneo
+                    </span>
+                    <span className="text-xs text-emerald-300 font-bold">
+                      • Jugadores elegibles en total: {reactivationTotalEligible}
+                    </span>
+                  </div>
+                  <h2 className={`${fonts.bowlbyOneSC.className} text-lg md:text-xl text-emerald-300 tracking-wide mt-1 flex items-center gap-2`}>
+                    <span>⚡ Asistente de Reactivación: Lote de 10 Jugadores (+300 🪙)</span>
+                  </h2>
+                  <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                    Al hacer clic en <strong className="text-emerald-300">"Acreditar 300 🪙 + Abrir WhatsApp"</strong>, el sistema le suma de inmediato las 300 monedas a su cuenta en la base de datos y te abre el chat de WhatsApp con el mensaje personalizado y verídico listo para enviar.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2 shrink-0">
+                  <button
+                    onClick={fetchReactivationCandidates}
+                    disabled={reactivationLoading}
+                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-black shadow-lg shadow-emerald-950/60 transition disabled:opacity-50"
+                  >
+                    <span>{reactivationLoading ? "⏳" : "🔄"}</span>
+                    <span>{reactivationLoading ? "Cargando..." : "Cargar Otro Lote"}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Lista de los 10 candidatos */}
+              {reactivationCandidates.length === 0 ? (
+                <div className="text-center py-8 bg-black/40 rounded-2xl border border-emerald-500/20">
+                  <span className="text-3xl">🎉</span>
+                  <p className="text-sm font-bold text-emerald-200 mt-2">¡No hay jugadores inactivos pendientes!</p>
+                  <p className="text-xs text-slate-400 mt-1">Todos los jugadores con teléfono han sido reactivados en los últimos 7 días o tienen saldo activo.</p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {reactivationCandidates.map((candidate, idx) => {
+                    const isCredited = !!creditedIds[candidate.id];
+                    const isCrediting = !!creditingIds[candidate.id];
+
+                    return (
+                      <div
+                        key={candidate.id}
+                        className={`p-3.5 rounded-2xl border transition-all ${
+                          isCredited
+                            ? "bg-emerald-950/40 border-emerald-500/60 shadow-md"
+                            : "bg-black/50 border-emerald-500/30 hover:border-emerald-400/50"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="flex items-center gap-2.5 min-w-0">
+                            <div className="w-8 h-8 rounded-full bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center font-black text-emerald-300 text-xs shrink-0">
+                              {idx + 1}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-xs font-black text-white truncate max-w-[120px]">
+                                  {candidate.username}
+                                </span>
+                                <span className="text-[10px] bg-amber-500/20 text-amber-300 border border-amber-500/30 px-1.5 py-0.2 rounded font-mono font-bold">
+                                  🪙 {candidate.coins}
+                                </span>
+                                <span className="text-[9px] text-slate-400">
+                                  • {candidate.wins} Vics
+                                </span>
+                              </div>
+                              <p className="text-[11px] text-emerald-300 font-mono mt-0.5">
+                                📞 {candidate.originalPhone}
+                              </p>
+                              {candidate.lastReactivatedAt && (
+                                <p className="text-[9px] text-slate-400 mt-0.5">
+                                  Última reactivación: {candidate.lastReactivatedAt}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Botón de Acción 1 Clic */}
+                          <button
+                            onClick={() => handleCreditAndOpenWA(candidate)}
+                            disabled={isCrediting}
+                            className={`shrink-0 px-3 py-2 rounded-xl text-xs font-black transition-all flex items-center gap-1.5 active:scale-95 shadow ${
+                              isCredited
+                                ? "bg-emerald-700 hover:bg-emerald-600 text-white"
+                                : "bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-400 hover:to-green-400 text-slate-950 font-black shadow-lg shadow-emerald-500/30"
+                            } disabled:opacity-50`}
+                          >
+                            <span>{isCrediting ? "⏳" : isCredited ? "✅" : "📲"}</span>
+                            <span>{isCrediting ? "Acreditando..." : isCredited ? "Reenviar WA" : "Acreditar 300 🪙 + WA"}</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
 
             {/* Selector de Plantilla de Mensaje de WhatsApp */}
