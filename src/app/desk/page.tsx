@@ -611,8 +611,8 @@ export default function Desk() {
       )}
 
       {/* Dynamic Game Modes Content: Grid 2x2 Gamer Pro */}
-      <div className="flex-1 flex flex-col items-center justify-center p-3 sm:p-6 relative z-10 w-full min-h-[calc(88vh-80px)]">
-        <div className="w-full max-w-sm sm:max-w-xl mx-auto flex flex-col items-center">
+      <div className="w-full max-w-full overflow-x-hidden flex-1 flex flex-col items-center justify-center px-2 py-3 sm:p-6 relative z-10 min-h-[calc(88vh-80px)]">
+        <div className="w-full max-w-[340px] sm:max-w-xl mx-auto flex flex-col items-center min-w-0 overflow-hidden">
           
           {/* Título de sección sutil */}
           <div className="text-center mb-3 sm:mb-4">
@@ -623,55 +623,55 @@ export default function Desk() {
           </div>
 
           {/* Barra de Eventos y Recompensas (Torneo Piloto, Referidos, Racha/Ruleta) */}
-          <div className="grid grid-cols-3 gap-2 w-full mb-3 sm:mb-4">
+          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 w-full mb-3 sm:mb-4 select-none">
             {/* Torneo Piloto con Llaves */}
             <button
               onClick={() => setTournamentOpen(true)}
-              className="relative flex flex-col items-center justify-center p-2 sm:p-2.5 rounded-2xl bg-gradient-to-b from-amber-950/80 via-amber-900/60 to-black border-2 border-amber-500/70 hover:border-amber-400 active:scale-95 transition-all shadow-lg shadow-amber-500/20 group cursor-pointer"
+              className="relative flex flex-col items-center justify-center py-2 px-1 rounded-xl sm:rounded-2xl bg-gradient-to-b from-amber-950/80 via-amber-900/60 to-black border-2 border-amber-500/70 hover:border-amber-400 active:scale-95 transition-all shadow-md group cursor-pointer min-w-0 overflow-hidden"
             >
               <div className="absolute -top-2 bg-amber-500 text-slate-950 text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded-full border border-yellow-200 shadow">
                 🔒 PILOTO
               </div>
               <div className="text-xl sm:text-2xl mt-1 group-hover:scale-110 transition">🏆</div>
-              <span className="text-[10px] sm:text-xs font-black text-amber-300 uppercase tracking-wide mt-0.5">
+              <span className="text-[9px] sm:text-xs font-black text-amber-300 uppercase tracking-tight truncate w-full px-0.5 mt-0.5">
                 TORNEO 4P
               </span>
-              <span className="text-[8px] sm:text-[9px] text-amber-200/80 font-medium">
-                4 Jugadores • En vivo
+              <span className="text-[7.5px] sm:text-[9px] text-amber-200/80 font-medium truncate w-full px-0.5">
+                En vivo
               </span>
             </button>
 
             {/* Referidos: Invita y Gana */}
             <button
               onClick={() => setReferralOpen(true)}
-              className="relative flex flex-col items-center justify-center p-2 sm:p-2.5 rounded-2xl bg-gradient-to-b from-emerald-950/80 via-emerald-900/60 to-black border-2 border-emerald-500/70 hover:border-emerald-400 active:scale-95 transition-all shadow-lg shadow-emerald-500/20 group cursor-pointer"
+              className="relative flex flex-col items-center justify-center py-2 px-1 rounded-xl sm:rounded-2xl bg-gradient-to-b from-emerald-950/80 via-emerald-900/60 to-black border-2 border-emerald-500/70 hover:border-emerald-400 active:scale-95 transition-all shadow-md group cursor-pointer min-w-0 overflow-hidden"
             >
               <div className="absolute -top-2 bg-emerald-500 text-slate-950 text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded-full border border-emerald-200 shadow">
                 +150 🪙
               </div>
               <div className="text-xl sm:text-2xl mt-1 group-hover:scale-110 transition">👥</div>
-              <span className="text-[10px] sm:text-xs font-black text-emerald-300 uppercase tracking-wide mt-0.5">
+              <span className="text-[9px] sm:text-xs font-black text-emerald-300 uppercase tracking-tight truncate w-full px-0.5 mt-0.5">
                 REFERIDOS
               </span>
-              <span className="text-[8px] sm:text-[9px] text-emerald-200/80 font-medium">
-                Gana x Amigos
+              <span className="text-[7.5px] sm:text-[9px] text-emerald-200/80 font-medium truncate w-full px-0.5">
+                Invita y Gana
               </span>
             </button>
 
             {/* Racha y Ruleta del Chivo */}
             <button
               onClick={() => setDailyStreakOpen(true)}
-              className="relative flex flex-col items-center justify-center p-2 sm:p-2.5 rounded-2xl bg-gradient-to-b from-rose-950/80 via-red-900/60 to-black border-2 border-rose-500/70 hover:border-rose-400 active:scale-95 transition-all shadow-lg shadow-rose-500/20 group cursor-pointer"
+              className="relative flex flex-col items-center justify-center py-2 px-1 rounded-xl sm:rounded-2xl bg-gradient-to-b from-rose-950/80 via-red-900/60 to-black border-2 border-rose-500/70 hover:border-rose-400 active:scale-95 transition-all shadow-md group cursor-pointer min-w-0 overflow-hidden"
             >
               <div className="absolute -top-2 bg-rose-500 text-white text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded-full border border-rose-300 shadow">
                 🔥 DIARIO
               </div>
               <div className="text-xl sm:text-2xl mt-1 group-hover:scale-110 transition">🐐</div>
-              <span className="text-[10px] sm:text-xs font-black text-rose-300 uppercase tracking-wide mt-0.5">
-                RACHA & RULETA
+              <span className="text-[9px] sm:text-xs font-black text-rose-300 uppercase tracking-tight truncate w-full px-0.5 mt-0.5">
+                RULETA
               </span>
-              <span className="text-[8px] sm:text-[9px] text-rose-200/80 font-medium">
-                30 a 100 🪙
+              <span className="text-[7.5px] sm:text-[9px] text-rose-200/80 font-medium truncate w-full px-0.5">
+                Bono Diario
               </span>
             </button>
           </div>
