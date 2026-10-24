@@ -161,7 +161,7 @@ export default function RootLayout({
       >
         <ReduxProvider>
           <SignalRProvider>
-            <main className="min-h-screen w-full max-w-full overflow-x-hidden overflow-y-auto space-y-0">
+            <main className="min-h-screen w-full max-w-full overflow-x-clip overflow-y-auto space-y-0">
               {children}
             </main>
           </SignalRProvider>

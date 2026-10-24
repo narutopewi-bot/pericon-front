@@ -554,7 +554,7 @@ export default function Desk() {
   }, [connection, gamep]); 
 
   return (
-    <div className="relative w-full max-w-full min-h-screen flex flex-col overflow-x-hidden">
+    <div className="relative w-full max-w-full min-h-screen flex flex-col overflow-x-clip">
       <LiveTicker />
       {/* Menú Superior y Barra de Estado del Jugador */}
       <GameHeaderMenu
@@ -611,8 +611,8 @@ export default function Desk() {
       )}
 
       {/* Dynamic Game Modes Content: Grid 2x2 Gamer Pro */}
-      <div className="w-full max-w-full overflow-x-hidden flex-1 flex flex-col items-center justify-center px-2 py-3 sm:p-6 relative z-10 min-h-[calc(88vh-80px)]">
-        <div className="w-full max-w-[340px] sm:max-w-xl mx-auto flex flex-col items-center min-w-0 overflow-hidden">
+      <div className="w-full max-w-full overflow-x-clip flex-1 flex flex-col items-center justify-center px-2 py-3 sm:p-6 relative z-10 min-h-[calc(88vh-80px)]">
+        <div className="w-full max-w-[340px] sm:max-w-xl mx-auto flex flex-col items-center min-w-0">
           
           {/* Título de sección sutil */}
           <div className="text-center mb-3 sm:mb-4">
@@ -623,37 +623,37 @@ export default function Desk() {
           </div>
 
           {/* Barra de Eventos y Recompensas (Torneo Piloto, Referidos, Racha/Ruleta) */}
-          <div className="grid grid-cols-3 gap-1.5 sm:gap-2 w-full mb-3 sm:mb-4 select-none">
+          <div className="grid grid-cols-3 gap-2 w-full pt-3 mb-3 sm:mb-4 select-none">
             {/* Torneo Piloto con Llaves */}
             <button
               onClick={() => setTournamentOpen(true)}
-              className="relative flex flex-col items-center justify-center py-2 px-1 rounded-xl sm:rounded-2xl bg-gradient-to-b from-amber-950/80 via-amber-900/60 to-black border-2 border-amber-500/70 hover:border-amber-400 active:scale-95 transition-all shadow-md group cursor-pointer min-w-0 overflow-hidden"
+              className="relative flex flex-col items-center justify-center pt-2.5 pb-2 px-1 rounded-2xl bg-gradient-to-b from-amber-950/80 via-amber-900/60 to-black border-2 border-amber-500/70 hover:border-amber-400 active:scale-95 transition-all shadow-lg shadow-amber-500/20 group cursor-pointer min-w-0"
             >
-              <div className="absolute -top-2 bg-amber-500 text-slate-950 text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded-full border border-yellow-200 shadow">
+              <div className="absolute -top-3 bg-amber-500 text-slate-950 text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded-full border border-yellow-200 shadow z-10 whitespace-nowrap">
                 🔒 PILOTO
               </div>
               <div className="text-xl sm:text-2xl mt-1 group-hover:scale-110 transition">🏆</div>
-              <span className="text-[9px] sm:text-xs font-black text-amber-300 uppercase tracking-tight truncate w-full px-0.5 mt-0.5">
+              <span className="text-[10px] sm:text-xs font-black text-amber-300 uppercase tracking-tight truncate w-full px-0.5 mt-0.5 text-center">
                 TORNEO 4P
               </span>
-              <span className="text-[7.5px] sm:text-[9px] text-amber-200/80 font-medium truncate w-full px-0.5">
-                En vivo
+              <span className="text-[8px] sm:text-[9px] text-amber-200/80 font-medium truncate w-full px-0.5 text-center">
+                4 Jugadores
               </span>
             </button>
 
             {/* Referidos: Invita y Gana */}
             <button
               onClick={() => setReferralOpen(true)}
-              className="relative flex flex-col items-center justify-center py-2 px-1 rounded-xl sm:rounded-2xl bg-gradient-to-b from-emerald-950/80 via-emerald-900/60 to-black border-2 border-emerald-500/70 hover:border-emerald-400 active:scale-95 transition-all shadow-md group cursor-pointer min-w-0 overflow-hidden"
+              className="relative flex flex-col items-center justify-center pt-2.5 pb-2 px-1 rounded-2xl bg-gradient-to-b from-emerald-950/80 via-emerald-900/60 to-black border-2 border-emerald-500/70 hover:border-emerald-400 active:scale-95 transition-all shadow-lg shadow-emerald-500/20 group cursor-pointer min-w-0"
             >
-              <div className="absolute -top-2 bg-emerald-500 text-slate-950 text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded-full border border-emerald-200 shadow">
+              <div className="absolute -top-3 bg-emerald-500 text-slate-950 text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded-full border border-emerald-200 shadow z-10 whitespace-nowrap">
                 +150 🪙
               </div>
               <div className="text-xl sm:text-2xl mt-1 group-hover:scale-110 transition">👥</div>
-              <span className="text-[9px] sm:text-xs font-black text-emerald-300 uppercase tracking-tight truncate w-full px-0.5 mt-0.5">
+              <span className="text-[10px] sm:text-xs font-black text-emerald-300 uppercase tracking-tight truncate w-full px-0.5 mt-0.5 text-center">
                 REFERIDOS
               </span>
-              <span className="text-[7.5px] sm:text-[9px] text-emerald-200/80 font-medium truncate w-full px-0.5">
+              <span className="text-[8px] sm:text-[9px] text-emerald-200/80 font-medium truncate w-full px-0.5 text-center">
                 Invita y Gana
               </span>
             </button>
@@ -661,17 +661,17 @@ export default function Desk() {
             {/* Racha y Ruleta del Chivo */}
             <button
               onClick={() => setDailyStreakOpen(true)}
-              className="relative flex flex-col items-center justify-center py-2 px-1 rounded-xl sm:rounded-2xl bg-gradient-to-b from-rose-950/80 via-red-900/60 to-black border-2 border-rose-500/70 hover:border-rose-400 active:scale-95 transition-all shadow-md group cursor-pointer min-w-0 overflow-hidden"
+              className="relative flex flex-col items-center justify-center pt-2.5 pb-2 px-1 rounded-2xl bg-gradient-to-b from-rose-950/80 via-red-900/60 to-black border-2 border-rose-500/70 hover:border-rose-400 active:scale-95 transition-all shadow-lg shadow-rose-500/20 group cursor-pointer min-w-0"
             >
-              <div className="absolute -top-2 bg-rose-500 text-white text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded-full border border-rose-300 shadow">
+              <div className="absolute -top-3 bg-rose-500 text-white text-[8px] sm:text-[9px] font-black uppercase px-2 py-0.5 rounded-full border border-rose-300 shadow z-10 whitespace-nowrap">
                 🔥 DIARIO
               </div>
               <div className="text-xl sm:text-2xl mt-1 group-hover:scale-110 transition">🐐</div>
-              <span className="text-[9px] sm:text-xs font-black text-rose-300 uppercase tracking-tight truncate w-full px-0.5 mt-0.5">
-                RULETA
+              <span className="text-[10px] sm:text-xs font-black text-rose-300 uppercase tracking-tight truncate w-full px-0.5 mt-0.5 text-center">
+                RACHA & RULETA
               </span>
-              <span className="text-[7.5px] sm:text-[9px] text-rose-200/80 font-medium truncate w-full px-0.5">
-                Bono Diario
+              <span className="text-[8px] sm:text-[9px] text-rose-200/80 font-medium truncate w-full px-0.5 text-center">
+                30 a 100 🪙
               </span>
             </button>
           </div>
@@ -757,31 +757,31 @@ export default function Desk() {
           </div>
 
           {/* Barra de estado inferior */}
-          <div className="w-full mt-3 sm:mt-5 py-2 px-4 bg-black/60 backdrop-blur-md rounded-2xl border border-amber-500/30 flex items-center justify-between text-[11px] sm:text-xs">
-            <div className="flex items-center gap-2">
-              <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-ping"></span>
+          <div className="w-full mt-3 sm:mt-5 py-2 px-3 sm:px-4 bg-black/60 backdrop-blur-md rounded-2xl border border-amber-500/30 flex flex-wrap items-center justify-between gap-2 text-[10px] sm:text-xs">
+            <div className="flex items-center gap-1.5 shrink-0">
+              <span className="w-2 h-2 rounded-full bg-green-500 animate-ping"></span>
               <span className="font-bold text-slate-200">Servidores activos</span>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-1.5 sm:gap-3">
               <button
                 onClick={() => setLeaderboardOpen(true)}
-                className="text-yellow-400 hover:text-yellow-300 font-extrabold flex items-center gap-1 bg-yellow-500/15 border border-yellow-500/40 px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs transition shadow-sm hover:scale-105"
+                className="text-yellow-400 hover:text-yellow-300 font-extrabold flex items-center gap-1 bg-yellow-500/15 border border-yellow-500/40 px-2 py-0.5 rounded-full text-[10px] sm:text-xs transition shadow-sm hover:scale-105"
               >
                 <span>🏆</span>
                 <span>Top 10</span>
               </button>
               <button
                 onClick={() => setMoneyTutorialOpen(true)}
-                className="text-emerald-400 hover:text-emerald-300 font-extrabold flex items-center gap-1 bg-emerald-500/15 border border-emerald-500/40 px-2.5 py-0.5 rounded-full text-[10px] sm:text-xs transition shadow-sm hover:scale-105 cursor-pointer"
+                className="text-emerald-400 hover:text-emerald-300 font-extrabold flex items-center gap-1 bg-emerald-500/15 border border-emerald-500/40 px-2 py-0.5 rounded-full text-[10px] sm:text-xs transition shadow-sm hover:scale-105 cursor-pointer"
               >
                 <span>💰</span>
-                <span>Recargas y Retiros</span>
+                <span className="hidden sm:inline">Recargas y</span> Retiros
               </button>
               <button
                 onClick={() => setTutorialOpen(true)}
-                className="text-amber-400 hover:text-amber-300 font-extrabold underline flex items-center gap-1"
+                className="text-amber-400 hover:text-amber-300 font-extrabold underline flex items-center gap-1 text-[10px] sm:text-xs"
               >
-                📖 Tutorial y Reglas
+                📖 Tutorial
               </button>
             </div>
           </div>
