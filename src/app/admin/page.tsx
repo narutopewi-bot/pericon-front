@@ -108,7 +108,7 @@ interface UserRow {
   avatarUrl?: string;
   isActive: boolean;
   isAdmin?: boolean;
-  botDifficulty?: "general" | "facil" | "medio" | "dificil";
+  botDifficulty?: "general" | "facil" | "medio" | "dificil" | "favor_jugador";
 }
 
 interface PromoCodeRow {
@@ -321,6 +321,8 @@ export default function AdminPage() {
   const [virtualBots, setVirtualBots] = useState<VirtualBotItem[]>([]);
   const [updatingBotId, setUpdatingBotId] = useState<number | null>(null);
   const [updatingUserDiffId, setUpdatingUserDiffId] = useState<number | null>(null);
+  const [cheData, setCheData] = useState<any>(null);
+  const [cheLoading, setCheLoading] = useState(false);
   const [promos, setPromos] = useState<PromoCodeRow[]>([]);
   const [feedbacks, setFeedbacks] = useState<FeedbackRow[]>([]);
   const [feedbackStats, setFeedbackStats] = useState<{ total: number; averageRating: number }>({ total: 0, averageRating: 5.0 });
@@ -533,7 +535,56 @@ export default function AdminPage() {
     }
   };
 
-  const handleSetUserBotDifficulty = async (userId: number, difficulty: "general" | "facil" | "medio" | "dificil") => {
+  const fetchCheStatus = async () => {
+    try {
+      const res = await adminFetch(`${apiUrl}/api/admin/special-user/che`);
+      if (res.ok) {
+        setCheData(await res.json());
+      }
+    } catch (e) {
+      console.error("Error al cargar estado de Che:", e);
+    }
+  };
+
+  const handleSetCheMode = async (mode: "favor_jugador" | "facil" | "medio" | "dificil" | "general") => {
+    setCheLoading(true);
+    try {
+      const res = await adminFetch(`${apiUrl}/api/admin/special-user/che/mode`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        await fetchCheStatus();
+        setUsers(prev => prev.map(u => (u.username.toLowerCase() === "che" || u.id === (cheData?.id || 202)) ? { ...u, botDifficulty: mode === "general" ? undefined : mode } : u));
+        Swal.fire({
+          icon: "success",
+          title: "Calibración de Che Actualizada",
+          text: data.message || `Che ahora está calibrado en modo ${mode.toUpperCase()}.`,
+          background: "#180e07",
+          color: "#fef3c7",
+          confirmButtonColor: "#f59e0b",
+          timer: 3500
+        });
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: errData.message || "No se pudo actualizar el modo de Che.",
+          background: "#180e07",
+          color: "#fef3c7"
+        });
+      }
+    } catch (e) {
+      console.error("Error al cambiar modo de Che:", e);
+    } finally {
+      setCheLoading(false);
+    }
+  };
+
+  const handleSetUserBotDifficulty = async (userId: number, difficulty: "general" | "facil" | "medio" | "dificil" | "favor_jugador") => {
     setUpdatingUserDiffId(userId);
     try {
       const res = await adminFetch(`${apiUrl}/api/admin/user/${userId}/bot-difficulty`, {
@@ -543,7 +594,10 @@ export default function AdminPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        setUsers(prev => prev.map(u => u.id === userId ? { ...u, botDifficulty: difficulty } : u));
+        setUsers(prev => prev.map(u => u.id === userId ? { ...u, botDifficulty: difficulty === "general" ? undefined : difficulty } : u));
+        if (cheData && (userId === cheData.id || userId === 202)) {
+          fetchCheStatus();
+        }
         Swal.fire({
           icon: "success",
           title: "Dificultad de Jugador Actualizada",
@@ -820,6 +874,7 @@ export default function AdminPage() {
       await fetchErrorLogs();
       await fetchBotDifficulty();
       await fetchVirtualBots();
+      await fetchCheStatus();
     } catch (err) {
       console.error("Error loading admin data:", err);
     } finally {
@@ -2798,6 +2853,154 @@ export default function AdminPage() {
               </div>
             </div>
 
+            {/* Tarjeta Especial de Control y Monitoreo en Vivo: Jugador Che */}
+            {cheData && (
+              <div className={`rounded-2xl p-4 shadow-xl border-2 transition-all ${
+                cheData.botDifficulty === "favor_jugador"
+                  ? "bg-gradient-to-r from-purple-950/90 via-fuchsia-950/70 to-black border-purple-500 shadow-purple-900/30 ring-2 ring-purple-400"
+                  : "bg-[#180e07] border-amber-500/40"
+              }`}>
+                <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
+                  {/* Info del Jugador Che */}
+                  <div className="flex items-center gap-3.5">
+                    <div className={`w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shadow-inner shrink-0 border ${
+                      cheData.botDifficulty === "favor_jugador"
+                        ? "bg-purple-600/30 border-purple-400 text-yellow-300 animate-pulse"
+                        : "bg-amber-500/20 border-amber-500/40 text-amber-300"
+                    }`}>
+                      🎯
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-base font-black text-white tracking-wide">
+                          Control Especial de Partidas: <span className="text-yellow-400 font-extrabold">{cheData.username}</span> (ID {cheData.id})
+                        </span>
+                        <span className={`text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full border shadow ${
+                          cheData.botDifficulty === "favor_jugador"
+                            ? "bg-purple-600 text-white border-purple-300 animate-bounce"
+                            : cheData.botDifficulty === "facil"
+                            ? "bg-green-600 text-white border-green-300"
+                            : cheData.botDifficulty === "dificil"
+                            ? "bg-red-600 text-white border-red-300"
+                            : cheData.botDifficulty === "medio"
+                            ? "bg-amber-500 text-black border-amber-200"
+                            : "bg-slate-700 text-slate-200 border-slate-500"
+                        }`}>
+                          {cheData.botDifficulty === "favor_jugador"
+                            ? "⭐ MODO 60/40 ACTIVO A FAVOR DE CHE"
+                            : `MODO ACTUAL: ${(cheData.botDifficulty || "GENERAL").toUpperCase()}`}
+                        </span>
+                      </div>
+                      
+                      <div className="flex items-center gap-3 mt-1.5 text-xs text-amber-200/80 flex-wrap">
+                        <span className="bg-black/50 px-2 py-0.5 rounded-md border border-amber-500/20 font-bold text-yellow-400">
+                          💰 Saldo: {cheData.coins.toLocaleString()} 🪙
+                        </span>
+                        <span className="bg-black/50 px-2 py-0.5 rounded-md border border-amber-500/20">
+                          ⚔️ Partidas vs Bot: {cheData.totalMatches} ({cheData.userWins}G - {cheData.botWins}P)
+                        </span>
+                        <span className="bg-black/50 px-2 py-0.5 rounded-md border border-amber-500/20 font-semibold">
+                          📊 Tasa de Victoria: {cheData.userWinRate}%
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Botones de Acción Inmediata para Che */}
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      disabled={cheLoading || cheData.botDifficulty === "favor_jugador"}
+                      onClick={() => handleSetCheMode("favor_jugador")}
+                      className={`px-3.5 py-2.5 rounded-xl text-xs font-black transition flex items-center gap-1.5 shadow-lg ${
+                        cheData.botDifficulty === "favor_jugador"
+                          ? "bg-purple-600 text-white ring-2 ring-yellow-300 scale-105"
+                          : "bg-gradient-to-r from-purple-800 to-fuchsia-700 hover:from-purple-700 hover:to-fuchsia-600 text-white border border-purple-400/60 hover:scale-105"
+                      }`}
+                      title="40% Casa / 60% Jugador: El bot cede ventajas y mejores cartas para que Che gane"
+                    >
+                      <span>⭐</span>
+                      <span>60/40 A FAVOR DE CHE</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={cheLoading || cheData.botDifficulty === "facil"}
+                      onClick={() => handleSetCheMode("facil")}
+                      className={`px-2.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1 ${
+                        cheData.botDifficulty === "facil"
+                          ? "bg-green-600 text-white ring-2 ring-green-300"
+                          : "bg-[#24140a] text-green-400 border border-green-500/40 hover:bg-green-950/40"
+                      }`}
+                    >
+                      <span>🟢</span>
+                      <span>Fácil 50/50</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={cheLoading || cheData.botDifficulty === "medio"}
+                      onClick={() => handleSetCheMode("medio")}
+                      className={`px-2.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1 ${
+                        cheData.botDifficulty === "medio"
+                          ? "bg-amber-500 text-black ring-2 ring-amber-200"
+                          : "bg-[#24140a] text-amber-300 border border-amber-500/40 hover:bg-amber-950/40"
+                      }`}
+                    >
+                      <span>🟡</span>
+                      <span>70/30 Casa</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={cheLoading || cheData.botDifficulty === "dificil"}
+                      onClick={() => handleSetCheMode("dificil")}
+                      className={`px-2.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1 ${
+                        cheData.botDifficulty === "dificil"
+                          ? "bg-red-600 text-white ring-2 ring-red-300"
+                          : "bg-[#24140a] text-red-400 border border-red-500/40 hover:bg-red-950/40"
+                      }`}
+                    >
+                      <span>🔴</span>
+                      <span>Muro 85/15</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={cheLoading || cheData.botDifficulty === "general" || !cheData.botDifficulty}
+                      onClick={() => handleSetCheMode("general")}
+                      className={`px-2.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1 ${
+                        cheData.botDifficulty === "general" || !cheData.botDifficulty
+                          ? "bg-slate-700 text-white ring-2 ring-slate-400"
+                          : "bg-[#24140a] text-slate-300 border border-slate-600 hover:bg-slate-900/60"
+                      }`}
+                    >
+                      <span>🌐</span>
+                      <span>Reset Global</span>
+                    </button>
+                  </div>
+                </div>
+
+                {/* Banner Didáctico en Vivo */}
+                {cheData.botDifficulty === "favor_jugador" && (
+                  <div className="mt-3 p-2.5 bg-purple-950/80 border border-purple-500/50 rounded-xl text-xs text-purple-200 flex items-center justify-between gap-3 flex-wrap">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base animate-pulse">⚡</span>
+                      <span>
+                        <strong>MODO 60/40 ACTIVO A FAVOR DE CHE:</strong> El bot cede cartas ventajosas y no defiende la banca. Cuando consideres que recuperó monedas suficientes, pulsa <strong>"🟡 70/30 Casa"</strong> o <strong>"🌐 Reset Global"</strong>.
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => handleSetCheMode("medio")}
+                      className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-black font-black text-[11px] rounded-lg shrink-0 shadow transition"
+                    >
+                      Quitar Modo Ahora
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Banner de Calibración Rápida de Dificultad del Bot (Solitario) */}
             <div className="bg-[#1c0f08] border border-amber-500/40 rounded-2xl p-4 shadow-lg flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
@@ -3206,6 +3409,14 @@ export default function AdminPage() {
                                     ⭐ VIP
                                   </span>
                                 )}
+                                {(u.username.toLowerCase() === "che" || u.id === 202) && (
+                                  <span
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-black bg-purple-500/30 text-purple-200 border border-purple-400 animate-pulse"
+                                    title="Jugador Especial Monitoreado"
+                                  >
+                                    🎯 CHE
+                                  </span>
+                                )}
                               </div>
                               <div className="text-[11px] text-amber-200/40">{u.email}</div>
                             </td>
@@ -3287,6 +3498,19 @@ export default function AdminPage() {
                                   title="Individual Difícil (85% Casa / 15% Jugador - Muro Total de Bloqueo de Ganancias)"
                                 >
                                   🔴 Muro
+                                </button>
+                                <button
+                                  type="button"
+                                  disabled={updatingUserDiffId === u.id || u.botDifficulty === "favor_jugador"}
+                                  onClick={() => handleSetUserBotDifficulty(u.id, "favor_jugador")}
+                                  className={`px-2 py-1 rounded text-[10px] font-black transition ${
+                                    u.botDifficulty === "favor_jugador"
+                                      ? "bg-purple-600 text-white shadow ring-2 ring-purple-300 animate-pulse"
+                                      : "text-purple-400/60 hover:text-purple-300 hover:bg-purple-950/40"
+                                  }`}
+                                  title="Favorable 60/40 (60% Jugador / 40% Casa - Calibración especial para que gane partidas)"
+                                >
+                                  ⭐ 60/40
                                 </button>
                               </div>
                             </td>
