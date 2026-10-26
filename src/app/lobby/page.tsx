@@ -18,10 +18,8 @@ export default function Lobby() {
   return (
     <React.Fragment>
       <div
-        style={{ height: "calc(89vh - 100px)" }}
-        className={`
-          flex flex-wrap justify-center items-center
-        `}>
+        className="w-full max-w-[100vw] overflow-x-hidden flex flex-wrap justify-center items-center gap-4 sm:gap-6 py-6"
+      >
         <div className={`
           flex flex-col items-center pb-3
           ${open ? "opacity-1" : "opacity-100"}
@@ -85,7 +83,7 @@ export default function Lobby() {
         </div>
 
         <div className={`
-          flex flex-col items-center ml-11 pb-2
+          flex flex-col items-center pb-2
           ${open ? "opacity-1" : "opacity-100"}
         `}>
           {/* Cuadrado 2 */}

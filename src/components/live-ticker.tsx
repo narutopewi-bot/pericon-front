@@ -59,8 +59,8 @@ export default function LiveTicker() {
   const current = items[currentIndex] || items[0];
 
   return (
-    <div className="w-full max-w-full overflow-hidden bg-gradient-to-r from-black/95 via-neutral-900/90 to-black/95 border-b border-amber-500/30 px-2 sm:px-3 py-1 sm:py-1.5 backdrop-blur-md shadow-md z-40 relative select-none">
-      <div className="w-full max-w-4xl mx-auto flex items-center justify-between gap-1.5 sm:gap-2 overflow-hidden text-xs">
+    <div className="w-full max-w-[100vw] overflow-hidden bg-gradient-to-r from-black/95 via-neutral-900/90 to-black/95 border-b border-amber-500/30 px-2 sm:px-3 py-1 sm:py-1.5 backdrop-blur-md shadow-md z-40 relative select-none">
+      <div className="w-full max-w-4xl mx-auto flex items-center justify-between gap-1.5 sm:gap-2 overflow-hidden text-xs min-w-0">
         {/* Badge en vivo */}
         <div className="flex items-center gap-1 sm:gap-1.5 shrink-0 bg-red-950/80 border border-red-500/40 px-1.5 sm:px-2 py-0.5 rounded-full">
           <span className="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span>

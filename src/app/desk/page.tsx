@@ -612,7 +612,7 @@ export default function Desk() {
 
       {/* Dynamic Game Modes Content: Grid 2x2 Gamer Pro */}
       <div className="w-full max-w-[100vw] overflow-x-hidden flex-1 flex flex-col items-center justify-center px-2 py-3 sm:p-6 relative z-10 min-h-[calc(88vh-80px)]">
-        <div className="w-full max-w-[340px] sm:max-w-xl mx-auto flex flex-col items-center min-w-0">
+        <div className="w-full max-w-[min(340px,94vw)] sm:max-w-xl mx-auto flex flex-col items-center min-w-0 overflow-x-hidden">
           
           {/* Título de sección sutil */}
           <div className="text-center mb-3 sm:mb-4">
