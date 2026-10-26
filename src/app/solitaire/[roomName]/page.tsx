@@ -1554,7 +1554,7 @@ export default function Duel() {
   }, [isUserTurn]);
 
   return (
-    <main className='grid h-screen overflow-auto space-y-0'>
+    <main className='fixed inset-0 w-full h-[100dvh] max-h-[100dvh] overflow-hidden select-none bg-[#140a04] text-white' style={{ overscrollBehavior: 'none' }}>
       {/* Banner de Anuncios Centrales Animados */}
       <GameAnnouncement announcement={announcement} />
 
@@ -1619,7 +1619,7 @@ export default function Duel() {
       )}
 
       <div className='bg-goat absolute inset-0 z-0'></div>
-      <div className='flex flex-col h-screen relative'>
+      <div className='flex flex-col h-full w-full relative overflow-hidden'>
         {/* UI content */}
         <div className='relative z-10'>
           <div className='flex justify-between items-center w-full max-w-4xl mx-auto pt-2 pb-1 px-3 sm:px-6'>

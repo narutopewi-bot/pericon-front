@@ -3428,8 +3428,8 @@ export default function Duel1vs1() {
 
   return (
     <main
-      className='grid h-screen overflow-auto space-y-0 bg-[#140a04] text-white'
-      style={{ overscrollBehaviorY: 'contain' }}
+      className='fixed inset-0 w-full h-[100dvh] max-h-[100dvh] overflow-hidden select-none bg-[#140a04] text-white'
+      style={{ overscrollBehavior: 'none' }}
     >
       <GameAnnouncement announcement={announcement} />
       {isReconnecting && (
@@ -3705,7 +3705,7 @@ export default function Duel1vs1() {
         style={{ backgroundImage: "url('/bg.jpg')" }}
       />
       <div className='bg-goat absolute inset-0 z-0 pointer-events-none'></div>
-      <div className='flex flex-col h-screen relative'>
+      <div className='flex flex-col h-full w-full relative overflow-hidden'>
         {/* UI content */}
         <div className='relative z-10'>
           <div className='flex justify-between items-center w-full max-w-4xl mx-auto pt-2 pb-1 px-2 sm:px-6'>
@@ -3783,11 +3783,11 @@ export default function Duel1vs1() {
                     {isMicMuted ? <MicOff size={14} /> : <Mic size={14} className={speakingPeers[datos.current.flag ? 0 : 1] ? 'text-emerald-400 animate-pulse' : ''} />}
                   </button>
 
-                  {/* Botón Ensordecer 1 vs 1 */}
+                  {/* Botón Ensordecer 1 vs 1 (Solo desktop/tablet para no desbordar en móvil) */}
                   <button
                     type='button'
                     onClick={toggleDeafenAudio}
-                    className={`h-8 w-8 sm:h-9 sm:w-9 rounded-xl border shadow flex items-center justify-center transition-all cursor-pointer ${
+                    className={`hidden sm:flex h-8 w-8 sm:h-9 sm:w-9 rounded-xl border shadow items-center justify-center transition-all cursor-pointer ${
                       isDeafened
                         ? 'bg-red-950/85 hover:bg-red-900 border-red-500/50 text-red-300'
                         : 'bg-stone-900/90 hover:bg-stone-800 border-stone-600/60 text-stone-300'
@@ -3799,19 +3799,19 @@ export default function Duel1vs1() {
                 </>
               )}
 
-              {/* Botón de Diagnóstico y Prueba de Audio y Micrófono */}
+              {/* Botón de Diagnóstico y Prueba de Audio y Micrófono (Solo desktop/tablet) */}
               <button
                 type='button'
                 onClick={() => setShowAudioDiagnostic(true)}
-                className='h-8 w-8 sm:h-9 sm:w-9 rounded-xl border border-amber-500/40 bg-stone-900/90 hover:bg-amber-950 text-amber-300 shadow flex items-center justify-center transition-all cursor-pointer'
+                className='hidden sm:flex h-8 w-8 sm:h-9 sm:w-9 rounded-xl border border-amber-500/40 bg-stone-900/90 hover:bg-amber-950 text-amber-300 shadow items-center justify-center transition-all cursor-pointer'
                 title='Probar y diagnosticar voces y micrófono en vivo'
               >
                 <span className='text-xs sm:text-sm'>🎧</span>
               </button>
 
-              {/* Indicador de Señal de Red / Latencia en Vivo */}
+              {/* Indicador de Señal de Red / Latencia en Vivo (Solo desktop/tablet) */}
               <div
-                className="h-8 sm:h-9 px-2 sm:px-2.5 rounded-xl border border-stone-700/60 bg-stone-900/90 shadow flex items-center gap-1.5 text-[11px] font-semibold text-stone-300 select-none cursor-help"
+                className="hidden sm:flex h-8 sm:h-9 px-2 sm:px-2.5 rounded-xl border border-stone-700/60 bg-stone-900/90 shadow items-center gap-1.5 text-[11px] font-semibold text-stone-300 select-none cursor-help"
                 title={
                   isReconnecting
                     ? "Reconectando señal móvil... Tu partida está protegida."
@@ -3837,7 +3837,7 @@ export default function Duel1vs1() {
               {/* Botón Salir (Abandonar y rendirse) */}
               <button
                 onClick={handleSurrenderClick}
-                className='h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-red-700/90 hover:bg-red-600 active:scale-95 text-white border border-red-500/50 shadow flex items-center justify-center transition-all cursor-pointer'
+                className='h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-red-700/90 hover:bg-red-600 active:scale-95 text-white border border-red-500/50 shadow flex items-center justify-center transition-all cursor-pointer shrink-0'
                 title='Abandonar partida'
               >
                 <span className='text-xs sm:text-sm'>🚪</span>

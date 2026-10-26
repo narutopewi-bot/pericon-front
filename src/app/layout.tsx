@@ -24,6 +24,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   userScalable: false,
+  viewportFit: "cover",
 };
 
 export const metadata: Metadata = {
@@ -161,7 +162,7 @@ export default function RootLayout({
       >
         <ReduxProvider>
           <SignalRProvider>
-            <main className="min-h-screen w-full max-w-full overflow-x-clip overflow-y-auto space-y-0">
+            <main className="min-h-screen w-full max-w-[100vw] overflow-x-hidden overflow-y-auto space-y-0">
               {children}
             </main>
           </SignalRProvider>

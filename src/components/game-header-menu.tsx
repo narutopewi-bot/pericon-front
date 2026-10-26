@@ -49,8 +49,8 @@ export default function GameHeaderMenu({
   };
 
   return (
-    <header className="w-full bg-black/60 backdrop-blur-md border-b border-amber-500/30 px-2 sm:px-3 py-1.5 sm:py-2 z-40 relative select-none">
-      <div className="max-w-6xl mx-auto flex items-center justify-between gap-1.5 sm:gap-2">
+    <header className="w-full max-w-[100vw] overflow-hidden bg-black/60 backdrop-blur-md border-b border-amber-500/30 px-2 sm:px-3 py-1.5 sm:py-2 z-40 relative select-none">
+      <div className="max-w-6xl mx-auto flex items-center justify-between gap-1 sm:gap-2 min-w-0">
         {/* Brand / Logo & Inicio */}
         <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
           <button

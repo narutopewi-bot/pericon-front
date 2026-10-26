@@ -554,7 +554,7 @@ export default function Desk() {
   }, [connection, gamep]); 
 
   return (
-    <div className="relative w-full max-w-full min-h-screen flex flex-col overflow-x-clip">
+    <div className="relative w-full max-w-[100vw] min-h-screen flex flex-col overflow-x-hidden">
       <LiveTicker />
       {/* Menú Superior y Barra de Estado del Jugador */}
       <GameHeaderMenu
@@ -611,7 +611,7 @@ export default function Desk() {
       )}
 
       {/* Dynamic Game Modes Content: Grid 2x2 Gamer Pro */}
-      <div className="w-full max-w-full overflow-x-clip flex-1 flex flex-col items-center justify-center px-2 py-3 sm:p-6 relative z-10 min-h-[calc(88vh-80px)]">
+      <div className="w-full max-w-[100vw] overflow-x-hidden flex-1 flex flex-col items-center justify-center px-2 py-3 sm:p-6 relative z-10 min-h-[calc(88vh-80px)]">
         <div className="w-full max-w-[340px] sm:max-w-xl mx-auto flex flex-col items-center min-w-0">
           
           {/* Título de sección sutil */}
