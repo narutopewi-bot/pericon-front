@@ -85,7 +85,7 @@ const VENEZUELAN_BANKS = [
 
 // Variable configurable para el monto mínimo y máximo de retiro en monedas (1 moneda = 1 Bs.)
 export const MIN_WITHDRAWAL_COINS = 1500;
-export const MAX_DAILY_WITHDRAWAL_COINS = 5000;
+export const MAX_DAILY_WITHDRAWAL_COINS = 10000;
 
 // Horario estipulado para recargas y retiros: 6:00 AM a 9:30 PM (Hora de Venezuela, UTC-4)
 export function isWithinVenezuelaOperatingHours(): { isOpen: boolean; formattedVzlaTime: string } {
