@@ -1775,39 +1775,82 @@ export default function AdminPage() {
     }
   };
 
-  // APROBAR RETIRO
+  // APROBAR RETIRO CON MODAL SWEETALERT2
   const handleApproveWithdrawal = async (w: WithdrawalRow) => {
-    const ref = window.prompt(
-      `Vas a transferir Bs. ${w.amountBs.toLocaleString()} al Pago Móvil de ${w.username}:\n\nBanco: ${w.bankName}\nTel: ${w.phoneNumber}\nCédula: ${w.idCard}\n\nIngresa el N° de Referencia del Pago Móvil que realizaste:`,
-      ""
-    );
-    if (ref === null) return;
-    if (!ref.trim()) {
-      alert("Debes ingresar el número de referencia del pago realizado.");
-      return;
-    }
+    const result = await Swal.fire({
+      title: "Marcar Retiro como Pagado",
+      html: `
+        <div style="text-align: left; font-size: 13px; color: #fde68a; line-height: 1.6;">
+          <p><strong>Jugador:</strong> @${w.username}</p>
+          <p><strong>Monto a pagar:</strong> <span style="color:#10b981; font-weight:bold; font-size: 15px;">Bs. ${w.amountBs.toLocaleString()}</span> (${w.coinsAmount.toLocaleString()} monedas)</p>
+          <hr style="border: 1px solid rgba(245,158,11,0.2); margin: 8px 0;" />
+          <p><strong>Banco:</strong> ${w.bankName}</p>
+          <p><strong>Teléfono:</strong> ${w.phoneNumber}</p>
+          <p><strong>Cédula:</strong> ${w.idCard}</p>
+        </div>
+      `,
+      input: "text",
+      inputLabel: "Número de Referencia del Pago Móvil que realizaste:",
+      inputPlaceholder: "Ingresa el Nº de comprobante...",
+      showCancelButton: true,
+      confirmButtonText: "✅ Confirmar Pago Realizado",
+      cancelButtonText: "Cancelar",
+      background: "#180e07",
+      color: "#fef3c7",
+      confirmButtonColor: "#f59e0b",
+      cancelButtonColor: "#374151",
+      inputValidator: (value) => {
+        if (!value || !value.trim()) {
+          return "¡Debes ingresar el número de referencia del Pago Móvil!";
+        }
+        return null;
+      }
+    });
+
+    if (!result.isConfirmed || !result.value || !result.value.trim()) return;
+    const ref = result.value.trim();
 
     setActionMessage(null);
     try {
       const res = await adminFetch(`${apiUrl}/api/admin/withdrawal/${w.id}/approve`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reference: ref.trim() }),
+        body: JSON.stringify({ reference: ref, forceApprove: true }),
       });
       const data = await res.json();
       if (res.ok) {
-        setActionMessage(`✅ Retiro #${w.id} marcado como PAGADO exitosamente. Referencia: ${ref.trim()}`);
+        Swal.fire({
+          icon: "success",
+          title: "¡Retiro Marcado como Pagado!",
+          text: `Retiro #${w.id} de @${w.username} por Bs. ${w.amountBs.toLocaleString()} marcado como PAGADO exitosamente.`,
+          background: "#180e07",
+          color: "#fef3c7",
+          confirmButtonColor: "#f59e0b",
+          timer: 3500
+        });
         loadData();
-        const updatedW: WithdrawalRow = { ...w, adminReference: ref.trim(), status: "PAGADO" };
+        const updatedW: WithdrawalRow = { ...w, adminReference: ref, status: "PAGADO" };
         const waUrl = getWithdrawalPaidWhatsAppLink(updatedW);
-        if (waUrl && waUrl !== "#" && window.confirm("¿Deseas abrir WhatsApp para enviar el comprobante de pago al jugador?")) {
+        if (waUrl && waUrl !== "#") {
           window.open(waUrl, "_blank");
         }
       } else {
-        setActionMessage(`❌ Error: ${data.message}`);
+        Swal.fire({
+          icon: "error",
+          title: "Error al marcar como pagado",
+          text: data.message || "El servidor no pudo procesar la solicitud.",
+          background: "#180e07",
+          color: "#fef3c7"
+        });
       }
-    } catch {
-      setActionMessage("Error de conexión al procesar el retiro.");
+    } catch (err: any) {
+      Swal.fire({
+        icon: "error",
+        title: "Error de conexión",
+        text: err?.message || "No se pudo conectar con el servidor.",
+        background: "#180e07",
+        color: "#fef3c7"
+      });
     }
   };
 
