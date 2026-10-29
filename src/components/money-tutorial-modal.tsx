@@ -42,7 +42,7 @@ export default function MoneyTutorialModal({
       title: "2. Realiza tu Pago Móvil desde tu Banco",
       icon: "🏦",
       badge: "Paso 2",
-      desc: "Abre la aplicación de tu banco venezolano (Banesco, Banco de Venezuela, Mercantil, BNC, Provincial, etc.) y transfiere el monto que desees recargar (mínimo 800 Bs.). Guarda el número de referencia bancaria o capture de pantalla.",
+      desc: "Abre la aplicación de tu banco venezolano (Banesco, Banco de Venezuela, Mercantil, BNC, Provincial, etc.) y transfiere el monto que desees recargar (monto libre). Guarda el número de referencia bancaria o capture de pantalla.",
       highlight: "Seguridad garantizada: Solo transfiere a los datos oficiales de la plataforma.",
       actionText: "Anota los últimos 4 dígitos o referencia completa",
     },

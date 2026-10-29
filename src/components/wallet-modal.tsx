@@ -179,7 +179,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
   const [igRewardError, setIgRewardError] = useState<string | null>(null);
 
   // Formulario de Recarga (con soporte para borrar sin trabarse en 1)
-  const [amountBs, setAmountBs] = useState<string>("800");
+  const [amountBs, setAmountBs] = useState<string>("");
   const [reference, setReference] = useState<string>("");
   const [originBank, setOriginBank] = useState<string>(VENEZUELAN_BANKS[0]);
   const [originPhone, setOriginPhone] = useState<string>("");
@@ -516,8 +516,8 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
     }
 
     const numAmount = parseInt(amountBs, 10) || 0;
-    if (numAmount < 800) {
-      setSubmitError("El monto mínimo de recarga es de 800 Bs. (800 monedas).");
+    if (numAmount <= 0) {
+      setSubmitError("Ingresa un monto de recarga válido mayor a 0 Bs.");
       return;
     }
 
@@ -1082,7 +1082,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
                 {/* Monto con borrado libre */}
                 <div>
                   <label className="text-[11px] text-amber-200/80 font-bold block mb-1">
-                    Monto transferido (Bs.) <span className="text-amber-400 font-extrabold">(Mínimo 800 Bs.)</span>:
+                    Monto transferido (Bs.) <span className="text-emerald-400 font-extrabold">(Monto libre)</span>:
                   </label>
                   <div className="relative">
                     <input
@@ -1096,7 +1096,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
                         }
                       }}
                       className="w-full bg-black/70 border border-amber-500/40 rounded-xl px-3 py-2 text-sm text-white font-black focus:outline-none focus:border-amber-400"
-                      placeholder="800"
+                      placeholder="Ej: 500"
                       required
                     />
                     <span className="absolute right-3 top-2 text-xs font-extrabold text-amber-400">
