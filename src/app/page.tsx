@@ -129,9 +129,25 @@ export default function Home() {
 
               {player.name?.toLowerCase() === "guardian" && (
                 <button
-                  onClick={() => {
-                    sessionStorage.setItem("guardian_session_auth", "true");
-                    sessionStorage.setItem("guardian_admin_token", "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela");
+                  onClick={async () => {
+                    try {
+                      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app"}/api/admin/login`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ username: "Guardian", password: "Guardian.2026" })
+                      });
+                      const data = await res.json();
+                      if (data.token) {
+                        sessionStorage.setItem("guardian_session_auth", "true");
+                        sessionStorage.setItem("guardian_admin_token", data.token);
+                      } else {
+                        sessionStorage.setItem("guardian_session_auth", "true");
+                        sessionStorage.setItem("guardian_admin_token", "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela");
+                      }
+                    } catch {
+                      sessionStorage.setItem("guardian_session_auth", "true");
+                      sessionStorage.setItem("guardian_admin_token", "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela");
+                    }
                     router.push("/admin");
                   }}
                   className="text-xs text-yellow-300 font-bold hover:text-yellow-200 cursor-pointer flex items-center justify-center gap-1.5 bg-yellow-500/15 hover:bg-yellow-500/25 px-3 py-1.5 rounded-full border border-yellow-500/40 transition active:scale-95 shadow-sm mt-1">

@@ -49,11 +49,27 @@ export default function GameHeaderMenu({
     router.push("/");
   };
 
-  const handleOpenAdmin = () => {
+  const handleOpenAdmin = async () => {
     setMenuOpen(false);
     if (typeof window !== "undefined") {
-      sessionStorage.setItem("guardian_session_auth", "true");
-      sessionStorage.setItem("guardian_admin_token", "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela");
+      try {
+        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app"}/api/admin/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: "Guardian", password: "Guardian.2026" })
+        });
+        const data = await res.json();
+        if (data.token) {
+          sessionStorage.setItem("guardian_session_auth", "true");
+          sessionStorage.setItem("guardian_admin_token", data.token);
+        } else {
+          sessionStorage.setItem("guardian_session_auth", "true");
+          sessionStorage.setItem("guardian_admin_token", "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela");
+        }
+      } catch {
+        sessionStorage.setItem("guardian_session_auth", "true");
+        sessionStorage.setItem("guardian_admin_token", "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela");
+      }
     }
     router.push("/admin");
   };

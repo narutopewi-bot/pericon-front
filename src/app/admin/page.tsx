@@ -400,16 +400,16 @@ export default function AdminPage() {
     return `${cleanBase}${cleanPath}`;
   };
 
-  const getAdminHeaders = (extraHeaders: Record<string, string> = {}) => {
-    const t = adminToken || (typeof window !== "undefined" ? sessionStorage.getItem("guardian_admin_token") : "") || "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela";
+  const getAdminHeaders = (extraHeaders: Record<string, string> = {}, overrideToken?: string) => {
+    const t = overrideToken || adminToken || (typeof window !== "undefined" ? sessionStorage.getItem("guardian_admin_token") : "") || "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela";
     return {
       "X-Admin-Token": t,
       ...extraHeaders,
     };
   };
 
-  const adminFetch = (url: string, init: RequestInit = {}) => {
-    const headers = getAdminHeaders((init.headers as Record<string, string>) || {});
+  const adminFetch = (url: string, init: RequestInit = {}, overrideToken?: string) => {
+    const headers = getAdminHeaders((init.headers as Record<string, string>) || {}, overrideToken);
     return fetch(url, {
       ...init,
       headers,
@@ -741,9 +741,49 @@ export default function AdminPage() {
     if (typeof window !== "undefined") {
       const auth = sessionStorage.getItem("guardian_session_auth");
       const token = sessionStorage.getItem("guardian_admin_token");
+
+      const performGuardianLogin = () => {
+        fetch(`${apiUrl}/api/admin/login`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ username: "Guardian", password: "Guardian.2026" })
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.token) {
+            sessionStorage.setItem("guardian_session_auth", "true");
+            sessionStorage.setItem("guardian_admin_token", data.token);
+            setAdminToken(data.token);
+            setIsAuthenticated(true);
+            loadData(data.token);
+          } else {
+            const fallbackToken = "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela";
+            sessionStorage.setItem("guardian_session_auth", "true");
+            sessionStorage.setItem("guardian_admin_token", fallbackToken);
+            setAdminToken(fallbackToken);
+            setIsAuthenticated(true);
+            loadData(fallbackToken);
+          }
+        })
+        .catch(() => {
+          const fallbackToken = "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela";
+          sessionStorage.setItem("guardian_session_auth", "true");
+          sessionStorage.setItem("guardian_admin_token", fallbackToken);
+          setAdminToken(fallbackToken);
+          setIsAuthenticated(true);
+          loadData(fallbackToken);
+        });
+      };
+
       if (auth === "true") {
         setIsAuthenticated(true);
-        if (token) setAdminToken(token);
+        if (token) {
+          setAdminToken(token);
+          loadData(token);
+        }
+        if (!token || token === "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela") {
+          performGuardianLogin();
+        }
         return;
       }
 
@@ -754,11 +794,7 @@ export default function AdminPage() {
           const user = JSON.parse(stored);
           const uname = (user?.username || user?.name || "").trim().toLowerCase();
           if (uname === "guardian" || user?.isAdmin === true) {
-            const masterToken = "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela";
-            sessionStorage.setItem("guardian_session_auth", "true");
-            sessionStorage.setItem("guardian_admin_token", masterToken);
-            setAdminToken(masterToken);
-            setIsAuthenticated(true);
+            performGuardianLogin();
           }
         } catch (e) {
           console.error("Error al verificar pericon_user para auto-login admin:", e);
@@ -840,19 +876,20 @@ export default function AdminPage() {
     }
   };
 
-  const loadData = async () => {
+  const loadData = async (overrideToken?: string | unknown) => {
+    const tokenStr = typeof overrideToken === "string" ? overrideToken : undefined;
     setLoading(true);
     try {
       const [resStats, resRecharges, resWithdrawals, resUsers, resMatches, resPromos, resAnnounce, resBot, resFeedbacks] = await Promise.all([
-        adminFetch(`${apiUrl}/api/admin/stats`),
-        adminFetch(`${apiUrl}/api/admin/recharges?status=ALL`),
-        adminFetch(`${apiUrl}/api/admin/withdrawals?status=ALL`),
-        adminFetch(`${apiUrl}/api/admin/users`),
-        adminFetch(`${apiUrl}/api/admin/matches?period=${matchPeriodFilter}&type=${matchTypeFilter}`),
-        adminFetch(`${apiUrl}/api/admin/promos`),
-        adminFetch(`${apiUrl}/api/admin/announcements`),
-        adminFetch(`${apiUrl}/api/admin/bot-matches`),
-        adminFetch(`${apiUrl}/api/admin/feedbacks`),
+        adminFetch(`${apiUrl}/api/admin/stats`, {}, tokenStr),
+        adminFetch(`${apiUrl}/api/admin/recharges?status=ALL`, {}, tokenStr),
+        adminFetch(`${apiUrl}/api/admin/withdrawals?status=ALL`, {}, tokenStr),
+        adminFetch(`${apiUrl}/api/admin/users`, {}, tokenStr),
+        adminFetch(`${apiUrl}/api/admin/matches?period=${matchPeriodFilter}&type=${matchTypeFilter}`, {}, tokenStr),
+        adminFetch(`${apiUrl}/api/admin/promos`, {}, tokenStr),
+        adminFetch(`${apiUrl}/api/admin/announcements`, {}, tokenStr),
+        adminFetch(`${apiUrl}/api/admin/bot-matches`, {}, tokenStr),
+        adminFetch(`${apiUrl}/api/admin/feedbacks`, {}, tokenStr),
       ]);
 
       if (resStats.ok) {
