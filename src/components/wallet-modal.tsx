@@ -210,6 +210,24 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
   const currentCoins = typeof reduxPlayer?.coins === "number" ? reduxPlayer.coins : (propCoins ?? 100);
 
   // Resolución segura del ID de usuario (evita ConnectionId de SignalR)
+  const getValidUsername = useCallback((): string | null => {
+    if (reduxPlayer?.name && reduxPlayer.name.trim().length > 0) {
+      return reduxPlayer.name.trim();
+    }
+    if (typeof window !== "undefined") {
+      try {
+        const stored = localStorage.getItem("pericon_user");
+        if (stored) {
+          const u = JSON.parse(stored);
+          if (u && (u.username || u.name)) {
+            return String(u.username || u.name).trim();
+          }
+        }
+      } catch (e) {}
+    }
+    return null;
+  }, [reduxPlayer?.name]);
+
   const getValidNumericUserId = useCallback((): number | null => {
     if (userId && !isNaN(Number(userId)) && Number(userId) > 0) {
       return Number(userId);
@@ -543,6 +561,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: validId,
+          username: getValidUsername(),
           amountBs: numAmount,
           reference: reference.trim(),
           base64Image: receiptBase64,
@@ -680,6 +699,7 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           userId: validId,
+          username: getValidUsername(),
           coinsAmount: numCoins,
           bankName: withdrawBank,
           phoneNumber: withdrawPhone.trim(),
@@ -1030,6 +1050,18 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
               <span className="text-xs font-extrabold text-amber-300 uppercase tracking-wide">
                 Reportar Pago Realizado:
               </span>
+
+              {/* Banner de confirmación de cuenta activa */}
+              <div className="bg-amber-950/60 border border-amber-500/40 rounded-xl p-2.5 flex items-center justify-between text-xs">
+                <div className="flex items-center gap-2">
+                  <span className="text-amber-400 font-bold">👤 Acreditando a:</span>
+                  <span className="text-white font-extrabold">@{getValidUsername() || 'Tu Usuario'}</span>
+                  <span className="text-amber-300/70 text-[11px]">(ID #{getValidNumericUserId()})</span>
+                </div>
+                <span className="text-[10px] bg-amber-500/20 text-amber-300 px-2 py-0.5 rounded-full font-mono font-bold">
+                  Cuenta Activa
+                </span>
+              </div>
 
               {submitSuccess && (
                 <div className="bg-emerald-950/90 border border-emerald-500 text-emerald-200 text-xs p-3 rounded-xl">
