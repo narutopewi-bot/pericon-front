@@ -2349,7 +2349,7 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
           
           <div className="inline-flex items-center gap-2 px-3 py-1 bg-amber-500/15 border border-amber-400/40 rounded-full text-xs font-bold text-amber-300 uppercase tracking-widest my-3">
             <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-            Panel de Control Guardian
+            Panel de Control Administrativo
           </div>
 
           <p className="text-xs text-amber-200/70 mb-6">
@@ -2363,7 +2363,7 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
               </label>
               <input
                 type="text"
-                placeholder="Guardian"
+                placeholder=""
                 value={usernameInput}
                 onChange={(e) => setUsernameInput(e.target.value)}
                 className="w-full bg-[#24140a] border border-amber-500/40 rounded-xl px-4 py-3 text-sm text-white placeholder-amber-200/30 focus:outline-none focus:border-amber-400 focus:ring-1 focus:ring-amber-400"
@@ -2398,7 +2398,7 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
               disabled={authLoading}
               className="w-full py-3.5 bg-gradient-to-r from-amber-500 via-amber-400 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-amber-950 font-black rounded-xl text-sm transition-all shadow-lg shadow-amber-500/20 active:scale-95 disabled:opacity-50"
             >
-              {authLoading ? "Verificando Credenciales..." : "Entrar como Guardian"}
+              {authLoading ? "Verificando Credenciales..." : "Iniciar Sesión"}
             </button>
           </form>
 
