@@ -51,6 +51,10 @@ export default function GameHeaderMenu({
 
   const handleOpenAdmin = () => {
     setMenuOpen(false);
+    if (typeof window !== "undefined") {
+      sessionStorage.removeItem("guardian_session_auth");
+      sessionStorage.removeItem("guardian_admin_token");
+    }
     router.push("/admin");
   };
 

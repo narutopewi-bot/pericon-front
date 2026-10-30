@@ -129,7 +129,13 @@ export default function Home() {
 
               {player.name?.toLowerCase() === "guardian" && (
                 <button
-                  onClick={() => router.push("/admin")}
+                  onClick={() => {
+                    if (typeof window !== "undefined") {
+                      sessionStorage.removeItem("guardian_session_auth");
+                      sessionStorage.removeItem("guardian_admin_token");
+                    }
+                    router.push("/admin");
+                  }}
                   className="text-xs text-yellow-300 font-bold hover:text-yellow-200 cursor-pointer flex items-center justify-center gap-1.5 bg-yellow-500/15 hover:bg-yellow-500/25 px-3 py-1.5 rounded-full border border-yellow-500/40 transition active:scale-95 shadow-sm mt-1">
                   <span>👑</span>
                   <span>Panel de Administrador</span>

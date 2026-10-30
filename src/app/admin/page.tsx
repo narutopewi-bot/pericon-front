@@ -434,12 +434,21 @@ export default function AdminPage() {
     };
   };
 
-  const adminFetch = (url: string, init: RequestInit = {}, overrideToken?: string) => {
+  const adminFetch = async (url: string, init: RequestInit = {}, overrideToken?: string) => {
     const headers = getAdminHeaders((init.headers as Record<string, string>) || {}, overrideToken);
-    return fetch(url, {
+    const res = await fetch(url, {
       ...init,
       headers,
     });
+    if (res.status === 401 || res.status === 403) {
+      setIsAuthenticated(false);
+      setAdminToken("");
+      if (typeof window !== "undefined") {
+        sessionStorage.removeItem("guardian_session_auth");
+        sessionStorage.removeItem("guardian_admin_token");
+      }
+    }
+    return res;
   };
 
   const fetchReactivationCandidates = async () => {
@@ -762,41 +771,14 @@ export default function AdminPage() {
     }
   };
 
-  // Verificar sesión existente en sessionStorage
+  // Seguridad Estricta: Cada ingreso a /admin requiere introducir credenciales manualmente.
   useEffect(() => {
     if (typeof window !== "undefined") {
-      const auth = sessionStorage.getItem("guardian_session_auth");
-      const token = sessionStorage.getItem("guardian_admin_token");
-
-      if (auth === "true" && token && token.length > 20) {
-        fetch(`${apiUrl}/api/admin/stats`, {
-          headers: { "X-Admin-Token": token }
-        })
-        .then(res => {
-          if (res.ok) {
-            setAdminToken(token);
-            setIsAuthenticated(true);
-            loadData(token);
-          } else {
-            sessionStorage.removeItem("guardian_session_auth");
-            sessionStorage.removeItem("guardian_admin_token");
-            setAdminToken("");
-            setIsAuthenticated(false);
-          }
-        })
-        .catch(() => {
-          sessionStorage.removeItem("guardian_session_auth");
-          sessionStorage.removeItem("guardian_admin_token");
-          setAdminToken("");
-          setIsAuthenticated(false);
-        });
-      } else {
-        sessionStorage.removeItem("guardian_session_auth");
-        sessionStorage.removeItem("guardian_admin_token");
-        setAdminToken("");
-        setIsAuthenticated(false);
-      }
+      sessionStorage.removeItem("guardian_session_auth");
+      sessionStorage.removeItem("guardian_admin_token");
     }
+    setAdminToken("");
+    setIsAuthenticated(false);
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
