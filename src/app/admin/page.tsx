@@ -1684,6 +1684,13 @@ export default function AdminPage() {
 
   // APROBAR RECARGA
   const handleApproveRecharge = async (id: number) => {
+    const foundRecharge = recharges.find((r) => r.id === id);
+    const targetUser = foundRecharge ? `${foundRecharge.username} (Bs. ${foundRecharge.amountBs} · Ref: ${foundRecharge.reference})` : `Recarga #${id}`;
+    if (!window.confirm(`⚠️ ¿Estás completamente seguro de APROBAR la recarga para ${targetUser}?
+
+Esta acción acreditará las monedas al monedero del jugador.`)) {
+      return;
+    }
     setActionMessage(null);
       fetchReactivationCandidates();
     try {
