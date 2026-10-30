@@ -772,14 +772,49 @@ export default function AdminPage() {
     }
   };
 
-  // Seguridad Estricta: Cada ingreso a /admin requiere introducir credenciales manualmente.
+  const [isApkAdminDevice, setIsApkAdminDevice] = useState(false);
+  const [adminDeviceId, setAdminDeviceId] = useState("");
+
+  // Blindaje de Hardware y Persistencia para el Teléfono Administrador de Pewi
   useEffect(() => {
-    if (typeof window !== "undefined") {
+    if (typeof window === "undefined") return;
+
+    const isApk = Boolean(
+      window.AndroidApp?.isApk() ||
+      (typeof navigator !== "undefined" && navigator.userAgent && navigator.userAgent.includes("ElPericonApp"))
+    );
+
+    if (isApk && window.AndroidApp?.getDeviceId) {
+      try {
+        const devId = window.AndroidApp.getDeviceId();
+        setAdminDeviceId(devId);
+        setIsApkAdminDevice(true);
+
+        const masterId = localStorage.getItem("pericon_admin_master_device_id");
+        const savedToken = localStorage.getItem("pericon_admin_master_token");
+
+        // Si este teléfono ya está registrado como maestro y tiene token guardado, auto-iniciar sesión
+        if (masterId && masterId === devId && savedToken) {
+          setAdminToken(savedToken);
+          setIsAuthenticated(true);
+          sessionStorage.setItem("guardian_session_auth", "true");
+          sessionStorage.setItem("guardian_admin_token", savedToken);
+          loadData(savedToken);
+          return;
+        }
+
+        // Si es la APK, sugerir usuario "Guardian" por comodidad
+        setUsernameInput("Guardian");
+      } catch (e) {
+        console.warn("[AdminHardwareLock] Error verificando hardware:", e);
+      }
+    } else {
+      // En navegadores web se limpia la sesión por seguridad estricta
       sessionStorage.removeItem("guardian_session_auth");
       sessionStorage.removeItem("guardian_admin_token");
+      setAdminToken("");
+      setIsAuthenticated(false);
     }
-    setAdminToken("");
-    setIsAuthenticated(false);
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -810,6 +845,20 @@ export default function AdminPage() {
         if (typeof window !== "undefined") {
           sessionStorage.setItem("guardian_session_auth", "true");
           sessionStorage.setItem("guardian_admin_token", data.token);
+
+          // Si inicia sesión desde la APK, sellar este teléfono como el Dispositivo Maestro Exclusivo
+          if (window.AndroidApp?.getDeviceId) {
+            try {
+              const devId = window.AndroidApp.getDeviceId();
+              localStorage.setItem("pericon_admin_master_device_id", devId);
+              localStorage.setItem("pericon_admin_master_token", data.token);
+              setAdminDeviceId(devId);
+              setIsApkAdminDevice(true);
+              if (window.AndroidApp.showToast) {
+                window.AndroidApp.showToast("📱 Celular vinculado como Administrador Exclusivo");
+              }
+            } catch (_) {}
+          }
         }
         loadData(data.token);
         return;
@@ -829,6 +878,7 @@ export default function AdminPage() {
     if (typeof window !== "undefined") {
       sessionStorage.removeItem("guardian_session_auth");
       sessionStorage.removeItem("guardian_admin_token");
+      localStorage.removeItem("pericon_admin_master_token");
     }
   };
 
@@ -2388,6 +2438,20 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
           <p className="text-xs text-amber-200/70 mb-6">
             Acceso restringido exclusivamente para el Administrador del Sistema.
           </p>
+
+          {isApkAdminDevice && (
+            <div className="w-full mb-4 p-3 bg-emerald-950/60 border border-emerald-500/50 rounded-xl text-left flex items-center gap-2.5">
+              <span className="text-xl">📱</span>
+              <div>
+                <div className="text-[11px] font-black text-emerald-300 uppercase tracking-wide">
+                  Celular Android Maestro Detectado
+                </div>
+                <div className="text-[10px] text-emerald-200/70 font-mono">
+                  Hardware ID: {adminDeviceId.slice(0, 8)}... • Las credenciales quedarán guardadas en este teléfono
+                </div>
+              </div>
+            </div>
+          )}
 
           <form onSubmit={handleLogin} className="w-full space-y-4">
             <div className="text-left">
