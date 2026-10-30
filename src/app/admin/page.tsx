@@ -42,6 +42,19 @@ interface AdminStats {
   };
 }
 
+interface PlatformExpenseRow {
+  id: number;
+  description: string;
+  category: string;
+  currency: "BS" | "USDT";
+  amount: number;
+  usdtReceived?: number | null;
+  exchangeRate?: number | null;
+  createdAt: string;
+  createdBy?: string | null;
+  notes?: string | null;
+}
+
 interface MatchRow {
   id: number;
   gameId: number;
@@ -283,6 +296,19 @@ export default function AdminPage() {
   const [selectedError, setSelectedError] = useState<ErrorLogRow | null>(null);
   const [editingNotesId, setEditingNotesId] = useState<number | null>(null);
   const [adminNoteInput, setAdminNoteInput] = useState("");
+  // Gastos y Caja Dual (Bs / USDT)
+  const [expenses, setExpenses] = useState<PlatformExpenseRow[]>([]);
+  const [expenseFilterCurrency, setExpenseFilterCurrency] = useState<string>("ALL");
+  const [expenseFilterCategory, setExpenseFilterCategory] = useState<string>("ALL");
+  const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
+  const [expenseFormType, setExpenseFormType] = useState<"BS" | "USDT" | "COMPRA_USDT">("BS");
+  const [expenseFormDescription, setExpenseFormDescription] = useState("");
+  const [expenseFormCategory, setExpenseFormCategory] = useState("Servidor / Infraestructura");
+  const [expenseFormAmount, setExpenseFormAmount] = useState("");
+  const [expenseFormUsdtReceived, setExpenseFormUsdtReceived] = useState("");
+  const [expenseFormNotes, setExpenseFormNotes] = useState("");
+  const [loadingExpense, setLoadingExpense] = useState(false);
+
 
   // Datos
   const [stats, setStats] = useState<AdminStats | null>(null);
@@ -880,7 +906,7 @@ export default function AdminPage() {
     const tokenStr = typeof overrideToken === "string" ? overrideToken : undefined;
     setLoading(true);
     try {
-      const [resStats, resRecharges, resWithdrawals, resUsers, resMatches, resPromos, resAnnounce, resBot, resFeedbacks] = await Promise.all([
+      const [resStats, resRecharges, resWithdrawals, resUsers, resMatches, resPromos, resAnnounce, resBot, resFeedbacks, resExpenses] = await Promise.all([
         adminFetch(`${apiUrl}/api/admin/stats`, {}, tokenStr),
         adminFetch(`${apiUrl}/api/admin/recharges?status=ALL`, {}, tokenStr),
         adminFetch(`${apiUrl}/api/admin/withdrawals?status=ALL`, {}, tokenStr),
@@ -890,6 +916,7 @@ export default function AdminPage() {
         adminFetch(`${apiUrl}/api/admin/announcements`, {}, tokenStr),
         adminFetch(`${apiUrl}/api/admin/bot-matches`, {}, tokenStr),
         adminFetch(`${apiUrl}/api/admin/feedbacks`, {}, tokenStr),
+        adminFetch(`${apiUrl}/api/admin/expenses`, {}, tokenStr),
       ]);
 
       if (resStats.ok) {
@@ -918,6 +945,10 @@ export default function AdminPage() {
         const fData = await resFeedbacks.json();
         setFeedbacks(fData.feedbacks || []);
         setFeedbackStats({ total: fData.total || 0, averageRating: fData.averageRating || 5.0 });
+      }
+      if (resExpenses.ok) {
+        const expData = await resExpenses.json();
+        setExpenses(Array.isArray(expData.expenses) ? expData.expenses : []);
       }
       if (resBot.ok) {
         const botData = await resBot.json();
@@ -1257,6 +1288,101 @@ export default function AdminPage() {
   };
 
   // Exportar Reporte Financiero a Excel/CSV
+  
+  // Manejo de Gastos y Movimientos de Caja
+  const handleCreateExpense = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const amt = parseFloat(expenseFormAmount);
+    if (isNaN(amt) || amt <= 0) {
+      Swal.fire({ icon: "error", title: "Monto inválido", text: "Por favor ingrese un monto mayor a 0." });
+      return;
+    }
+    if (!expenseFormDescription.trim()) {
+      Swal.fire({ icon: "error", title: "Descripción requerida", text: "Ingrese una descripción o concepto del gasto." });
+      return;
+    }
+
+    let usdtReceivedNum: number | null = null;
+    if (expenseFormType === "COMPRA_USDT") {
+      const usdtVal = parseFloat(expenseFormUsdtReceived);
+      if (isNaN(usdtVal) || usdtVal <= 0) {
+        Swal.fire({ icon: "error", title: "USDT Inválido", text: "Ingrese la cantidad de USDT recibidos." });
+        return;
+      }
+      usdtReceivedNum = usdtVal;
+    }
+
+    try {
+      setLoadingExpense(true);
+      const bodyPayload = {
+        description: expenseFormDescription.trim(),
+        category: expenseFormType === "COMPRA_USDT" ? "Compra USDT" : expenseFormCategory,
+        currency: expenseFormType === "USDT" ? "USDT" : "BS",
+        amount: amt,
+        usdtReceived: usdtReceivedNum,
+        exchangeRate: usdtReceivedNum && usdtReceivedNum > 0 ? Number((amt / usdtReceivedNum).toFixed(4)) : null,
+        notes: expenseFormNotes.trim() || null
+      };
+
+      const res = await adminFetch(`${apiUrl}/api/admin/expenses`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(bodyPayload)
+      });
+
+      if (res.ok) {
+        Swal.fire({
+          icon: "success",
+          title: "¡Gasto Registrado!",
+          text: "El movimiento ha sido registrado y el balance de caja se ha actualizado.",
+          timer: 2000,
+          showConfirmButton: false
+        });
+        setIsExpenseModalOpen(false);
+        setExpenseFormDescription("");
+        setExpenseFormAmount("");
+        setExpenseFormUsdtReceived("");
+        setExpenseFormNotes("");
+        loadData();
+      } else {
+        const err = await res.json();
+        Swal.fire({ icon: "error", title: "Error", text: err.message || "No se pudo registrar el gasto." });
+      }
+    } catch (err: any) {
+      Swal.fire({ icon: "error", title: "Error de conexión", text: err.message });
+    } finally {
+      setLoadingExpense(false);
+    }
+  };
+
+  const handleDeleteExpense = async (id: number) => {
+    const result = await Swal.fire({
+      title: "¿Eliminar este gasto?",
+      text: "Esta acción reintegrará el monto al balance neto de la caja correspondiente.",
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Sí, eliminar",
+      cancelButtonText: "Cancelar"
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const res = await adminFetch(`${apiUrl}/api/admin/expenses/${id}`, { method: "DELETE" });
+        if (res.ok) {
+          Swal.fire("Eliminado", "El gasto ha sido eliminado de la caja.", "success");
+          loadData();
+        } else {
+          const err = await res.json();
+          Swal.fire("Error", err.message || "No se pudo eliminar el gasto.", "error");
+        }
+      } catch (err: any) {
+        Swal.fire("Error", err.message, "error");
+      }
+    }
+  };
+
   const exportFinancialReportCSV = () => {
     const headers = ["Metrica Financiera", "Valor"];
     const rows = [
@@ -1270,6 +1396,11 @@ export default function AdminPage() {
       ["Cantidad de Retiros Pagados", String(financialSummary.paidWithdrawalsCount)],
       ["Retiros Pendientes por Procesar (Bs.)", `Bs. ${financialSummary.pendingWithdrawalsBs.toLocaleString()}`],
       ["Cantidad de Retiros Pendientes", String(financialSummary.pendingWithdrawalsCount)],
+      ["Gastos Operativos en Bolívares (Bs.)", `Bs. ${financialSummary.totalBsExpenses.toLocaleString()}`],
+      ["Caja Real Neta en Bolívares (Bs.)", `Bs. ${financialSummary.cajaNetaBs.toLocaleString()}`],
+      ["Total Compras de USDT Realizadas (USDT)", `$ ${financialSummary.totalUsdtPurchased.toLocaleString()} USDT`],
+      ["Total Gastos en USDT (USDT)", `$ ${financialSummary.totalUsdtExpenses.toLocaleString()} USDT`],
+      ["Caja Real Neta en USDT (USDT)", `$ ${financialSummary.cajaNetaUsdt.toLocaleString()} USDT`],
       ["Balance Neto Confirmado en Caja (Bs.)", `Bs. ${financialSummary.netBsBalance.toLocaleString()}`],
       ["Balance Neto Proyectado con Pendientes (Bs.)", `Bs. ${financialSummary.netBsBalanceWithPending.toLocaleString()}`],
       ["Comisión de Sala Acumulada (Monedas)", `🪙 ${financialSummary.totalCommissions.toLocaleString()}`],
@@ -2176,6 +2307,15 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
     });
   }, [withdrawals, withdrawalStatusFilter, withdrawalSearch]);
 
+  // Filtrado de gastos en memoria
+  const filteredExpenses = useMemo(() => {
+    return expenses.filter((exp) => {
+      if (expenseFilterCurrency !== "ALL" && exp.currency !== expenseFilterCurrency) return false;
+      if (expenseFilterCategory !== "ALL" && exp.category !== expenseFilterCategory) return false;
+      return true;
+    });
+  }, [expenses, expenseFilterCurrency, expenseFilterCategory]);
+
   // Cálculos para reportes financieros integrales y balances
   const financialSummary = useMemo(() => {
     const approvedRecharges = recharges.filter((r) => r.status === "APROBADO");
@@ -2217,6 +2357,13 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
     const todayApprovedBs = stats?.todayApprovedBs ?? todayRechargesList.filter((r) => r.status === "APROBADO").reduce((sum, r) => sum + r.amountBs, 0);
     const todayPendingBs = stats?.todayPendingBs ?? todayRechargesList.filter((r) => r.status === "PENDIENTE").reduce((sum, r) => sum + r.amountBs, 0);
 
+    // Gastos y Caja Dual
+    const totalBsExpenses = expenses.filter(e => e.currency === "BS").reduce((sum, e) => sum + e.amount, 0);
+    const totalUsdtExpenses = expenses.filter(e => e.currency === "USDT").reduce((sum, e) => sum + e.amount, 0);
+    const totalUsdtPurchased = expenses.filter(e => e.usdtReceived && e.usdtReceived > 0).reduce((sum, e) => sum + (e.usdtReceived || 0), 0);
+    const cajaNetaBs = totalDeposits - totalWithdrawalsPaid - totalBsExpenses;
+    const cajaNetaUsdt = totalUsdtPurchased - totalUsdtExpenses;
+
     const totalCoinsInUsers = users.reduce((sum, u) => sum + u.coins, 0);
     const totalCommissions = matches.reduce((sum, m) => sum + m.houseCommission, 0);
     const totalWagered = matches.reduce((sum, m) => sum + m.totalPot, 0);
@@ -2249,8 +2396,13 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
       totalBotCoinsWagered,
       totalBotHouseProfit,
       totalCombinedProfit,
+      totalBsExpenses,
+      totalUsdtExpenses,
+      totalUsdtPurchased,
+      cajaNetaBs,
+      cajaNetaUsdt,
     };
-  }, [recharges, withdrawals, users, matches, botMatches, stats]);
+  }, [recharges, withdrawals, users, matches, botMatches, stats, expenses]);
 
   // ----------------------------------------------------
   // PANTALLA DE LOGIN GUARDIAN
@@ -5958,24 +6110,43 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
         {/* ========================================================================= */}
         {activeTab === "reports" && (
           <div className="space-y-6">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+            {/* Encabezado y Acciones Principales */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
-                <h1 className={`${fonts.bowlbyOneSC.className} text-xl md:text-2xl text-amber-400 tracking-wide`}>
-                  Reportes Financieros y Balances
+                <h1 className={`${fonts.bowlbyOneSC.className} text-xl md:text-2xl text-amber-400 tracking-wide flex items-center gap-2`}>
+                  <span>Reportes Financieros y Control de Caja Dual</span>
                 </h1>
                 <p className="text-xs text-amber-200/60 mt-0.5">
-                  Flujo neto de caja en Bolívares y volumen de monedas en la plataforma.
+                  Balance real de caja en Bolívares y USDT, flujo de recargas/retiros y gestión integral de gastos operativos.
                 </p>
               </div>
 
-              <button
-                onClick={exportFinancialReportCSV}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition shadow self-start md:self-auto"
-                title="Descargar reporte financiero en formato CSV/Excel"
-              >
-                <span>📥</span>
-                <span>Exportar Balance Excel</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2.5 self-start sm:self-auto">
+                <button
+                  onClick={() => {
+                    setExpenseFormType("BS");
+                    setExpenseFormCategory("Servidor / Infraestructura");
+                    setExpenseFormDescription("");
+                    setExpenseFormAmount("");
+                    setExpenseFormUsdtReceived("");
+                    setExpenseFormNotes("");
+                    setIsExpenseModalOpen(true);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-amber-950 font-black text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition"
+                >
+                  <span className="text-sm">➕</span>
+                  <span>Registrar Gasto / Compra USDT</span>
+                </button>
+
+                <button
+                  onClick={exportFinancialReportCSV}
+                  className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-emerald-950/70 hover:bg-emerald-900 text-emerald-300 border border-emerald-500/40 text-xs font-bold transition shadow"
+                  title="Descargar reporte financiero en formato CSV/Excel"
+                >
+                  <span>📥</span>
+                  <span>Exportar Excel</span>
+                </button>
+              </div>
             </div>
 
             {/* Alerta de Recargas Pendientes por Validar */}
@@ -6007,7 +6178,76 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
               </div>
             )}
 
-            {/* Cuadrícula de Balances en Bolívares */}
+            {/* SECCIÓN 1: CAJAS NETAS REALES Y GASTOS (DUAL BS / USDT) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              {/* Caja Real Neta Bs */}
+              <div className="relative overflow-hidden bg-gradient-to-br from-[#1a1208] via-[#120904] to-[#0a0502] border-2 border-emerald-500/60 rounded-3xl p-5 shadow-xl">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1.5">
+                    <span>🇻🇪</span>
+                    <span>Caja Real Bolívares</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">
+                    Disponible
+                  </span>
+                </div>
+                <div className={`text-3xl font-black ${financialSummary.cajaNetaBs >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                  Bs. {financialSummary.cajaNetaBs.toLocaleString()}
+                </div>
+                <p className="text-[11px] text-amber-100/70 mt-2 leading-relaxed">
+                  Ingresos (Bs. {financialSummary.totalDeposits.toLocaleString()}) − Retiros Pagados (Bs. {financialSummary.totalWithdrawalsPaid.toLocaleString()}) − Gastos Bs. (Bs. {financialSummary.totalBsExpenses.toLocaleString()})
+                </p>
+              </div>
+
+              {/* Caja Real Neta USDT */}
+              <div className="relative overflow-hidden bg-gradient-to-br from-[#121815] via-[#091410] to-[#040a08] border-2 border-cyan-500/60 rounded-3xl p-5 shadow-xl">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-[11px] font-black uppercase tracking-wider text-cyan-300 flex items-center gap-1.5">
+                    <span>💵</span>
+                    <span>Caja Neta USDT</span>
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-cyan-500/20 text-cyan-300 border border-cyan-500/40">
+                    Fondo Cripto
+                  </span>
+                </div>
+                <div className={`text-3xl font-black ${financialSummary.cajaNetaUsdt >= 0 ? "text-cyan-300" : "text-red-400"}`}>
+                  ${financialSummary.cajaNetaUsdt.toLocaleString()} <span className="text-sm text-cyan-400 font-bold">USDT</span>
+                </div>
+                <p className="text-[11px] text-cyan-100/70 mt-2 leading-relaxed">
+                  USDT Comprados (${financialSummary.totalUsdtPurchased.toLocaleString()}) − Gastos USDT (${financialSummary.totalUsdtExpenses.toLocaleString()})
+                </p>
+              </div>
+
+              {/* Total Gastos en Bs */}
+              <div className="bg-[#180e07] border border-red-500/40 rounded-3xl p-5 shadow-lg">
+                <div className="flex items-center justify-between mb-2 text-rose-400">
+                  <span className="text-[11px] font-black uppercase tracking-wider">Gastos en Bolívares</span>
+                  <span className="text-lg">📉</span>
+                </div>
+                <div className="text-2xl font-black text-rose-400">
+                  Bs. {financialSummary.totalBsExpenses.toLocaleString()}
+                </div>
+                <p className="text-[11px] text-rose-200/70 mt-2">
+                  {expenses.filter(e => e.currency === "BS").length} egresos registrados (incluye Bs. usados para comprar USDT)
+                </p>
+              </div>
+
+              {/* Total Gastos en USDT */}
+              <div className="bg-[#180e07] border border-purple-500/40 rounded-3xl p-5 shadow-lg">
+                <div className="flex items-center justify-between mb-2 text-purple-300">
+                  <span className="text-[11px] font-black uppercase tracking-wider">Gastos en USDT</span>
+                  <span className="text-lg">💸</span>
+                </div>
+                <div className="text-2xl font-black text-purple-300">
+                  ${financialSummary.totalUsdtExpenses.toLocaleString()} <span className="text-sm font-bold">USDT</span>
+                </div>
+                <p className="text-[11px] text-purple-200/70 mt-2">
+                  {expenses.filter(e => e.currency === "USDT").length} egresos directos pagados en USDT
+                </p>
+              </div>
+            </div>
+
+            {/* SECCIÓN 2: FLUJO DE ENTRADAS Y SALIDAS BASE */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {/* Recargas Aprobadas */}
               <div className="bg-[#180e07] border border-green-500/40 rounded-2xl p-4 shadow-lg">
@@ -6079,26 +6319,175 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                 </p>
               </div>
 
-              {/* Balance Neto en Caja */}
+              {/* Balance Contable Base */}
               <div className="bg-[#180e07] border border-amber-500/50 rounded-2xl p-4 shadow-lg">
                 <div className="flex items-center justify-between text-amber-400 mb-2">
-                  <span className="text-xs font-bold uppercase tracking-wider">Balance Neto en Caja</span>
+                  <span className="text-xs font-bold uppercase tracking-wider">Flujo Contable Recargas - Retiros</span>
                   <span className="text-xl">🏦</span>
                 </div>
-                <div
-                  className={`text-2xl font-black ${
-                    financialSummary.netBsBalance >= 0 ? "text-amber-300" : "text-red-400"
-                  }`}
-                >
+                <div className={`text-2xl font-black ${financialSummary.netBsBalance >= 0 ? "text-amber-300" : "text-red-400"}`}>
                   Bs. {financialSummary.netBsBalance.toLocaleString()}
                 </div>
                 <p className="text-[11px] text-amber-200/70 mt-1">
-                  Caja confirmada (Aprobadas - Pagados). Con pendientes: Bs. {financialSummary.netBsBalanceWithPending.toLocaleString()}
+                  Antes de gastos operativos. Con pendientes: Bs. {financialSummary.netBsBalanceWithPending.toLocaleString()}
                 </p>
               </div>
             </div>
 
-            {/* Métricas de Monedas y Casa */}
+            {/* SECCIÓN 3: CONTROL Y TABLA INTERACTIVA DE GASTOS */}
+            <div className="bg-[#180e07] border border-amber-500/40 rounded-3xl p-5 shadow-xl space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-amber-500/20">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-xl">📋</span>
+                  <div>
+                    <h2 className="text-base font-black text-amber-300">
+                      Historial de Gastos y Movimientos de Caja
+                    </h2>
+                    <p className="text-[11px] text-amber-200/60">
+                      Registro detallado de salidas en Bolívares, salidas en USDT y compras de criptoactivos.
+                    </p>
+                  </div>
+                </div>
+
+                {/* Filtros */}
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Filtro Moneda */}
+                  <div className="flex rounded-xl bg-[#120803] border border-amber-500/30 p-0.5 text-xs font-bold">
+                    {[
+                      { key: "ALL", label: "Todas" },
+                      { key: "BS", label: "Bs." },
+                      { key: "USDT", label: "USDT" }
+                    ].map(cur => (
+                      <button
+                        key={cur.key}
+                        onClick={() => setExpenseFilterCurrency(cur.key)}
+                        className={`px-2.5 py-1 rounded-lg transition ${expenseFilterCurrency === cur.key ? "bg-amber-500 text-amber-950 font-black shadow" : "text-amber-200/70 hover:text-white"}`}
+                      >
+                        {cur.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Selector Categoría */}
+                  <select
+                    value={expenseFilterCategory}
+                    onChange={(e) => setExpenseFilterCategory(e.target.value)}
+                    className="bg-[#120803] border border-amber-500/30 text-amber-200 text-xs rounded-xl px-2.5 py-1.5 focus:outline-none"
+                  >
+                    <option value="ALL">Todas las categorías</option>
+                    <option value="Servidor / Infraestructura">Servidor / Infraestructura</option>
+                    <option value="Desarrollo & Mejoras">Desarrollo & Mejoras</option>
+                    <option value="Compra USDT">Compra USDT</option>
+                    <option value="Marketing & Publicidad">Marketing & Publicidad</option>
+                    <option value="Nómina / Administrativo">Nómina / Administrativo</option>
+                    <option value="Comisiones Bancarias">Comisiones Bancarias</option>
+                    <option value="Varios / Otros">Varios / Otros</option>
+                  </select>
+
+                  <button
+                    onClick={() => {
+                      setExpenseFormType("BS");
+                      setExpenseFormCategory("Servidor / Infraestructura");
+                      setExpenseFormDescription("");
+                      setExpenseFormAmount("");
+                      setExpenseFormUsdtReceived("");
+                      setExpenseFormNotes("");
+                      setIsExpenseModalOpen(true);
+                    }}
+                    className="px-3 py-1.5 rounded-xl bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/40 text-xs font-bold transition flex items-center gap-1.5"
+                  >
+                    <span>➕ Registrar</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Tabla de Gastos */}
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-amber-500/20 text-amber-400 font-bold uppercase text-[10px] tracking-wider">
+                      <th className="py-2.5 px-3"># ID</th>
+                      <th className="py-2.5 px-3">Fecha</th>
+                      <th className="py-2.5 px-3">Tipo / Moneda</th>
+                      <th className="py-2.5 px-3">Categoría</th>
+                      <th className="py-2.5 px-3">Descripción</th>
+                      <th className="py-2.5 px-3 text-right">Monto Gastado</th>
+                      <th className="py-2.5 px-3 text-right">USDT Recibidos / Tasa</th>
+                      <th className="py-2.5 px-3">Notas</th>
+                      <th className="py-2.5 px-3 text-center">Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-amber-500/10">
+                    {filteredExpenses.length === 0 ? (
+                      <tr>
+                        <td colSpan={9} className="py-8 text-center text-amber-200/50">
+                          No se han registrado gastos en esta categoría o moneda. Haz clic en "➕ Registrar Gasto" para comenzar.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredExpenses.map((exp) => (
+                        <tr key={exp.id} className="hover:bg-amber-500/5 transition">
+                          <td className="py-3 px-3 font-mono text-amber-400/80">#{exp.id}</td>
+                          <td className="py-3 px-3 text-amber-100/80 whitespace-nowrap">
+                            {new Date(exp.createdAt).toLocaleString()}
+                          </td>
+                          <td className="py-3 px-3">
+                            {exp.category?.includes("Compra USDT") ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center gap-1 w-max">
+                                🔄 Compra USDT
+                              </span>
+                            ) : exp.currency === "BS" ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500/20 text-amber-300 border border-amber-500/40 flex items-center gap-1 w-max">
+                                🇻🇪 Bolívares
+                              </span>
+                            ) : (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-purple-500/20 text-purple-300 border border-purple-500/40 flex items-center gap-1 w-max">
+                                💵 USDT
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 font-semibold text-amber-200">{exp.category}</td>
+                          <td className="py-3 px-3 text-white font-medium max-w-xs truncate" title={exp.description}>
+                            {exp.description}
+                          </td>
+                          <td className="py-3 px-3 text-right font-black text-rose-400 whitespace-nowrap">
+                            − {exp.currency === "BS" ? `Bs. ${exp.amount.toLocaleString()}` : `$ ${exp.amount.toLocaleString()} USDT`}
+                          </td>
+                          <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
+                            {exp.usdtReceived && exp.usdtReceived > 0 ? (
+                              <div>
+                                <span className="text-emerald-400 font-bold">+${exp.usdtReceived.toLocaleString()} USDT</span>
+                                {exp.exchangeRate && (
+                                  <div className="text-[10px] text-amber-200/60">
+                                    @ Bs. {exp.exchangeRate.toLocaleString()} / $
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-amber-200/40">—</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-3 text-amber-200/70 max-w-[150px] truncate" title={exp.notes || ""}>
+                            {exp.notes || "—"}
+                          </td>
+                          <td className="py-3 px-3 text-center">
+                            <button
+                              onClick={() => handleDeleteExpense(exp.id)}
+                              className="px-2 py-1 rounded-lg bg-red-950/60 hover:bg-red-900 text-red-300 border border-red-500/40 text-[11px] font-bold transition"
+                              title="Eliminar gasto y reintegrar al balance"
+                            >
+                              🗑️ Eliminar
+                            </button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* SECCIÓN 4: MÉTRICAS DE MONEDAS Y CASA */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
               <div className="bg-[#180e07] border border-amber-500/30 rounded-2xl p-5">
                 <div className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-1">
@@ -7377,6 +7766,220 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
           </div>
         </div>
       )}
+
+      {/* MODAL REGISTRAR GASTO / COMPRA DE USDT */}
+      {isExpenseModalOpen && (
+        <div
+          className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4"
+          onClick={() => setIsExpenseModalOpen(false)}
+        >
+          <div
+            className="bg-gradient-to-b from-[#1c0f07] to-[#120803] border-2 border-amber-500/60 rounded-3xl p-5 sm:p-6 max-w-lg w-full text-white shadow-2xl relative flex flex-col gap-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between border-b border-amber-500/20 pb-3">
+              <div>
+                <h2 className={`${fonts.bowlbyOneSC.className} text-lg text-amber-400`}>
+                  Registrar Movimiento de Caja
+                </h2>
+                <p className="text-xs text-amber-200/70 mt-0.5">
+                  Ingresa gastos operativos o compras de USDT para actualizar el balance en tiempo real.
+                </p>
+              </div>
+              <button
+                onClick={() => setIsExpenseModalOpen(false)}
+                className="w-8 h-8 rounded-full bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 flex items-center justify-center font-bold text-sm"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* Selector de Tipo */}
+            <div className="grid grid-cols-3 gap-2 bg-[#120803] p-1 rounded-2xl border border-amber-500/30">
+              <button
+                type="button"
+                onClick={() => {
+                  setExpenseFormType("BS");
+                  if (expenseFormCategory.includes("Compra")) setExpenseFormCategory("Servidor / Infraestructura");
+                }}
+                className={`py-2 px-1 rounded-xl text-xs font-black transition flex flex-col items-center gap-1 ${
+                  expenseFormType === "BS" ? "bg-amber-500 text-amber-950 shadow" : "text-amber-200/70 hover:text-white"
+                }`}
+              >
+                <span>🇻🇪 Gasto en Bs.</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setExpenseFormType("USDT");
+                  if (expenseFormCategory.includes("Compra")) setExpenseFormCategory("Servidor / Infraestructura");
+                }}
+                className={`py-2 px-1 rounded-xl text-xs font-black transition flex flex-col items-center gap-1 ${
+                  expenseFormType === "USDT" ? "bg-cyan-500 text-cyan-950 shadow" : "text-amber-200/70 hover:text-white"
+                }`}
+              >
+                <span>💵 Gasto en USDT</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setExpenseFormType("COMPRA_USDT");
+                  setExpenseFormCategory("Compra USDT");
+                }}
+                className={`py-2 px-1 rounded-xl text-xs font-black transition flex flex-col items-center gap-1 ${
+                  expenseFormType === "COMPRA_USDT" ? "bg-emerald-500 text-emerald-950 shadow" : "text-amber-200/70 hover:text-white"
+                }`}
+              >
+                <span>🔄 Compra USDT</span>
+              </button>
+            </div>
+
+            <form onSubmit={handleCreateExpense} className="space-y-3.5">
+              {/* Descripción */}
+              <div>
+                <label className="block text-xs font-bold text-amber-300 mb-1">
+                  {expenseFormType === "COMPRA_USDT" ? "Concepto / Proveedor" : "Descripción o Concepto"}
+                </label>
+                <input
+                  type="text"
+                  required
+                  placeholder={
+                    expenseFormType === "COMPRA_USDT"
+                      ? "Ej. Compra 50 USDT en Binance P2P"
+                      : expenseFormType === "BS"
+                      ? "Ej. Pago mensual VPS / Soporte técnico / Mejoras de código"
+                      : "Ej. Pago API OpenAI / Servidor internacional en USDT"
+                  }
+                  value={expenseFormDescription}
+                  onChange={(e) => setExpenseFormDescription(e.target.value)}
+                  className="w-full bg-[#120803] border border-amber-500/40 rounded-xl px-3 py-2 text-xs text-white placeholder-amber-200/40 focus:outline-none focus:border-amber-400"
+                />
+              </div>
+
+              {/* Categoría (solo si no es compra usdt) */}
+              {expenseFormType !== "COMPRA_USDT" && (
+                <div>
+                  <label className="block text-xs font-bold text-amber-300 mb-1">
+                    Categoría
+                  </label>
+                  <select
+                    value={expenseFormCategory}
+                    onChange={(e) => setExpenseFormCategory(e.target.value)}
+                    className="w-full bg-[#120803] border border-amber-500/40 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-400"
+                  >
+                    <option value="Servidor / Infraestructura">Servidor / Infraestructura (Hosting, Dominio)</option>
+                    <option value="Desarrollo & Mejoras">Desarrollo & Mejoras de la App</option>
+                    <option value="Marketing & Publicidad">Marketing & Publicidad (Redes, Promociones)</option>
+                    <option value="Nómina / Administrativo">Nómina / Sueldos / Administrativo</option>
+                    <option value="Comisiones Bancarias">Comisiones Bancarias / Pasarelas</option>
+                    <option value="Varios / Otros">Varios / Otros Gastos</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Campos de Montos según tipo */}
+              {expenseFormType === "COMPRA_USDT" ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-amber-950/30 p-3 rounded-2xl border border-amber-500/30">
+                  <div>
+                    <label className="block text-[11px] font-black text-amber-300 mb-1">
+                      Bolívares Pagados (Sale de Caja Bs.)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0.01"
+                      required
+                      placeholder="Ej. 5000"
+                      value={expenseFormAmount}
+                      onChange={(e) => setExpenseFormAmount(e.target.value)}
+                      className="w-full bg-[#120803] border border-amber-500/40 rounded-xl px-3 py-2 text-xs text-white placeholder-amber-200/40 focus:outline-none focus:border-amber-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-black text-cyan-300 mb-1">
+                      USDT Recibidos (Entra a Caja USDT)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0.01"
+                      required
+                      placeholder="Ej. 50"
+                      value={expenseFormUsdtReceived}
+                      onChange={(e) => setExpenseFormUsdtReceived(e.target.value)}
+                      className="w-full bg-[#120803] border border-cyan-500/40 rounded-xl px-3 py-2 text-xs text-white placeholder-cyan-200/40 focus:outline-none focus:border-cyan-400"
+                    />
+                  </div>
+
+                  {/* Cálculo en vivo de tasa */}
+                  {parseFloat(expenseFormAmount) > 0 && parseFloat(expenseFormUsdtReceived) > 0 && (
+                    <div className="sm:col-span-2 text-center text-xs font-black text-emerald-400 bg-emerald-950/50 py-1.5 px-3 rounded-xl border border-emerald-500/30">
+                      Tasa implícita calculada: Bs. {(parseFloat(expenseFormAmount) / parseFloat(expenseFormUsdtReceived)).toFixed(2)} por cada USDT
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-bold text-amber-300 mb-1">
+                    Monto a Deducir ({expenseFormType === "BS" ? "Bolívares Bs." : "Dólares USDT"})
+                  </label>
+                  <input
+                    type="number"
+                    step="any"
+                    min="0.01"
+                    required
+                    placeholder={expenseFormType === "BS" ? "Ej. 1200.50" : "Ej. 25.00"}
+                    value={expenseFormAmount}
+                    onChange={(e) => setExpenseFormAmount(e.target.value)}
+                    className="w-full bg-[#120803] border border-amber-500/40 rounded-xl px-3 py-2 text-xs text-white placeholder-amber-200/40 focus:outline-none focus:border-amber-400"
+                  />
+                </div>
+              )}
+
+              {/* Notas adicionales */}
+              <div>
+                <label className="block text-xs font-bold text-amber-300 mb-1">
+                  Notas Adicionales (Opcional)
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ej. Factura #0921, comprobante en WhatsApp, etc."
+                  value={expenseFormNotes}
+                  onChange={(e) => setExpenseFormNotes(e.target.value)}
+                  className="w-full bg-[#120803] border border-amber-500/40 rounded-xl px-3 py-2 text-xs text-white placeholder-amber-200/40 focus:outline-none focus:border-amber-400"
+                />
+              </div>
+
+              {/* Botones de acción */}
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-amber-500/20">
+                <button
+                  type="button"
+                  onClick={() => setIsExpenseModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-transparent hover:bg-white/5 text-amber-200/70 text-xs font-bold transition"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={loadingExpense}
+                  className="px-5 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-amber-950 font-black text-xs shadow-lg shadow-amber-500/20 active:scale-95 transition flex items-center gap-2"
+                >
+                  {loadingExpense ? (
+                    <span>Guardando...</span>
+                  ) : (
+                    <>
+                      <span>💾</span>
+                      <span>Guardar en Caja</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }
