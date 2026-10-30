@@ -239,22 +239,6 @@ export default function GameHeaderMenu({
               </button>
             )}
 
-            {/* Opción Descargar App Android (.APK) */}
-            <a
-              href="/el-pericon.apk"
-              download="el-pericon.apk"
-              onClick={() => setMenuOpen(false)}
-              className="w-full text-left px-3 py-2 text-xs rounded-xl bg-emerald-950/40 hover:bg-emerald-900/60 text-emerald-300 border border-emerald-600/40 flex items-center justify-between font-bold transition active:scale-95 shadow-sm"
-            >
-              <div className="flex items-center gap-2">
-                <span className="text-sm">📲</span>
-                <span>Descargar App Android</span>
-              </div>
-              <span className="text-[9px] bg-emerald-500/30 text-emerald-200 border border-emerald-400/40 px-1.5 py-0.5 rounded font-black uppercase">
-                APK
-              </span>
-            </a>
-
             <button
               onClick={() => {
                 setMenuOpen(false);

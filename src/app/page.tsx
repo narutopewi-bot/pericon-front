@@ -176,15 +176,7 @@ export default function Home() {
                 Crear Cuenta Nueva
               </Button>
 
-              {/* Botón Descargar App Android Oficial (.APK) */}
-              <a
-                href="/el-pericon.apk"
-                download="el-pericon.apk"
-                className="z-30 w-full bg-gradient-to-r from-emerald-600 via-green-600 to-teal-700 hover:from-emerald-500 hover:to-green-500 text-white py-2.5 px-3 rounded-2xl text-xs font-black shadow-lg shadow-green-950/50 border border-emerald-400 hover:scale-[1.02] active:scale-95 transition-all flex items-center justify-center gap-2 tracking-wide text-center">
-                <span className="text-base">📲</span>
-                <span>Descargar App Android (.APK)</span>
-                <span className="bg-black/40 text-[9px] px-1.5 py-0.5 rounded text-emerald-200">v1.0</span>
-              </a>
+
             </>
           )}
         </div>
