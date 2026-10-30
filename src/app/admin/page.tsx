@@ -5,6 +5,7 @@ import Image from "next/image";
 import * as fonts from "@/components/fonts";
 import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
+import { showNativeNotification, triggerNativeHaptic, isApkEnvironment } from "@/lib/nativeBridge";
 
 interface AdminStats {
   totalUsers: number;
@@ -1031,6 +1032,38 @@ export default function AdminPage() {
       fetchErrorLogs();
     }
   }, [errorStatusFilter, errorSourceFilter, isAuthenticated]);
+
+  // Monitoreo Automático de Recargas y Notificaciones Nativas para Administrador (APK & Web)
+  const lastPendingCountRef = React.useRef<number>(0);
+
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await adminFetch(`${apiUrl}/api/admin/stats`);
+        if (res.ok) {
+          const statsData: AdminStats = await res.json();
+          setStats(statsData);
+
+          const currentPending = statsData.pendingRecharges || 0;
+          if (currentPending > lastPendingCountRef.current && currentPending > 0) {
+            showNativeNotification(
+              "🔔 ¡Nueva Recarga Pendiente!",
+              `Hay ${currentPending} recarga(s) esperando tu aprobación en El Pericón.`,
+              "/admin"
+            );
+            triggerNativeHaptic('heavy');
+          }
+          lastPendingCountRef.current = currentPending;
+        }
+      } catch {
+        // Monitoreo silencioso
+      }
+    }, 15000);
+
+    return () => clearInterval(interval);
+  }, [isAuthenticated, apiUrl]);
 
   const handleUpdateErrorStatus = async (id: number, status: string, notes?: string) => {
     try {
@@ -3591,6 +3624,21 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                                     title="Jugador Especial Monitoreado"
                                   >
                                     🎯 CHE
+                                  </span>
+                                )}
+                                {u.phoneNumber ? (
+                                  <span
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
+                                    title="Usuario con App Android (APK)"
+                                  >
+                                    📱 APK
+                                  </span>
+                                ) : (
+                                  <span
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-800 text-zinc-400 border border-zinc-700/50"
+                                    title="Usuario en Navegador Web"
+                                  >
+                                    🌐 Web
                                   </span>
                                 )}
                               </div>

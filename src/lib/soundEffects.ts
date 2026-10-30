@@ -3,6 +3,8 @@
  * 100% nativo en el navegador, sin dependencias de archivos externos MP3 ni retrasos de red.
  */
 
+import { triggerNativeHaptic } from "./nativeBridge";
+
 let audioCtx: AudioContext | null = null;
 
 export function getSharedAudioContext(): AudioContext | null {
@@ -114,6 +116,7 @@ export function playCardDealSound(): void {
 
 /** Sonido al tirar una carta a la mesa (impacto en fieltro) */
 export function playCardDropSound(): void {
+  triggerNativeHaptic('light');
   if (isSoundMuted()) return;
   const ctx = getAudioContext();
   if (!ctx) return;
@@ -138,6 +141,7 @@ export function playCardDropSound(): void {
 
 /** Tintineo metálico de monedas de oro ganadas */
 export function playCoinWinSound(): void {
+  triggerNativeHaptic('win');
   if (isSoundMuted()) return;
   const ctx = getAudioContext();
   if (!ctx) return;
@@ -187,6 +191,7 @@ export function playTimerTickSound(): void {
 
 /** Alerta de tiempo crítico (últimos 5 segundos del turno) */
 export function playTimerAlertSound(): void {
+  triggerNativeHaptic('turn');
   if (isSoundMuted()) return;
   const ctx = getAudioContext();
   if (!ctx) return;
@@ -210,6 +215,7 @@ export function playTimerAlertSound(): void {
 
 /** Acorde resonante para cantos de Envido / 3, 6, 9 o Tumba */
 export function playCantoSound(): void {
+  triggerNativeHaptic('heavy');
   if (isSoundMuted()) return;
   const ctx = getAudioContext();
   if (!ctx) return;
