@@ -11,6 +11,13 @@ const HOOK_PATTERNS = [
   /useReducer\s*\(/
 ];
 
+const FORBIDDEN_SECURITY_PATTERNS = [
+  { pattern: /Steven\.09/, desc: "Contraseña maestra Steven.09 detectada en el cliente" },
+  { pattern: /Guardian\.2026/, desc: "Contraseña maestra legacy detectada en el cliente" },
+  { pattern: /Guardian_SecKey/, desc: "Clave secreta HMAC del servidor detectada en el cliente" },
+  { pattern: /password:\s*["'][^"']+["']/, desc: "Contraseña estática quemada en el código del frontend" }
+];
+
 function scanDirectory(dir) {
   let hasErrors = false;
   const entries = fs.readdirSync(dir, { withFileTypes: true });
@@ -28,18 +35,28 @@ function scanDirectory(dir) {
 
       for (let i = 0; i < lines.length; i++) {
         const line = lines[i];
-        
-        // Comprobar si la línea contiene un hook de React
+
+        // 1. Escaneo de Reglas de Hooks de React
         for (const pattern of HOOK_PATTERNS) {
           if (pattern.test(line)) {
-            // Un hook en el nivel superior de un componente funcional suele estar a depth 1
             if (depth > 1) {
               console.error(`\x1b[31m[ERROR VIOLACIÓN DE HOOKS]\x1b[0m ${fullPath}:${i + 1}`);
               console.error(`  --> Llamada a hook detectada dentro de un bloque anidado (Profundidad: ${depth}):`);
               console.error(`      ${line.trim()}`);
-              console.error(`  \x1b[33m¡Regla de React violada! Los hooks NUNCA deben llamarse dentro de callbacks, condiciones o funciones anidadas.\x1b[0m\n`);
+              console.error(`  \x1b[33m¡Regla de React violada! Los hooks NUNCA deben llamarse dentro de callbacks o condiciones.\x1b[0m\n`);
               hasErrors = true;
             }
+          }
+        }
+
+        // 2. Escaneo Estricto de Ciberseguridad (Zero Hardcoded Secrets)
+        for (const sec of FORBIDDEN_SECURITY_PATTERNS) {
+          if (sec.pattern.test(line)) {
+            console.error(`\x1b[41m\x1b[37m[ERROR CRÍTICO DE SEGURIDAD]\x1b[0m ${fullPath}:${i + 1}`);
+            console.error(`  --> ${sec.desc}:`);
+            console.error(`      ${line.trim()}`);
+            console.error(`  \x1b[33m¡Regla de Seguridad violada! CERO credenciales o secretos en el código frontend.\x1b[0m\n`);
+            hasErrors = true;
           }
         }
 
@@ -55,14 +72,14 @@ function scanDirectory(dir) {
   return hasErrors;
 }
 
-console.log('🔍 [Guardián de Integridad] Verificando Reglas de Hooks en todo el código frontend...');
+console.log('🔍 [Guardián de Integridad & Seguridad] Verificando Código Frontend...');
 const srcDir = path.join(__dirname, '..', 'src');
 const failed = scanDirectory(srcDir);
 
 if (failed) {
-  console.error('\x1b[41m\x1b[37m ERROR CRÍTICO: Se encontraron llamadas a hooks anidadas. Build cancelado por seguridad. \x1b[0m\n');
+  console.error('\x1b[41m\x1b[37m ERROR CRÍTICO: Violación de Integridad o Seguridad detectada. Compilación cancelada de inmediato. \x1b[0m\n');
   process.exit(1);
 } else {
-  console.log('\x1b[32m✔ [Guardián de Integridad] Todos los componentes cumplen al 100% con las Reglas de Hooks de React.\x1b[0m\n');
+  console.log('\x1b[32m✔ [Guardián de Integridad & Seguridad] 100% Blindado: Cero secretos expuestos y Hooks en regla.\x1b[0m\n');
   process.exit(0);
 }
