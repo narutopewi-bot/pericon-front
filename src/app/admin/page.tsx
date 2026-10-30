@@ -123,6 +123,8 @@ interface UserRow {
   isActive: boolean;
   isAdmin?: boolean;
   botDifficulty?: "general" | "facil" | "medio" | "dificil" | "favor_jugador";
+  clientType?: string;
+  deviceFingerprint?: string;
 }
 
 interface PromoCodeRow {
@@ -2551,6 +2553,91 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
         </div>
       </header>
 
+      {/* BARRA DESLIZABLE DE PESTAÑAS RÁPIDAS PARA CELULAR */}
+      <div className="md:hidden sticky top-[49px] z-30 bg-[#140a05]/95 backdrop-blur-md border-b border-amber-500/20 px-2.5 py-2 flex items-center gap-1.5 overflow-x-auto scrollbar-none shadow-md">
+        <button
+          onClick={() => setActiveTab("dashboard")}
+          className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 ${
+            activeTab === "dashboard" ? "bg-amber-500 text-amber-950 shadow" : "bg-[#201007] text-amber-200/70 border border-amber-500/20"
+          }`}
+        >
+          <span>📊</span> Resumen
+        </button>
+
+        <button
+          onClick={() => setActiveTab("recharges")}
+          className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 ${
+            activeTab === "recharges" ? "bg-amber-500 text-amber-950 shadow" : "bg-[#201007] text-amber-200/70 border border-amber-500/20"
+          }`}
+        >
+          <span>📥</span> Recargas
+          {financialSummary.pendingCount > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-red-500 text-white font-black animate-pulse">
+              {financialSummary.pendingCount}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab("withdrawals")}
+          className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 ${
+            activeTab === "withdrawals" ? "bg-amber-500 text-amber-950 shadow" : "bg-[#201007] text-amber-200/70 border border-amber-500/20"
+          }`}
+        >
+          <span>📤</span> Retiros
+          {(stats?.pendingWithdrawals || 0) > 0 && (
+            <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-red-500 text-white font-black animate-pulse">
+              {stats?.pendingWithdrawals}
+            </span>
+          )}
+        </button>
+
+        <button
+          onClick={() => setActiveTab("users")}
+          className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 ${
+            activeTab === "users" ? "bg-amber-500 text-amber-950 shadow" : "bg-[#201007] text-amber-200/70 border border-amber-500/20"
+          }`}
+        >
+          <span>👥</span> Usuarios
+        </button>
+
+        <button
+          onClick={() => setActiveTab("whatsapp")}
+          className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 ${
+            activeTab === "whatsapp" ? "bg-emerald-500 text-emerald-950 shadow" : "bg-[#201007] text-emerald-300/80 border border-emerald-500/30"
+          }`}
+        >
+          <span>📱</span> WhatsApp
+        </button>
+
+        <button
+          onClick={() => setActiveTab("matches")}
+          className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 ${
+            activeTab === "matches" ? "bg-amber-500 text-amber-950 shadow" : "bg-[#201007] text-amber-200/70 border border-amber-500/20"
+          }`}
+        >
+          <span>⚔️</span> Partidas
+        </button>
+
+        <button
+          onClick={() => setActiveTab("reports")}
+          className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 ${
+            activeTab === "reports" ? "bg-amber-500 text-amber-950 shadow" : "bg-[#201007] text-amber-200/70 border border-amber-500/20"
+          }`}
+        >
+          <span>📈</span> Reportes
+        </button>
+
+        <button
+          onClick={() => setActiveTab("broadcast")}
+          className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 ${
+            activeTab === "broadcast" ? "bg-amber-500 text-amber-950 shadow" : "bg-[#201007] text-amber-200/70 border border-amber-500/20"
+          }`}
+        >
+          <span>📢</span> Avisos
+        </button>
+      </div>
+
       {/* ========================================================================= */}
       {/* DRAWER / MENÚ DESPLEGABLE MÓVIL (OFF-CANVAS) */}
       {/* ========================================================================= */}
@@ -3690,16 +3777,16 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                                     🎯 CHE
                                   </span>
                                 )}
-                                {u.phoneNumber ? (
+                                {(isGuardian || u.clientType === "apk" || (u.deviceFingerprint && (u.deviceFingerprint.includes("apk") || u.deviceFingerprint.includes("android")))) ? (
                                   <span
-                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30"
-                                    title="Usuario con App Android (APK)"
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                                    title="Usuario verificado con App Android (APK)"
                                   >
                                     📱 APK
                                   </span>
                                 ) : (
                                   <span
-                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-800 text-zinc-400 border border-zinc-700/50"
+                                    className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-zinc-800/80 text-zinc-400 border border-zinc-700/50"
                                     title="Usuario en Navegador Web"
                                   >
                                     🌐 Web
