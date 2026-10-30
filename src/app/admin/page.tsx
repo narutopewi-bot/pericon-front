@@ -1728,6 +1728,30 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
     }
   };
 
+  // RESTABLECER RECARGA A PENDIENTE
+  const handleResetPendingRecharge = async (id: number) => {
+    if (!window.confirm(`⚠️ ¿Deseas restablecer la recarga #${id} a estado PENDIENTE para revisión manual?`)) {
+      return;
+    }
+    setActionMessage(null);
+    try {
+      const res = await adminFetch(`${apiUrl}/api/admin/recharge/${id}/reset-pending`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ revertCoins: false })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setActionMessage(`🔄 Recarga #${id} restablecida a estado PENDIENTE.`);
+        loadData();
+      } else {
+        alert(data.message || "Error al restablecer recarga.");
+      }
+    } catch {
+      alert("Error de conexión al restablecer recarga.");
+    }
+  };
+
   // RECHAZAR RECARGA
   const handleRejectRecharge = async (id: number) => {
     const reason = window.prompt(
@@ -4496,6 +4520,13 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                                   <span>💬</span>
                                   <span>Avisar WhatsApp</span>
                                 </a>
+                                  <button
+                                    onClick={() => handleResetPendingRecharge(r.id)}
+                                    className="px-2 py-1 bg-amber-700/60 hover:bg-amber-600 text-amber-200 rounded-lg text-xs font-semibold border border-amber-500/30 transition shadow"
+                                    title="Volver a poner esta recarga en revisión manual"
+                                  >
+                                    Revertir a Pendiente
+                                  </button>
                               </div>
                             ) : (
                               <span className="text-amber-200/30 text-[11px]">Rechazada</span>
