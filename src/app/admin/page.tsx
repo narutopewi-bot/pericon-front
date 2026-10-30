@@ -427,7 +427,7 @@ export default function AdminPage() {
   };
 
   const getAdminHeaders = (extraHeaders: Record<string, string> = {}, overrideToken?: string) => {
-    const t = overrideToken || adminToken || (typeof window !== "undefined" ? sessionStorage.getItem("guardian_admin_token") : "") || "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela";
+    const t = overrideToken || adminToken || (typeof window !== "undefined" ? sessionStorage.getItem("guardian_admin_token") : "") || "";
     return {
       "X-Admin-Token": t,
       ...extraHeaders,
@@ -762,69 +762,39 @@ export default function AdminPage() {
     }
   };
 
-  // Verificar sesión existente en sessionStorage o auto-reconocer usuario Guardian en localStorage
+  // Verificar sesión existente en sessionStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
       const auth = sessionStorage.getItem("guardian_session_auth");
       const token = sessionStorage.getItem("guardian_admin_token");
 
-      const performGuardianLogin = () => {
-        fetch(`${apiUrl}/api/admin/login`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: "Guardian", password: "Guardian.2026" })
+      if (auth === "true" && token && token.length > 20) {
+        fetch(`${apiUrl}/api/admin/stats`, {
+          headers: { "X-Admin-Token": token }
         })
-        .then(res => res.json())
-        .then(data => {
-          if (data.success && data.token) {
-            sessionStorage.setItem("guardian_session_auth", "true");
-            sessionStorage.setItem("guardian_admin_token", data.token);
-            setAdminToken(data.token);
+        .then(res => {
+          if (res.ok) {
+            setAdminToken(token);
             setIsAuthenticated(true);
-            loadData(data.token);
+            loadData(token);
           } else {
-            const fallbackToken = "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela";
-            sessionStorage.setItem("guardian_session_auth", "true");
-            sessionStorage.setItem("guardian_admin_token", fallbackToken);
-            setAdminToken(fallbackToken);
-            setIsAuthenticated(true);
-            loadData(fallbackToken);
+            sessionStorage.removeItem("guardian_session_auth");
+            sessionStorage.removeItem("guardian_admin_token");
+            setAdminToken("");
+            setIsAuthenticated(false);
           }
         })
         .catch(() => {
-          const fallbackToken = "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela";
-          sessionStorage.setItem("guardian_session_auth", "true");
-          sessionStorage.setItem("guardian_admin_token", fallbackToken);
-          setAdminToken(fallbackToken);
-          setIsAuthenticated(true);
-          loadData(fallbackToken);
+          sessionStorage.removeItem("guardian_session_auth");
+          sessionStorage.removeItem("guardian_admin_token");
+          setAdminToken("");
+          setIsAuthenticated(false);
         });
-      };
-
-      if (auth === "true") {
-        setIsAuthenticated(true);
-        if (token) {
-          setAdminToken(token);
-          loadData(token);
-        }
-        if (!token || token === "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela") {
-          performGuardianLogin();
-        }
-        return;
-      }
-
-      // Auto-reconocimiento si la sesión activa del juego es el usuario Guardian:
-      const stored = localStorage.getItem("pericon_user");
-      if (stored) {
-        try {
-          const user = JSON.parse(stored);
-          const uname = (user?.username || user?.name || "").trim().toLowerCase();
-          if (uname === "guardian" || user?.isAdmin === true) {
-            performGuardianLogin();
-          }
-        } catch (e) {
-          console.error("Error al verificar pericon_user para auto-login admin:", e);
-        }
+      } else {
+        sessionStorage.removeItem("guardian_session_auth");
+        sessionStorage.removeItem("guardian_admin_token");
+        setAdminToken("");
+        setIsAuthenticated(false);
       }
     }
   }, []);
@@ -837,8 +807,8 @@ export default function AdminPage() {
     const cleanUser = usernameInput.trim();
     const cleanPass = passwordInput.trim();
 
-    if (cleanUser.toLowerCase() !== "guardian") {
-      setAuthError("Acceso denegado. Este panel es exclusivo para el usuario Guardian.");
+    if (!cleanUser || !cleanPass) {
+      setAuthError("Ingresa usuario y contraseña.");
       setAuthLoading(false);
       return;
     }
@@ -851,43 +821,20 @@ export default function AdminPage() {
       });
 
       const data = await res.json();
-      if (res.ok && data.success) {
+      if (res.ok && data.success && data.token) {
+        setAdminToken(data.token);
         setIsAuthenticated(true);
         if (typeof window !== "undefined") {
           sessionStorage.setItem("guardian_session_auth", "true");
-          if (data.token) {
-            sessionStorage.setItem("guardian_admin_token", data.token);
-            setAdminToken(data.token);
-          }
+          sessionStorage.setItem("guardian_admin_token", data.token);
         }
+        loadData(data.token);
         return;
       }
 
-      // Fallback directo si las credenciales coinciden exactamente
-      if (cleanUser.toLowerCase() === "guardian" && (cleanPass === "Guardian.2026" || cleanPass.toLowerCase() === "guardian")) {
-        setIsAuthenticated(true);
-        const fallbackToken = "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela";
-        setAdminToken(fallbackToken);
-        if (typeof window !== "undefined") {
-          sessionStorage.setItem("guardian_session_auth", "true");
-          sessionStorage.setItem("guardian_admin_token", fallbackToken);
-        }
-        return;
-      }
-
-      setAuthError(data.message || "Contraseña de administrador incorrecta.");
+      setAuthError(data.message || "Usuario o contraseña de administrador incorrecta.");
     } catch {
-      if (cleanUser.toLowerCase() === "guardian" && (cleanPass === "Guardian.2026" || cleanPass.toLowerCase() === "guardian")) {
-        setIsAuthenticated(true);
-        const fallbackToken = "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela";
-        setAdminToken(fallbackToken);
-        if (typeof window !== "undefined") {
-          sessionStorage.setItem("guardian_session_auth", "true");
-          sessionStorage.setItem("guardian_admin_token", fallbackToken);
-        }
-      } else {
-        setAuthError("Error al conectar con el servidor. Verifica las credenciales.");
-      }
+      setAuthError("Error de comunicación con el servidor. Verifica tu conexión.");
     } finally {
       setAuthLoading(false);
     }

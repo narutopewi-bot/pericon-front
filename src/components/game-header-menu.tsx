@@ -49,28 +49,8 @@ export default function GameHeaderMenu({
     router.push("/");
   };
 
-  const handleOpenAdmin = async () => {
+  const handleOpenAdmin = () => {
     setMenuOpen(false);
-    if (typeof window !== "undefined") {
-      try {
-        const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app"}/api/admin/login`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ username: "Guardian", password: "Guardian.2026" })
-        });
-        const data = await res.json();
-        if (data.token) {
-          sessionStorage.setItem("guardian_session_auth", "true");
-          sessionStorage.setItem("guardian_admin_token", data.token);
-        } else {
-          sessionStorage.setItem("guardian_session_auth", "true");
-          sessionStorage.setItem("guardian_admin_token", "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela");
-        }
-      } catch {
-        sessionStorage.setItem("guardian_session_auth", "true");
-        sessionStorage.setItem("guardian_admin_token", "Guardian_SecKey_2026_Pericon$AdminToken!X9#Venezuela");
-      }
-    }
     router.push("/admin");
   };
 
@@ -204,27 +184,19 @@ export default function GameHeaderMenu({
               </span>
             </div>
 
-            {/* Acceso Directo de Administrador - PRIORITARIO SI ES GUARDIAN */}
-            {isGuardian ? (
+            {/* Acceso Directo de Administrador - EXCLUSIVO PARA GUARDIAN */}
+            {isGuardian && (
               <button
                 onClick={handleOpenAdmin}
                 className="w-full text-left px-3 py-2 text-xs rounded-xl bg-gradient-to-r from-amber-500/30 via-yellow-500/20 to-amber-500/30 hover:from-amber-500/45 hover:to-yellow-500/35 text-yellow-300 border border-yellow-400/80 flex items-center justify-between font-black transition shadow-md active:scale-95"
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-sm">🛡️</span>
+                  <span className="text-sm">👑</span>
                   <span>Panel de Administrador</span>
                 </div>
                 <span className="text-[9px] bg-yellow-400 text-black px-1.5 py-0.5 rounded font-black uppercase">
                   Acceder
                 </span>
-              </button>
-            ) : (
-              <button
-                onClick={handleOpenAdmin}
-                className="w-full text-left px-3 py-2 text-xs rounded-xl hover:bg-yellow-500/20 text-yellow-300 flex items-center gap-2 font-bold transition"
-              >
-                <span>🔒</span>
-                <span>Panel de Administrador</span>
               </button>
             )}
 
