@@ -51,6 +51,7 @@ interface PlatformExpenseRow {
   currency: "BS" | "USDT";
   amount: number;
   usdtReceived?: number | null;
+  bsReceived?: number | null;
   exchangeRate?: number | null;
   createdAt: string;
   createdBy?: string | null;
@@ -307,11 +308,12 @@ export default function AdminPage() {
   const [expenseFilterCurrency, setExpenseFilterCurrency] = useState<string>("ALL");
   const [expenseFilterCategory, setExpenseFilterCategory] = useState<string>("ALL");
   const [isExpenseModalOpen, setIsExpenseModalOpen] = useState(false);
-  const [expenseFormType, setExpenseFormType] = useState<"BS" | "USDT" | "COMPRA_USDT">("BS");
+  const [expenseFormType, setExpenseFormType] = useState<"BS" | "USDT" | "COMPRA_USDT" | "VENTA_USDT">("BS");
   const [expenseFormDescription, setExpenseFormDescription] = useState("");
   const [expenseFormCategory, setExpenseFormCategory] = useState("Servidor / Infraestructura");
   const [expenseFormAmount, setExpenseFormAmount] = useState("");
   const [expenseFormUsdtReceived, setExpenseFormUsdtReceived] = useState("");
+  const [expenseFormBsReceived, setExpenseFormBsReceived] = useState("");
   const [expenseFormNotes, setExpenseFormNotes] = useState("");
   const [loadingExpense, setLoadingExpense] = useState(false);
 
@@ -1445,6 +1447,7 @@ export default function AdminPage() {
     }
 
     let usdtReceivedNum: number | null = null;
+    let bsReceivedNum: number | null = null;
     if (expenseFormType === "COMPRA_USDT") {
       const usdtVal = parseFloat(expenseFormUsdtReceived);
       if (isNaN(usdtVal) || usdtVal <= 0) {
@@ -1452,17 +1455,29 @@ export default function AdminPage() {
         return;
       }
       usdtReceivedNum = usdtVal;
+    } else if (expenseFormType === "VENTA_USDT") {
+      const bsVal = parseFloat(expenseFormBsReceived);
+      if (isNaN(bsVal) || bsVal <= 0) {
+        Swal.fire({ icon: "error", title: "Bolívares Inválidos", text: "Ingrese la cantidad de Bolívares recibidos en la cuenta bancaria." });
+        return;
+      }
+      bsReceivedNum = bsVal;
     }
 
     try {
       setLoadingExpense(true);
       const bodyPayload = {
         description: expenseFormDescription.trim(),
-        category: expenseFormType === "COMPRA_USDT" ? "Compra USDT" : expenseFormCategory,
-        currency: expenseFormType === "USDT" ? "USDT" : "BS",
+        category: expenseFormType === "COMPRA_USDT" ? "Compra USDT" : expenseFormType === "VENTA_USDT" ? "Venta USDT" : expenseFormCategory,
+        currency: (expenseFormType === "USDT" || expenseFormType === "VENTA_USDT") ? "USDT" : "BS",
         amount: amt,
         usdtReceived: usdtReceivedNum,
-        exchangeRate: usdtReceivedNum && usdtReceivedNum > 0 ? Number((amt / usdtReceivedNum).toFixed(4)) : null,
+        bsReceived: bsReceivedNum,
+        exchangeRate: expenseFormType === "COMPRA_USDT" && usdtReceivedNum && usdtReceivedNum > 0
+          ? Number((amt / usdtReceivedNum).toFixed(4))
+          : expenseFormType === "VENTA_USDT" && bsReceivedNum && amt > 0
+          ? Number((bsReceivedNum / amt).toFixed(4))
+          : null,
         notes: expenseFormNotes.trim() || null
       };
 
@@ -1475,8 +1490,10 @@ export default function AdminPage() {
       if (res.ok) {
         Swal.fire({
           icon: "success",
-          title: "¡Gasto Registrado!",
-          text: "El movimiento ha sido registrado y el balance de caja se ha actualizado.",
+          title: expenseFormType === "VENTA_USDT" ? "¡Venta de USDT Registrada!" : "¡Gasto Registrado!",
+          text: expenseFormType === "VENTA_USDT"
+            ? "Se debitó el USDT de la caja y se inyectaron los Bolívares a la cuenta bancaria correctamente."
+            : "El movimiento ha sido registrado y el balance de caja se ha actualizado.",
           timer: 2000,
           showConfirmButton: false
         });
@@ -1484,6 +1501,7 @@ export default function AdminPage() {
         setExpenseFormDescription("");
         setExpenseFormAmount("");
         setExpenseFormUsdtReceived("");
+        setExpenseFormBsReceived("");
         setExpenseFormNotes("");
         loadData();
       } else {
@@ -1539,8 +1557,10 @@ export default function AdminPage() {
       ["Retiros Pendientes por Procesar (Bs.)", `Bs. ${financialSummary.pendingWithdrawalsBs.toLocaleString()}`],
       ["Cantidad de Retiros Pendientes", String(financialSummary.pendingWithdrawalsCount)],
       ["Gastos Operativos en Bolívares (Bs.)", `Bs. ${financialSummary.totalBsExpenses.toLocaleString()}`],
+      ["Inyección por Ventas de USDT (Bs.)", `Bs. ${financialSummary.totalBsFromUsdtSold.toLocaleString()}`],
       ["Caja Real Neta en Bolívares (Bs.)", `Bs. ${financialSummary.cajaNetaBs.toLocaleString()}`],
       ["Total Compras de USDT Realizadas (USDT)", `$ ${financialSummary.totalUsdtPurchased.toLocaleString()} USDT`],
+      ["Total Ventas de USDT Realizadas (USDT)", `$ ${financialSummary.totalUsdtSold.toLocaleString()} USDT`],
       ["Total Gastos en USDT (USDT)", `$ ${financialSummary.totalUsdtExpenses.toLocaleString()} USDT`],
       ["Caja Real Neta en USDT (USDT)", `$ ${financialSummary.cajaNetaUsdt.toLocaleString()} USDT`],
       ["Balance Neto Confirmado en Caja (Bs.)", `Bs. ${financialSummary.netBsBalance.toLocaleString()}`],
@@ -2501,10 +2521,12 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
 
     // Gastos y Caja Dual
     const totalBsExpenses = expenses.filter(e => e.currency === "BS").reduce((sum, e) => sum + e.amount, 0);
-    const totalUsdtExpenses = expenses.filter(e => e.currency === "USDT").reduce((sum, e) => sum + e.amount, 0);
+    const totalUsdtExpenses = expenses.filter(e => e.currency === "USDT" && !e.category.includes("Venta USDT") && !e.category.includes("Venta de USDT")).reduce((sum, e) => sum + e.amount, 0);
     const totalUsdtPurchased = expenses.filter(e => e.usdtReceived && e.usdtReceived > 0).reduce((sum, e) => sum + (e.usdtReceived || 0), 0);
-    const cajaNetaBs = totalDeposits - totalWithdrawalsPaid - totalBsExpenses;
-    const cajaNetaUsdt = totalUsdtPurchased - totalUsdtExpenses;
+    const totalUsdtSold = expenses.filter(e => (e.category.includes("Venta USDT") || e.category.includes("Venta de USDT")) && e.currency === "USDT").reduce((sum, e) => sum + e.amount, 0);
+    const totalBsFromUsdtSold = expenses.filter(e => e.category.includes("Venta USDT") || e.category.includes("Venta de USDT") || (e.bsReceived != null && e.bsReceived > 0)).reduce((sum, e) => sum + (e.bsReceived ?? (e.exchangeRate ? e.amount * e.exchangeRate : 0)), 0);
+    const cajaNetaBs = totalDeposits - totalWithdrawalsPaid - totalBsExpenses + totalBsFromUsdtSold;
+    const cajaNetaUsdt = totalUsdtPurchased - totalUsdtExpenses - totalUsdtSold;
 
     const totalCoinsInUsers = users.reduce((sum, u) => sum + u.coins, 0);
     const totalCommissions = matches.reduce((sum, m) => sum + m.houseCommission, 0);
@@ -2541,6 +2563,8 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
       totalBsExpenses,
       totalUsdtExpenses,
       totalUsdtPurchased,
+      totalUsdtSold,
+      totalBsFromUsdtSold,
       cajaNetaBs,
       cajaNetaUsdt,
     };
@@ -6402,6 +6426,7 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                     setExpenseFormDescription("");
                     setExpenseFormAmount("");
                     setExpenseFormUsdtReceived("");
+                    setExpenseFormBsReceived("");
                     setExpenseFormNotes("");
                     setIsExpenseModalOpen(true);
                   }}
@@ -6409,6 +6434,24 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                 >
                   <span className="text-sm">➕</span>
                   <span>Registrar Gasto / Compra USDT</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setExpenseFormType("VENTA_USDT");
+                    setExpenseFormCategory("Venta USDT");
+                    setExpenseFormDescription("Venta de USDT en Binance P2P");
+                    setExpenseFormAmount("");
+                    setExpenseFormUsdtReceived("");
+                    setExpenseFormBsReceived("");
+                    setExpenseFormNotes("");
+                    setIsExpenseModalOpen(true);
+                  }}
+                  className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs shadow-lg shadow-emerald-600/30 active:scale-95 transition"
+                  title="Vender USDT y cargar los Bolívares a la cuenta bancaria para cubrir retiros"
+                >
+                  <span className="text-sm">📈</span>
+                  <span>Vender USDT (Inyectar Bs.)</span>
                 </button>
 
                 <button
@@ -6467,9 +6510,14 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                 <div className={`text-3xl font-black ${financialSummary.cajaNetaBs >= 0 ? "text-emerald-400" : "text-red-400"}`}>
                   Bs. {financialSummary.cajaNetaBs.toLocaleString()}
                 </div>
-                <p className="text-[11px] text-amber-100/70 mt-2 leading-relaxed">
-                  Ingresos (Bs. {financialSummary.totalDeposits.toLocaleString()}) − Retiros Pagados (Bs. {financialSummary.totalWithdrawalsPaid.toLocaleString()}) − Gastos Bs. (Bs. {financialSummary.totalBsExpenses.toLocaleString()})
-                </p>
+                <div className="text-[11px] text-amber-100/70 mt-2 leading-relaxed">
+                  <span>Ingresos (Bs. {financialSummary.totalDeposits.toLocaleString()}) − Retiros (Bs. {financialSummary.totalWithdrawalsPaid.toLocaleString()}) − Gastos Bs. (Bs. {financialSummary.totalBsExpenses.toLocaleString()})</span>
+                  {financialSummary.totalBsFromUsdtSold > 0 && (
+                    <span className="block text-emerald-400 font-bold mt-1">
+                      + Venta USDT (+Bs. {financialSummary.totalBsFromUsdtSold.toLocaleString()})
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Caja Real Neta USDT */}
@@ -6486,9 +6534,14 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                 <div className={`text-3xl font-black ${financialSummary.cajaNetaUsdt >= 0 ? "text-cyan-300" : "text-red-400"}`}>
                   ${financialSummary.cajaNetaUsdt.toLocaleString()} <span className="text-sm text-cyan-400 font-bold">USDT</span>
                 </div>
-                <p className="text-[11px] text-cyan-100/70 mt-2 leading-relaxed">
-                  USDT Comprados (${financialSummary.totalUsdtPurchased.toLocaleString()}) − Gastos USDT (${financialSummary.totalUsdtExpenses.toLocaleString()})
-                </p>
+                <div className="text-[11px] text-cyan-100/70 mt-2 leading-relaxed">
+                  <span>USDT Comprados (${financialSummary.totalUsdtPurchased.toLocaleString()}) − Gastos USDT (${financialSummary.totalUsdtExpenses.toLocaleString()})</span>
+                  {financialSummary.totalUsdtSold > 0 && (
+                    <span className="block text-amber-300 font-bold mt-1">
+                      − USDT Vendidos (${financialSummary.totalUsdtSold.toLocaleString()})
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Total Gastos en Bs */}
@@ -6651,6 +6704,7 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                     <option value="Servidor / Infraestructura">Servidor / Infraestructura</option>
                     <option value="Desarrollo & Mejoras">Desarrollo & Mejoras</option>
                     <option value="Compra USDT">Compra USDT</option>
+                    <option value="Venta USDT">Venta USDT (Inyección Bs.)</option>
                     <option value="Marketing & Publicidad">Marketing & Publicidad</option>
                     <option value="Nómina / Administrativo">Nómina / Administrativo</option>
                     <option value="Comisiones Bancarias">Comisiones Bancarias</option>
@@ -6685,7 +6739,7 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                       <th className="py-2.5 px-3">Categoría</th>
                       <th className="py-2.5 px-3">Descripción</th>
                       <th className="py-2.5 px-3 text-right">Monto Gastado</th>
-                      <th className="py-2.5 px-3 text-right">USDT Recibidos / Tasa</th>
+                      <th className="py-2.5 px-3 text-right">Contraparte / Tasa</th>
                       <th className="py-2.5 px-3">Notas</th>
                       <th className="py-2.5 px-3 text-center">Acciones</th>
                     </tr>
@@ -6705,7 +6759,11 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                             {new Date(exp.createdAt).toLocaleString()}
                           </td>
                           <td className="py-3 px-3">
-                            {exp.category?.includes("Compra USDT") ? (
+                            {exp.category?.includes("Venta USDT") || exp.category?.includes("Venta de USDT") ? (
+                              <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 flex items-center gap-1 w-max">
+                                📈 Venta USDT
+                              </span>
+                            ) : exp.category?.includes("Compra USDT") ? (
                               <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-cyan-500/20 text-cyan-300 border border-cyan-500/40 flex items-center gap-1 w-max">
                                 🔄 Compra USDT
                               </span>
@@ -6723,11 +6781,26 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                           <td className="py-3 px-3 text-white font-medium max-w-xs truncate" title={exp.description}>
                             {exp.description}
                           </td>
-                          <td className="py-3 px-3 text-right font-black text-rose-400 whitespace-nowrap">
-                            − {exp.currency === "BS" ? `Bs. ${exp.amount.toLocaleString()}` : `$ ${exp.amount.toLocaleString()} USDT`}
+                          <td className="py-3 px-3 text-right font-black whitespace-nowrap">
+                            {exp.category?.includes("Venta USDT") || exp.category?.includes("Venta de USDT") ? (
+                              <span className="text-amber-400">− ${exp.amount.toLocaleString()} USDT</span>
+                            ) : exp.currency === "BS" ? (
+                              <span className="text-rose-400">− Bs. {exp.amount.toLocaleString()}</span>
+                            ) : (
+                              <span className="text-rose-400">− ${exp.amount.toLocaleString()} USDT</span>
+                            )}
                           </td>
                           <td className="py-3 px-3 text-right font-mono whitespace-nowrap">
-                            {exp.usdtReceived && exp.usdtReceived > 0 ? (
+                            {exp.category?.includes("Venta USDT") || exp.category?.includes("Venta de USDT") || (exp.bsReceived != null && exp.bsReceived > 0) ? (
+                              <div>
+                                <span className="text-emerald-400 font-bold">+Bs. {(exp.bsReceived ?? (exp.exchangeRate ? exp.amount * exp.exchangeRate : 0)).toLocaleString()}</span>
+                                {exp.exchangeRate && (
+                                  <div className="text-[10px] text-amber-200/60">
+                                    @ Bs. {exp.exchangeRate.toLocaleString()} / $
+                                  </div>
+                                )}
+                              </div>
+                            ) : exp.usdtReceived && exp.usdtReceived > 0 ? (
                               <div>
                                 <span className="text-emerald-400 font-bold">+${exp.usdtReceived.toLocaleString()} USDT</span>
                                 {exp.exchangeRate && (
@@ -8067,31 +8140,31 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
               </button>
             </div>
 
-            {/* Selector de Tipo */}
-            <div className="grid grid-cols-3 gap-2 bg-[#120803] p-1 rounded-2xl border border-amber-500/30">
+            {/* Selector de Tipo (4 Modos) */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 bg-[#120803] p-1.5 rounded-2xl border border-amber-500/30">
               <button
                 type="button"
                 onClick={() => {
                   setExpenseFormType("BS");
-                  if (expenseFormCategory.includes("Compra")) setExpenseFormCategory("Servidor / Infraestructura");
+                  if (expenseFormCategory.includes("Compra") || expenseFormCategory.includes("Venta")) setExpenseFormCategory("Servidor / Infraestructura");
                 }}
                 className={`py-2 px-1 rounded-xl text-xs font-black transition flex flex-col items-center gap-1 ${
                   expenseFormType === "BS" ? "bg-amber-500 text-amber-950 shadow" : "text-amber-200/70 hover:text-white"
                 }`}
               >
-                <span>🇻🇪 Gasto en Bs.</span>
+                <span>🇻🇪 Gasto Bs.</span>
               </button>
               <button
                 type="button"
                 onClick={() => {
                   setExpenseFormType("USDT");
-                  if (expenseFormCategory.includes("Compra")) setExpenseFormCategory("Servidor / Infraestructura");
+                  if (expenseFormCategory.includes("Compra") || expenseFormCategory.includes("Venta")) setExpenseFormCategory("Servidor / Infraestructura");
                 }}
                 className={`py-2 px-1 rounded-xl text-xs font-black transition flex flex-col items-center gap-1 ${
                   expenseFormType === "USDT" ? "bg-cyan-500 text-cyan-950 shadow" : "text-amber-200/70 hover:text-white"
                 }`}
               >
-                <span>💵 Gasto en USDT</span>
+                <span>💵 Gasto USDT</span>
               </button>
               <button
                 type="button"
@@ -8100,10 +8173,23 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                   setExpenseFormCategory("Compra USDT");
                 }}
                 className={`py-2 px-1 rounded-xl text-xs font-black transition flex flex-col items-center gap-1 ${
-                  expenseFormType === "COMPRA_USDT" ? "bg-emerald-500 text-emerald-950 shadow" : "text-amber-200/70 hover:text-white"
+                  expenseFormType === "COMPRA_USDT" ? "bg-amber-600 text-white shadow" : "text-amber-200/70 hover:text-white"
                 }`}
               >
                 <span>🔄 Compra USDT</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setExpenseFormType("VENTA_USDT");
+                  setExpenseFormCategory("Venta USDT");
+                  if (!expenseFormDescription) setExpenseFormDescription("Venta de USDT en Binance P2P");
+                }}
+                className={`py-2 px-1 rounded-xl text-xs font-black transition flex flex-col items-center gap-1 ${
+                  expenseFormType === "VENTA_USDT" ? "bg-emerald-500 text-emerald-950 shadow" : "text-amber-200/70 hover:text-white"
+                }`}
+              >
+                <span>📈 Venta USDT</span>
               </button>
             </div>
 
@@ -8111,7 +8197,7 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
               {/* Descripción */}
               <div>
                 <label className="block text-xs font-bold text-amber-300 mb-1">
-                  {expenseFormType === "COMPRA_USDT" ? "Concepto / Proveedor" : "Descripción o Concepto"}
+                  {expenseFormType === "COMPRA_USDT" ? "Concepto / Proveedor" : expenseFormType === "VENTA_USDT" ? "Concepto / Comprador P2P" : "Descripción o Concepto"}
                 </label>
                 <input
                   type="text"
@@ -8119,6 +8205,8 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                   placeholder={
                     expenseFormType === "COMPRA_USDT"
                       ? "Ej. Compra 50 USDT en Binance P2P"
+                      : expenseFormType === "VENTA_USDT"
+                      ? "Ej. Venta de USDT en Binance P2P para cubrir retiros en Bs."
                       : expenseFormType === "BS"
                       ? "Ej. Pago mensual VPS / Soporte técnico / Mejoras de código"
                       : "Ej. Pago API OpenAI / Servidor internacional en USDT"
@@ -8129,8 +8217,8 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                 />
               </div>
 
-              {/* Categoría (solo si no es compra usdt) */}
-              {expenseFormType !== "COMPRA_USDT" && (
+              {/* Categoría (solo para gastos directos BS / USDT) */}
+              {expenseFormType !== "COMPRA_USDT" && expenseFormType !== "VENTA_USDT" && (
                 <div>
                   <label className="block text-xs font-bold text-amber-300 mb-1">
                     Categoría
@@ -8151,7 +8239,48 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
               )}
 
               {/* Campos de Montos según tipo */}
-              {expenseFormType === "COMPRA_USDT" ? (
+              {expenseFormType === "VENTA_USDT" ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-emerald-950/30 p-3 rounded-2xl border border-emerald-500/30">
+                  <div>
+                    <label className="block text-[11px] font-black text-cyan-300 mb-1">
+                      USDT a Vender (Sale de Caja USDT)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0.01"
+                      required
+                      placeholder="Ej. 100"
+                      value={expenseFormAmount}
+                      onChange={(e) => setExpenseFormAmount(e.target.value)}
+                      className="w-full bg-[#120803] border border-cyan-500/40 rounded-xl px-3 py-2 text-xs text-white placeholder-cyan-200/40 focus:outline-none focus:border-cyan-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[11px] font-black text-emerald-300 mb-1">
+                      Bolívares Recibidos (Entra a Caja Bs.)
+                    </label>
+                    <input
+                      type="number"
+                      step="any"
+                      min="0.01"
+                      required
+                      placeholder="Ej. 6500"
+                      value={expenseFormBsReceived}
+                      onChange={(e) => setExpenseFormBsReceived(e.target.value)}
+                      className="w-full bg-[#120803] border border-emerald-500/40 rounded-xl px-3 py-2 text-xs text-white placeholder-emerald-200/40 focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+
+                  {/* Cálculo en vivo de tasa */}
+                  {parseFloat(expenseFormAmount) > 0 && parseFloat(expenseFormBsReceived) > 0 && (
+                    <div className="sm:col-span-2 text-center text-xs font-black text-emerald-400 bg-emerald-950/50 py-1.5 px-3 rounded-xl border border-emerald-500/30">
+                      Tasa de venta efectiva: Bs. {(parseFloat(expenseFormBsReceived) / parseFloat(expenseFormAmount)).toFixed(2)} por cada USDT
+                    </div>
+                  )}
+                </div>
+              ) : expenseFormType === "COMPRA_USDT" ? (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-amber-950/30 p-3 rounded-2xl border border-amber-500/30">
                   <div>
                     <label className="block text-[11px] font-black text-amber-300 mb-1">
