@@ -3285,7 +3285,7 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                           ? "bg-purple-600 text-white ring-2 ring-yellow-300 scale-105"
                           : "bg-gradient-to-r from-purple-800 to-fuchsia-700 hover:from-purple-700 hover:to-fuchsia-600 text-white border border-purple-400/60 hover:scale-105"
                       }`}
-                      title="40% Casa / 60% Jugador: El bot cede ventajas y mejores cartas para que Che gane"
+                      title="60% Che / 40% Casa: Che gana 6 de cada 10 con corte estricto a las 3 victorias consecutivas (Anti-desfalco)"
                     >
                       <span>⭐</span>
                       <span>60/40 A FAVOR DE CHE</span>
@@ -3355,7 +3355,7 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                     <div className="flex items-center gap-2">
                       <span className="text-base animate-pulse">⚡</span>
                       <span>
-                        <strong>MODO 60/40 ACTIVO A FAVOR DE CHE:</strong> El bot cede cartas ventajosas y no defiende la banca. Cuando consideres que recuperó monedas suficientes, pulsa <strong>"🟡 60/40 Casa"</strong> o <strong>"🌐 Reset Global"</strong>.
+                        <strong>MODO 60/40 A FAVOR DE CHE ACTIVO (BLINDADO):</strong> Che gana 6 de cada 10 partidas con corte estricto de máximo 3 consecutivas (la banca gana 1 o 2 para evitar desfalco). Pulsa <strong>"🟡 60/40 Casa"</strong> o <strong>"🟢 Fácil 50/50"</strong> cuando desees cambiar de modo.
                       </span>
                     </div>
                     <button
