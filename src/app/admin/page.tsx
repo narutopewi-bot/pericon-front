@@ -3316,7 +3316,7 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                       }`}
                     >
                       <span>🟡</span>
-                      <span>70/30 Casa</span>
+                      <span>60/40 Casa</span>
                     </button>
 
                     <button
@@ -3355,7 +3355,7 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                     <div className="flex items-center gap-2">
                       <span className="text-base animate-pulse">⚡</span>
                       <span>
-                        <strong>MODO 60/40 ACTIVO A FAVOR DE CHE:</strong> El bot cede cartas ventajosas y no defiende la banca. Cuando consideres que recuperó monedas suficientes, pulsa <strong>"🟡 70/30 Casa"</strong> o <strong>"🌐 Reset Global"</strong>.
+                        <strong>MODO 60/40 ACTIVO A FAVOR DE CHE:</strong> El bot cede cartas ventajosas y no defiende la banca. Cuando consideres que recuperó monedas suficientes, pulsa <strong>"🟡 60/40 Casa"</strong> o <strong>"🌐 Reset Global"</strong>.
                       </span>
                     </div>
                     <button
@@ -3424,7 +3424,7 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                   title="70% Casa / 30% Jugador - Recuperación de tesorería ordenada por la banca"
                 >
                   <span>🟡</span>
-                  <span>Medio (70/30)</span>
+                  <span>Medio (60/40)</span>
                 </button>
 
                 <button
@@ -3857,9 +3857,9 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                                       ? "bg-amber-500 text-black shadow ring-1 ring-amber-300"
                                       : "text-amber-300/60 hover:text-amber-200 hover:bg-amber-950/40"
                                   }`}
-                                  title="Individual Medio (70% Casa / 30% Jugador - Recuperación de Tesorería)"
+                                  title="Individual Medio (60% Casa / 40% Jugador - Retención Progresiva de Tesorería)"
                                 >
-                                  🟡 70/30
+                                  🟡 60/40
                                 </button>
                                 <button
                                   type="button"
@@ -5568,7 +5568,7 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                   title="70% Casa / 30% Jugador - Recuperación de tesorería"
                 >
                   <span>🟡</span>
-                  <span>Medio (70/30)</span>
+                  <span>Medio (60/40)</span>
                 </button>
 
                 <button
