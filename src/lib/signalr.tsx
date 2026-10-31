@@ -77,6 +77,22 @@ export const useSignalR = () => {
       notifyConnectionRestored(connectionId);
     });
 
+    newConnection.on("ForceClientRefresh", (data?: { timestamp?: string; reason?: string }) => {
+      console.log("[SignalR] Recibida orden de recarga remota del servidor:", data);
+      try {
+        if (typeof window !== "undefined") {
+          const lastReload = sessionStorage.getItem("pericon_last_remote_reload");
+          const now = Date.now();
+          if (!lastReload || now - parseInt(lastReload) > 8000) {
+            sessionStorage.setItem("pericon_last_remote_reload", now.toString());
+            setTimeout(() => {
+              window.location.reload();
+            }, 600);
+          }
+        }
+      } catch (_) {}
+    });
+
     newConnection.onclose(async (error) => {
       console.warn("[SignalR] Conexión cerrada:", error);
       setTimeout(() => {

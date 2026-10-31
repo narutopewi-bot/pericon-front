@@ -6,6 +6,7 @@ import * as fonts from "@/components/fonts";
 import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
 import { showNativeNotification, triggerNativeHaptic, isApkEnvironment } from "@/lib/nativeBridge";
+import { useSignalRContext } from "@/lib/signalrcontext";
 
 interface AdminStats {
   totalUsers: number;
@@ -271,6 +272,8 @@ type TabType = "dashboard" | "users" | "whatsapp" | "broadcast" | "recharges" | 
 
 export default function AdminPage() {
   const router = useRouter();
+  const signalrConn = useSignalRContext();
+  const [isRefreshingClients, setIsRefreshingClients] = useState(false);
 
   // Autenticación exclusiva Guardian
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -1085,8 +1088,73 @@ export default function AdminPage() {
     }
   }, [errorStatusFilter, errorSourceFilter, isAuthenticated]);
 
-  // Monitoreo Automático de Recargas y Notificaciones Nativas para Administrador (APK & Web)
+  // Chime sonoro sintetizado nativo para alertas de administración
+  const playAdminChime = () => {
+    try {
+      if (typeof window === "undefined") return;
+      const AudioCtx = window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      if (ctx.state === "suspended") ctx.resume();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "triangle";
+      const now = ctx.currentTime;
+      osc.frequency.setValueAtTime(880, now);
+      osc.frequency.setValueAtTime(1320, now + 0.15);
+      gain.gain.setValueAtTime(0.35, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(now);
+      osc.stop(now + 0.55);
+    } catch (_) {}
+  };
+
+  // Monitoreo Instantáneo vía SignalR en Tiempo Real
+  useEffect(() => {
+    if (!signalrConn || !isAuthenticated) return;
+
+    interface AdminAlertEvent {
+      type: "RECHARGE" | "WITHDRAWAL";
+      username?: string;
+      amountBs?: number;
+      coins?: number;
+      status?: string;
+      isAutoApproved?: boolean;
+    }
+
+    const onAdminAlert = (alert: AdminAlertEvent) => {
+      playAdminChime();
+      triggerNativeHaptic("heavy");
+
+      if (alert.type === "WITHDRAWAL") {
+        showNativeNotification(
+          "💸 ¡Nueva Solicitud de Retiro!",
+          `Jugador ${alert.username || "Usuario"} solicita retiro de ${alert.amountBs ? alert.amountBs.toFixed(2) : "0.00"} Bs. (${alert.coins || 0} Monedas)`,
+          "/admin"
+        );
+      } else {
+        const isAuto = alert.isAutoApproved || alert.status === "APROBADO";
+        showNativeNotification(
+          isAuto ? "⚡ Recarga Aprobada al Instante" : "🔔 ¡Nueva Recarga Pendiente!",
+          `Jugador ${alert.username || "Usuario"} reportó ${alert.amountBs ? alert.amountBs.toFixed(2) : "0.00"} Bs. (${isAuto ? "Acreditada por Tesoro" : "Requiere revisión"})`,
+          "/admin"
+        );
+      }
+
+      loadData();
+    };
+
+    signalrConn.on("ReceiveAdminAlert", onAdminAlert);
+    return () => {
+      signalrConn.off("ReceiveAdminAlert", onAdminAlert);
+    };
+  }, [signalrConn, isAuthenticated]);
+
+  // Monitoreo Automático de Respaldo cada 15s para Administrador (APK & Web)
   const lastPendingCountRef = React.useRef<number>(0);
+  const lastPendingWithdrawalsRef = React.useRef<number>(0);
 
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -1098,16 +1166,31 @@ export default function AdminPage() {
           const statsData: AdminStats = await res.json();
           setStats(statsData);
 
+          // Monitoreo de Recargas Pendientes
           const currentPending = statsData.pendingRecharges || 0;
           if (currentPending > lastPendingCountRef.current && currentPending > 0) {
+            playAdminChime();
             showNativeNotification(
               "🔔 ¡Nueva Recarga Pendiente!",
               `Hay ${currentPending} recarga(s) esperando tu aprobación en El Pericón.`,
               "/admin"
             );
-            triggerNativeHaptic('heavy');
+            triggerNativeHaptic("heavy");
           }
           lastPendingCountRef.current = currentPending;
+
+          // Monitoreo de Retiros Pendientes
+          const currentWithdrawals = statsData.pendingWithdrawals || 0;
+          if (currentWithdrawals > lastPendingWithdrawalsRef.current && currentWithdrawals > 0) {
+            playAdminChime();
+            showNativeNotification(
+              "💸 ¡Nueva Solicitud de Retiro!",
+              `Hay ${currentWithdrawals} solicitud(es) de retiro esperando transferencia bancaria.`,
+              "/admin"
+            );
+            triggerNativeHaptic("heavy");
+          }
+          lastPendingWithdrawalsRef.current = currentWithdrawals;
         }
       } catch {
         // Monitoreo silencioso
@@ -1116,6 +1199,51 @@ export default function AdminPage() {
 
     return () => clearInterval(interval);
   }, [isAuthenticated, apiUrl]);
+
+  const handleForceRefreshClients = async () => {
+    const result = await Swal.fire({
+      title: "¿Recargar a todos los usuarios?",
+      text: "Esto enviará una señal en vivo para que todos los teléfonos y navegadores conectados limpien su caché y carguen la última versión del servidor.",
+      icon: "question",
+      showCancelButton: true,
+      confirmButtonColor: "#0284c7",
+      cancelButtonColor: "#4b5563",
+      confirmButtonText: "🚀 Sí, Recargar Todos",
+      cancelButtonText: "Cancelar"
+    });
+
+    if (!result.isConfirmed) return;
+
+    setIsRefreshingClients(true);
+    try {
+      const res = await adminFetch(`${apiUrl}/api/admin/force-refresh-clients`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: "Actualización aplicada por el Administrador" })
+      });
+      if (res.ok) {
+        Swal.fire({
+          icon: "success",
+          title: "¡Orden Enviada!",
+          text: "Todos los jugadores conectados y la APK han recibido la orden de actualización.",
+          timer: 2500,
+          showConfirmButton: false
+        });
+        setActionMessage("🚀 Orden de actualización remota enviada exitosamente a todos los usuarios.");
+      } else {
+        Swal.fire({
+          icon: "error",
+          title: "Error",
+          text: "No se pudo emitir la orden remota."
+        });
+      }
+    } catch (e) {
+      console.error(e);
+      Swal.fire({ icon: "error", title: "Error de red" });
+    } finally {
+      setIsRefreshingClients(false);
+    }
+  };
 
   const handleUpdateErrorStatus = async (id: number, status: string, notes?: string) => {
     try {
@@ -2825,6 +2953,14 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                 <span>{loading ? "Actualizando..." : "Actualizar Datos"}</span>
               </button>
               <button
+                onClick={handleForceRefreshClients}
+                disabled={isRefreshingClients}
+                className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-gradient-to-r from-cyan-950/60 to-blue-950/60 text-cyan-300 text-xs font-bold border border-cyan-500/30 shadow-sm"
+              >
+                <span>🚀</span>
+                <span>{isRefreshingClients ? "Enviando Orden..." : "Recargar Todos los Usuarios"}</span>
+              </button>
+              <button
                 onClick={() => router.push("/desk")}
                 className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-[#201107] text-amber-200/80 text-xs font-medium"
               >
@@ -3123,6 +3259,15 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
           >
             <span>🔄</span>
             <span>{loading ? "Actualizando..." : "Actualizar Datos"}</span>
+          </button>
+          
+          <button
+            onClick={handleForceRefreshClients}
+            disabled={isRefreshingClients}
+            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-xl bg-gradient-to-r from-cyan-950/60 to-blue-950/60 hover:from-cyan-900/80 hover:to-blue-900/80 text-cyan-300 text-xs font-bold border border-cyan-500/30 transition-all shadow-sm"
+          >
+            <span>🚀</span>
+            <span>{isRefreshingClients ? "Enviando Orden..." : "Recargar Todos los Usuarios"}</span>
           </button>
           
           <button
