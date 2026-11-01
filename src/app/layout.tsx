@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 import dynamic from "next/dynamic";
 import { SignalRProvider } from '@/lib/signalrcontext';
+import AdminGlobalSentinel from '@/components/AdminGlobalSentinel';
 const ReduxProvider = dynamic(() => import("./StoreProvider"), {
   ssr: false
 });
@@ -162,6 +163,7 @@ export default function RootLayout({
       >
         <ReduxProvider>
           <SignalRProvider>
+            <AdminGlobalSentinel />
             <main className="min-h-screen w-full max-w-[100vw] overflow-x-hidden overflow-y-auto space-y-0">
               {children}
             </main>

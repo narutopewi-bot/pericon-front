@@ -852,6 +852,7 @@ export default function AdminPage() {
         if (typeof window !== "undefined") {
           sessionStorage.setItem("guardian_session_auth", "true");
           sessionStorage.setItem("guardian_admin_token", data.token);
+          localStorage.setItem("guardian_admin_token", data.token);
 
           // Si inicia sesión desde la APK, sellar este teléfono como el Dispositivo Maestro Exclusivo
           if (window.AndroidApp?.getDeviceId) {
@@ -885,6 +886,7 @@ export default function AdminPage() {
     if (typeof window !== "undefined") {
       sessionStorage.removeItem("guardian_session_auth");
       sessionStorage.removeItem("guardian_admin_token");
+      localStorage.removeItem("guardian_admin_token");
       localStorage.removeItem("pericon_admin_master_token");
     }
   };
@@ -909,6 +911,8 @@ export default function AdminPage() {
       if (resStats.ok) {
         const statsData = await resStats.json();
         setStats(statsData);
+        lastPendingCountRef.current = statsData.pendingRecharges || 0;
+        lastPendingWithdrawalsRef.current = statsData.pendingWithdrawals || 0;
         if (statsData.botDifficulty?.mode) {
           setBotDifficultyMode(statsData.botDifficulty.mode);
         }
@@ -1113,11 +1117,13 @@ export default function AdminPage() {
     } catch (_) {}
   };
 
-  // Monitoreo Instantáneo vía SignalR en Tiempo Real
+  // Monitoreo Instantáneo vía SignalR en Tiempo Real (con deduplicación y auto-reconexión)
+  const lastSignalrAlertRef = React.useRef<string>("");
   useEffect(() => {
     if (!signalrConn || !isAuthenticated) return;
 
     interface AdminAlertEvent {
+      id?: number;
       type: "RECHARGE" | "WITHDRAWAL";
       username?: string;
       amountBs?: number;
@@ -1127,20 +1133,27 @@ export default function AdminPage() {
     }
 
     const onAdminAlert = (alert: AdminAlertEvent) => {
+      const dedupKey = `${alert.type}_${alert.id || ""}_${alert.username || ""}_${alert.amountBs || 0}`;
+      if (lastSignalrAlertRef.current === dedupKey) return;
+      lastSignalrAlertRef.current = dedupKey;
+      setTimeout(() => {
+        if (lastSignalrAlertRef.current === dedupKey) lastSignalrAlertRef.current = "";
+      }, 5000);
+
       playAdminChime();
       triggerNativeHaptic("heavy");
 
       if (alert.type === "WITHDRAWAL") {
         showNativeNotification(
           "💸 ¡Nueva Solicitud de Retiro!",
-          `Jugador ${alert.username || "Usuario"} solicita retiro de ${alert.amountBs ? alert.amountBs.toFixed(2) : "0.00"} Bs. (${alert.coins || 0} Monedas)`,
+          `Jugador ${alert.username || "Usuario"} solicita retiro de ${alert.amountBs ? Number(alert.amountBs).toFixed(2) : "0.00"} Bs. (${alert.coins || 0} Monedas)`,
           "/admin"
         );
       } else {
         const isAuto = alert.isAutoApproved || alert.status === "APROBADO";
         showNativeNotification(
           isAuto ? "⚡ Recarga Aprobada al Instante" : "🔔 ¡Nueva Recarga Pendiente!",
-          `Jugador ${alert.username || "Usuario"} reportó ${alert.amountBs ? alert.amountBs.toFixed(2) : "0.00"} Bs. (${isAuto ? "Acreditada por Tesoro" : "Requiere revisión"})`,
+          `Jugador ${alert.username || "Usuario"} reportó ${alert.amountBs ? Number(alert.amountBs).toFixed(2) : "0.00"} Bs. (${isAuto ? "Acreditada por Tesoro" : "Requiere revisión"})`,
           "/admin"
         );
       }
@@ -1148,15 +1161,30 @@ export default function AdminPage() {
       loadData();
     };
 
-    const activeToken = adminToken || (typeof window !== "undefined" ? (sessionStorage.getItem("guardian_admin_token") || localStorage.getItem("guardian_admin_token") || "") : "");
-    if (activeToken) {
-      signalrConn.invoke("RegisterAdminAlertChannel", activeToken).catch(() => {});
-    }
+    const registerChannel = () => {
+      const activeToken =
+        adminToken ||
+        (typeof window !== "undefined"
+          ? sessionStorage.getItem("guardian_admin_token") ||
+            localStorage.getItem("guardian_admin_token") ||
+            localStorage.getItem("pericon_admin_master_token") ||
+            ""
+          : "");
+      if (activeToken) {
+        signalrConn.invoke("RegisterAdminAlertChannel", activeToken).catch(() => {});
+      }
+    };
+
+    registerChannel();
     signalrConn.on("ReceiveAdminAlert", onAdminAlert);
+    signalrConn.on("AdminSentinelPing", onAdminAlert);
+    signalrConn.onreconnected(registerChannel);
+
     return () => {
       signalrConn.off("ReceiveAdminAlert", onAdminAlert);
+      signalrConn.off("AdminSentinelPing", onAdminAlert);
     };
-  }, [signalrConn, isAuthenticated]);
+  }, [signalrConn, isAuthenticated, adminToken]);
 
   // Monitoreo Automático de Respaldo cada 15s para Administrador (APK & Web)
   const lastPendingCountRef = React.useRef<number>(0);
@@ -1167,14 +1195,32 @@ export default function AdminPage() {
 
     const interval = setInterval(async () => {
       try {
+        let currentPending = 0;
+        let currentWithdrawals = 0;
+        let gotCounts = false;
+
         const res = await adminFetch(`${apiUrl}/api/admin/stats`);
         if (res.ok) {
           const statsData: AdminStats = await res.json();
           setStats(statsData);
+          currentPending = statsData.pendingRecharges || 0;
+          currentWithdrawals = statsData.pendingWithdrawals || 0;
+          gotCounts = true;
+        } else {
+          const sentinelRes = await fetch(`${apiUrl}/api/payment/sentinel-counts`, { cache: "no-store" });
+          if (sentinelRes.ok) {
+            const sData = await sentinelRes.json();
+            currentPending = Number(sData.pendingRecharges || 0);
+            currentWithdrawals = Number(sData.pendingWithdrawals || 0);
+            gotCounts = true;
+          }
+        }
 
-          // Monitoreo de Recargas Pendientes
-          const currentPending = statsData.pendingRecharges || 0;
-          if (currentPending > lastPendingCountRef.current && currentPending > 0) {
+        if (gotCounts) {
+          const hasNewRecharge = currentPending > lastPendingCountRef.current && currentPending > 0;
+          const hasNewWithdrawal = currentWithdrawals > lastPendingWithdrawalsRef.current && currentWithdrawals > 0;
+
+          if (hasNewRecharge) {
             playAdminChime();
             showNativeNotification(
               "🔔 ¡Nueva Recarga Pendiente!",
@@ -1185,9 +1231,7 @@ export default function AdminPage() {
           }
           lastPendingCountRef.current = currentPending;
 
-          // Monitoreo de Retiros Pendientes
-          const currentWithdrawals = statsData.pendingWithdrawals || 0;
-          if (currentWithdrawals > lastPendingWithdrawalsRef.current && currentWithdrawals > 0) {
+          if (hasNewWithdrawal) {
             playAdminChime();
             showNativeNotification(
               "💸 ¡Nueva Solicitud de Retiro!",
@@ -1197,6 +1241,10 @@ export default function AdminPage() {
             triggerNativeHaptic("heavy");
           }
           lastPendingWithdrawalsRef.current = currentWithdrawals;
+
+          if (hasNewRecharge || hasNewWithdrawal) {
+            loadData();
+          }
         }
       } catch {
         // Monitoreo silencioso
