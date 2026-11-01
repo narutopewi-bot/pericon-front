@@ -400,6 +400,8 @@ export default function AdminPage() {
   }
   const [reactivationCandidates, setReactivationCandidates] = useState<ReactivationCandidate[]>([]);
   const [reactivationTotalEligible, setReactivationTotalEligible] = useState<number>(0);
+  const [reactivationPage, setReactivationPage] = useState<number>(1);
+  const [reactivationTotalPages, setReactivationTotalPages] = useState<number>(1);
   const [reactivationLoading, setReactivationLoading] = useState<boolean>(false);
   const [creditingIds, setCreditingIds] = useState<{ [key: number]: boolean }>({});
   const [creditedIds, setCreditedIds] = useState<{ [key: number]: boolean }>({});
@@ -459,15 +461,18 @@ export default function AdminPage() {
     return res;
   };
 
-  const fetchReactivationCandidates = async () => {
+  const fetchReactivationCandidates = async (pageToFetch?: number) => {
     setReactivationLoading(true);
     try {
-      const res = await adminFetch(`${apiUrl}/api/admin/reactivation/candidates`);
+      const targetPage = typeof pageToFetch === "number" ? pageToFetch : reactivationPage;
+      const res = await adminFetch(`${apiUrl}/api/admin/reactivation/candidates?page=${targetPage}&pageSize=10`);
       if (res.ok) {
         const data = await res.json();
         if (data.candidates) {
           setReactivationCandidates(data.candidates);
           setReactivationTotalEligible(data.totalEligible || 0);
+          setReactivationTotalPages(data.totalPages || 1);
+          setReactivationPage(data.page || targetPage);
         }
       }
     } catch (err) {
@@ -490,7 +495,8 @@ export default function AdminPage() {
         const data = await res.json();
         setCreditedIds(prev => ({ ...prev, [candidate.id]: true }));
         setUsers(prev => prev.map(u => u.id === candidate.id ? { ...u, coins: data.newCoins } : u));
-        setReactivationCandidates(prev => prev.map(c => c.id === candidate.id ? { ...c, coins: data.newCoins, lastReactivatedAt: data.reactivatedAt } : c));
+        setReactivationCandidates(prev => prev.map(c => c.id === candidate.id ? { ...c, coins: data.newCoins, reactivationCount: 1, lastReactivatedAt: data.reactivatedAt } : c));
+        setReactivationTotalEligible(prev => Math.max(0, prev - 1));
 
         window.open(candidate.waUrl, "_blank");
 
@@ -4266,30 +4272,55 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
             <div className="bg-gradient-to-br from-[#0c2214] via-[#122e1b] to-[#1c0f07] border-2 border-emerald-500/60 rounded-3xl p-5 shadow-2xl relative overflow-hidden">
               <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 border-b border-emerald-500/30 pb-4 mb-4">
                 <div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
                     <span className="px-2.5 py-0.5 rounded-full bg-emerald-500 text-slate-950 text-[10px] font-black uppercase tracking-wider">
-                      🎯 Módulo Anti-Baneo
+                      🏆 Jugadores con Victorias
+                    </span>
+                    <span className="px-2.5 py-0.5 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 text-[10px] font-black uppercase tracking-wider">
+                      🚫 Cero Repeticiones (Bono Único)
                     </span>
                     <span className="text-xs text-emerald-300 font-bold">
-                      • Jugadores elegibles en total: {reactivationTotalEligible}
+                      • Elegibles pendientes: {reactivationTotalEligible}
                     </span>
                   </div>
                   <h2 className={`${fonts.bowlbyOneSC.className} text-lg md:text-xl text-emerald-300 tracking-wide mt-1 flex items-center gap-2`}>
                     <span>⚡ Asistente de Reactivación: Lote de 10 Jugadores (+300 🪙)</span>
                   </h2>
                   <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
-                    Al hacer clic en <strong className="text-emerald-300">"Acreditar 300 🪙 + Abrir WhatsApp"</strong>, el sistema le suma de inmediato las 300 monedas a su cuenta en la base de datos y te abre el chat de WhatsApp con el mensaje personalizado y verídico listo para enviar.
+                    Al hacer clic en <strong className="text-emerald-300">"Acreditar 300 🪙 + Abrir WhatsApp"</strong>, el sistema le suma de inmediato las 300 monedas a su cuenta en la base de datos y te abre el chat de WhatsApp. <strong className="text-amber-300">Nunca se repetirá un usuario al que ya le hayas regalado monedas</strong>.
                   </p>
                 </div>
 
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex flex-wrap items-center gap-2 shrink-0">
+                  <div className="flex items-center bg-black/60 border border-emerald-500/40 rounded-xl p-1 gap-1">
+                    <button
+                      onClick={() => fetchReactivationCandidates(reactivationPage - 1)}
+                      disabled={reactivationLoading || reactivationPage <= 1}
+                      title="Lote anterior"
+                      className="px-2.5 py-1.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-800 disabled:opacity-30 disabled:hover:bg-emerald-950/80 text-emerald-300 text-xs font-black transition"
+                    >
+                      ◀
+                    </button>
+                    <span className="px-3 py-1 text-xs font-mono font-black text-emerald-300">
+                      Lote {reactivationPage} / {reactivationTotalPages}
+                    </span>
+                    <button
+                      onClick={() => fetchReactivationCandidates(reactivationPage + 1)}
+                      disabled={reactivationLoading || reactivationPage >= reactivationTotalPages}
+                      title="Siguiente lote"
+                      className="px-2.5 py-1.5 rounded-lg bg-emerald-950/80 hover:bg-emerald-800 disabled:opacity-30 disabled:hover:bg-emerald-950/80 text-emerald-300 text-xs font-black transition"
+                    >
+                      ▶
+                    </button>
+                  </div>
+
                   <button
-                    onClick={fetchReactivationCandidates}
+                    onClick={() => fetchReactivationCandidates(reactivationPage)}
                     disabled={reactivationLoading}
-                    className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-black shadow-lg shadow-emerald-950/60 transition disabled:opacity-50"
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-xs font-black shadow-lg shadow-emerald-950/60 transition disabled:opacity-50"
                   >
                     <span>{reactivationLoading ? "⏳" : "🔄"}</span>
-                    <span>{reactivationLoading ? "Cargando..." : "Cargar Otro Lote"}</span>
+                    <span>{reactivationLoading ? "Cargando..." : "Refrescar Lote"}</span>
                   </button>
                 </div>
               </div>
@@ -4298,8 +4329,8 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
               {reactivationCandidates.length === 0 ? (
                 <div className="text-center py-8 bg-black/40 rounded-2xl border border-emerald-500/20">
                   <span className="text-3xl">🎉</span>
-                  <p className="text-sm font-bold text-emerald-200 mt-2">¡No hay jugadores inactivos pendientes!</p>
-                  <p className="text-xs text-slate-400 mt-1">Todos los jugadores con teléfono han sido reactivados en los últimos 7 días o tienen saldo activo.</p>
+                  <p className="text-sm font-bold text-emerald-200 mt-2">¡No hay más jugadores con victorias pendientes por reactivar!</p>
+                  <p className="text-xs text-slate-400 mt-1">Todos los jugadores con victorias registradas ya han recibido sus 300 monedas de cortesía o no tienen teléfono registrado.</p>
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
