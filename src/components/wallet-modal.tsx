@@ -195,6 +195,17 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
   const [withdrawIdCard, setWithdrawIdCard] = useState<string>("");
   const [withdrawSuccess, setWithdrawSuccess] = useState<string | null>(null);
   const [withdrawError, setWithdrawError] = useState<string | null>(null);
+  const [boundPagoMovil, setBoundPagoMovil] = useState<{
+    hasBound: boolean;
+    bankName: string;
+    phoneNumber: string;
+    cedula: string;
+  }>({
+    hasBound: false,
+    bankName: "",
+    phoneNumber: "",
+    cedula: "",
+  });
 
   // Historiales
   const [recharges, setRecharges] = useState<RechargeItem[]>([]);
@@ -256,11 +267,12 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
 
     setLoadingHistory(true);
     try {
-      const [resRec, resWit, resProf, resMatches] = await Promise.all([
+      const [resRec, resWit, resProf, resMatches, resBound] = await Promise.all([
         fetch(`${apiUrl}/api/payment/user/${validId}`),
         fetch(`${apiUrl}/api/payment/user/${validId}/withdrawals`),
         fetch(`${apiUrl}/api/user/${validId}/profile`),
-        fetch(`${apiUrl}/api/user/${validId}/matches?limit=40`)
+        fetch(`${apiUrl}/api/user/${validId}/matches?limit=40`),
+        fetch(`${apiUrl}/api/payment/user/${validId}/bound-pago-movil`),
       ]);
 
       if (resRec.ok) {
@@ -269,7 +281,39 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
       }
       if (resWit.ok) {
         const dataWit = await resWit.json();
-        setWithdrawals(Array.isArray(dataWit) ? dataWit : []);
+        const listWit = Array.isArray(dataWit) ? dataWit : [];
+        setWithdrawals(listWit);
+        const firstLegit = [...listWit].reverse().find((w: any) => w.status !== "RECHAZADO");
+        if (firstLegit && firstLegit.bankName && firstLegit.phoneNumber && firstLegit.idCard) {
+          setBoundPagoMovil((prev) => {
+            if (!prev.hasBound) {
+              setWithdrawBank(firstLegit.bankName);
+              setWithdrawPhone(firstLegit.phoneNumber);
+              setWithdrawIdCard(firstLegit.idCard);
+              return {
+                hasBound: true,
+                bankName: firstLegit.bankName,
+                phoneNumber: firstLegit.phoneNumber,
+                cedula: firstLegit.idCard,
+              };
+            }
+            return prev;
+          });
+        }
+      }
+      if (resBound.ok) {
+        const boundData = await resBound.json();
+        if (boundData && boundData.hasBoundPagoMovil) {
+          setBoundPagoMovil({
+            hasBound: true,
+            bankName: boundData.bankName,
+            phoneNumber: boundData.phoneNumber,
+            cedula: boundData.cedula,
+          });
+          setWithdrawBank(boundData.bankName);
+          setWithdrawPhone(boundData.phoneNumber);
+          setWithdrawIdCard(boundData.cedula);
+        }
       }
       if (resMatches.ok) {
         const dataMatches = await resMatches.json();
@@ -713,6 +757,12 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
         setWithdrawSuccess(
           `¡Solicitud de retiro de Bs. ${data.amountBs} enviada con éxito! Ya se encuentra en revisión. El administrador transferirá el dinero a tu Pago Móvil.`
         );
+        setBoundPagoMovil({
+          hasBound: true,
+          bankName: withdrawBank,
+          phoneNumber: withdrawPhone.trim(),
+          cedula: withdrawIdCard.trim(),
+        });
         
         // Descontar inmediatamente en el cliente
         if (typeof data.userNewCoins === "number") {
@@ -1379,15 +1429,55 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
                 )}
               </div>
 
+              {/* Candado de Pago Móvil Inmutable */}
+              {boundPagoMovil.hasBound ? (
+                <div className="bg-emerald-950/60 border border-emerald-500/40 rounded-xl p-3 text-[11px] text-emerald-200 flex items-start gap-2 shadow-inner">
+                  <span className="text-base leading-none">🔒</span>
+                  <div>
+                    <div className="flex items-center gap-1.5 font-black text-emerald-300">
+                      <span>Pago Móvil Vinculado e Inmutable</span>
+                      <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded border border-emerald-500/40 font-mono">
+                        AUDITADO
+                      </span>
+                    </div>
+                    <p className="text-emerald-200/80 text-[10px] mt-0.5 leading-snug">
+                      Por políticas estrictas antifraude de El Pericón, tus ganancias solo se liquidan a tu cuenta registrada verificada. Este destino bancario está protegido y no puede ser alterado.
+                    </p>
+                  </div>
+                </div>
+              ) : (
+                <div className="bg-amber-950/60 border border-amber-500/40 rounded-xl p-3 text-[11px] text-amber-200 flex items-start gap-2 shadow-inner">
+                  <span className="text-base leading-none">⚠️</span>
+                  <div>
+                    <span className="font-extrabold text-amber-300 block">Registro de Pago Móvil Único y Permanente</span>
+                    <p className="text-amber-200/80 text-[10px] mt-0.5 leading-snug">
+                      El Pago Móvil que ingreses en tu primera solicitud quedará <b>bloqueado de forma permanente e inmutable</b> para todos tus retiros futuros. Verifica minuciosamente tus datos antes de continuar.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Banco Receptor */}
               <div>
-                <label className="text-[11px] text-emerald-200/90 font-bold block mb-1">
-                  Banco Receptor:
-                </label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="text-[11px] text-emerald-200/90 font-bold block">
+                    Banco Receptor:
+                  </label>
+                  {boundPagoMovil.hasBound && (
+                    <span className="text-[10px] bg-emerald-950 text-emerald-400 font-extrabold px-2 py-0.5 rounded-full border border-emerald-500/40">
+                      🔒 Bloqueado
+                    </span>
+                  )}
+                </div>
                 <select
                   value={withdrawBank}
-                  onChange={(e) => setWithdrawBank(e.target.value)}
-                  className="w-full bg-black/80 border border-emerald-500/40 rounded-xl px-3 py-2 text-xs text-white font-semibold focus:outline-none focus:border-emerald-400"
+                  onChange={(e) => !boundPagoMovil.hasBound && setWithdrawBank(e.target.value)}
+                  disabled={boundPagoMovil.hasBound}
+                  className={`w-full border rounded-xl px-3 py-2 text-xs font-semibold focus:outline-none ${
+                    boundPagoMovil.hasBound
+                      ? "bg-black/90 border-emerald-500/60 text-emerald-300 cursor-not-allowed opacity-90"
+                      : "bg-black/80 border-emerald-500/40 text-white focus:border-emerald-400"
+                  }`}
                   required
                 >
                   {VENEZUELAN_BANKS.map((b) => (
@@ -1401,14 +1491,25 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 {/* Teléfono Pago Móvil */}
                 <div>
-                  <label className="text-[11px] text-emerald-200/90 font-bold block mb-1">
-                    Teléfono Pago Móvil:
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] text-emerald-200/90 font-bold block">
+                      Teléfono Pago Móvil:
+                    </label>
+                    {boundPagoMovil.hasBound && (
+                      <span className="text-[9px] text-emerald-400 font-bold">🔒 Inmutable</span>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={withdrawPhone}
-                    onChange={(e) => setWithdrawPhone(e.target.value)}
-                    className="w-full bg-black/70 border border-emerald-500/40 rounded-xl px-3 py-2 text-xs text-white font-medium focus:outline-none focus:border-emerald-400"
+                    onChange={(e) => !boundPagoMovil.hasBound && setWithdrawPhone(e.target.value)}
+                    disabled={boundPagoMovil.hasBound}
+                    readOnly={boundPagoMovil.hasBound}
+                    className={`w-full border rounded-xl px-3 py-2 text-xs font-medium focus:outline-none ${
+                      boundPagoMovil.hasBound
+                        ? "bg-black/90 border-emerald-500/60 text-emerald-300 cursor-not-allowed opacity-90 font-mono"
+                        : "bg-black/70 border-emerald-500/40 text-white focus:border-emerald-400"
+                    }`}
                     placeholder="Ej. 04121234567"
                     required
                   />
@@ -1416,14 +1517,25 @@ export default function WalletModal({ isOpen, onClose, userId, coins: propCoins 
 
                 {/* Cédula */}
                 <div>
-                  <label className="text-[11px] text-emerald-200/90 font-bold block mb-1">
-                    Cédula de Identidad:
-                  </label>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] text-emerald-200/90 font-bold block">
+                      Cédula de Identidad:
+                    </label>
+                    {boundPagoMovil.hasBound && (
+                      <span className="text-[9px] text-emerald-400 font-bold">🔒 Inmutable</span>
+                    )}
+                  </div>
                   <input
                     type="text"
                     value={withdrawIdCard}
-                    onChange={(e) => setWithdrawIdCard(e.target.value)}
-                    className="w-full bg-black/70 border border-emerald-500/40 rounded-xl px-3 py-2 text-xs text-white font-medium focus:outline-none focus:border-emerald-400"
+                    onChange={(e) => !boundPagoMovil.hasBound && setWithdrawIdCard(e.target.value)}
+                    disabled={boundPagoMovil.hasBound}
+                    readOnly={boundPagoMovil.hasBound}
+                    className={`w-full border rounded-xl px-3 py-2 text-xs font-medium focus:outline-none ${
+                      boundPagoMovil.hasBound
+                        ? "bg-black/90 border-emerald-500/60 text-emerald-300 cursor-not-allowed opacity-90 font-mono"
+                        : "bg-black/70 border-emerald-500/40 text-white focus:border-emerald-400"
+                    }`}
                     placeholder="Cédula de identidad"
                     required
                   />
