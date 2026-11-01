@@ -3425,6 +3425,12 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                         }`}>
                           {cheData.botDifficulty === "favor_jugador"
                             ? "⭐ MODO 60/40 ACTIVO A FAVOR DE CHE"
+                            : cheData.botDifficulty === "medio"
+                            ? "🟡 MODO 40/60 CASA ACTIVO"
+                            : cheData.botDifficulty === "dificil"
+                            ? "🔴 MODO MURO 15/85 CASA ACTIVO"
+                            : cheData.botDifficulty === "facil"
+                            ? "🟢 MODO FÁCIL 50/50 ACTIVO"
                             : `MODO ACTUAL: ${(cheData.botDifficulty || "GENERAL").toUpperCase()}`}
                         </span>
                       </div>
@@ -3483,9 +3489,10 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                           ? "bg-amber-500 text-black ring-2 ring-amber-200"
                           : "bg-[#24140a] text-amber-300 border border-amber-500/40 hover:bg-amber-950/40"
                       }`}
+                      title="40% Che / 60% Casa: Ventaja reglamentaria a favor de la Casa con corte estricto a las 2 victorias"
                     >
                       <span>🟡</span>
-                      <span>60/40 Casa</span>
+                      <span>40/60 Casa</span>
                     </button>
 
                     <button
@@ -3497,9 +3504,10 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                           ? "bg-red-600 text-white ring-2 ring-red-300"
                           : "bg-[#24140a] text-red-400 border border-red-500/40 hover:bg-red-950/40"
                       }`}
+                      title="15% Che / 85% Casa: Muro de contención total a favor de la Casa"
                     >
                       <span>🔴</span>
-                      <span>Muro 85/15</span>
+                      <span>Muro 15/85</span>
                     </button>
 
                     <button
@@ -3524,7 +3532,7 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                     <div className="flex items-center gap-2">
                       <span className="text-base animate-pulse">⚡</span>
                       <span>
-                        <strong>MODO 60/40 A FAVOR DE CHE ACTIVO (BLINDADO):</strong> Che gana 6 de cada 10 partidas con corte estricto de máximo 3 consecutivas (la banca gana 1 o 2 para evitar desfalco). Pulsa <strong>"🟡 60/40 Casa"</strong> o <strong>"🟢 Fácil 50/50"</strong> cuando desees cambiar de modo.
+                        <strong>MODO 60/40 A FAVOR DE CHE ACTIVO (BLINDADO):</strong> Che gana 6 de cada 10 partidas con corte estricto de máximo 3 consecutivas (la banca gana 1 o 2 para evitar desfalco). Pulsa <strong>"🟡 40/60 Casa"</strong> o <strong>"🟢 Fácil 50/50"</strong> cuando desees cambiar de modo.
                       </span>
                     </div>
                     <button
@@ -3593,7 +3601,7 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                   title="70% Casa / 30% Jugador - Recuperación de tesorería ordenada por la banca"
                 >
                   <span>🟡</span>
-                  <span>Medio (60/40)</span>
+                  <span>Medio (40/60 Casa)</span>
                 </button>
 
                 <button
@@ -3605,10 +3613,10 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                       ? "bg-red-600 text-white ring-2 ring-red-400"
                       : "bg-[#24140a] text-red-400 border border-red-500/40 hover:bg-red-950/40"
                   }`}
-                  title="85% Casa / 15% Jugador - Muro de contención para cortar fugas"
+                  title="15% Jugador / 85% Casa - Muro de contención para cortar fugas"
                 >
                   <span>🔴</span>
-                  <span>Difícil Muro (85%)</span>
+                  <span>Muro (15/85)</span>
                 </button>
               </div>
             </div>
@@ -4028,7 +4036,7 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                                   }`}
                                   title="Individual Medio (60% Casa / 40% Jugador - Retención Progresiva de Tesorería)"
                                 >
-                                  🟡 60/40
+                                  🟡 40/60 Casa
                                 </button>
                                 <button
                                   type="button"
@@ -4041,7 +4049,7 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                                   }`}
                                   title="Individual Difícil (85% Casa / 15% Jugador - Muro Total de Bloqueo de Ganancias)"
                                 >
-                                  🔴 Muro
+                                  🔴 Muro 15/85
                                 </button>
                                 <button
                                   type="button"
@@ -5737,7 +5745,7 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                   title="70% Casa / 30% Jugador - Recuperación de tesorería"
                 >
                   <span>🟡</span>
-                  <span>Medio (60/40)</span>
+                  <span>Medio (40/60 Casa)</span>
                 </button>
 
                 <button
@@ -5749,10 +5757,10 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                       ? "bg-red-600 text-white ring-2 ring-red-400"
                       : "bg-[#24140a] text-red-400 border border-red-500/40 hover:bg-red-950/40"
                   }`}
-                  title="85% Casa / 15% Jugador - Muro de contención para frenar desfalcos"
+                  title="15% Jugador / 85% Casa - Muro de contención para frenar desfalcos"
                 >
                   <span>🔴</span>
-                  <span>Difícil Muro (85%)</span>
+                  <span>Muro (15/85)</span>
                 </button>
               </div>
             </div>
