@@ -121,6 +121,20 @@ export default function Home() {
                 </span>
               </Button>
 
+              <a
+                href="/el-pericon.apk"
+                download="el-pericon.apk"
+                className="w-full flex items-center justify-between px-3.5 py-2 bg-emerald-950/70 hover:bg-emerald-900/80 border border-emerald-400/60 rounded-xl text-emerald-200 shadow hover:scale-[1.01] active:scale-95 transition-all group cursor-pointer"
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-sm">🤖</span>
+                  <span className="text-xs font-bold text-white">Instalar App Oficial Android (.APK)</span>
+                </div>
+                <span className="text-[10px] bg-emerald-500 text-slate-950 font-black px-2 py-0.5 rounded-full">
+                  ⬇️ 3 MB
+                </span>
+              </a>
+
               <button
                 onClick={handleLogout}
                 className="text-xs text-amber-300/80 hover:text-white underline cursor-pointer transition">
@@ -175,6 +189,35 @@ export default function Home() {
                 className="w-full bg-black/85 hover:bg-black border-2 border-slate-300 hover:border-white text-white py-2.5 rounded-2xl text-xs font-extrabold shadow-xl shadow-black/90 tracking-wide hover:scale-[1.02] active:scale-95 transition-all">
                 Crear Cuenta Nueva
               </Button>
+
+              {/* Botón Descargar App Oficial para Android */}
+              <a
+                href="/el-pericon.apk"
+                download="el-pericon.apk"
+                className="w-full flex items-center justify-between px-3.5 py-2.5 bg-gradient-to-r from-emerald-950/80 via-emerald-900/60 to-emerald-950/80 hover:from-emerald-900/90 hover:to-emerald-800/80 border-2 border-emerald-400/70 hover:border-emerald-300 rounded-2xl text-emerald-200 shadow-xl shadow-emerald-950/50 hover:scale-[1.02] active:scale-95 transition-all group cursor-pointer"
+              >
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-emerald-500/20 border border-emerald-400/40 flex items-center justify-center text-base shadow shrink-0 group-hover:scale-110 transition">
+                    🤖
+                  </div>
+                  <div className="text-left">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-xs font-black text-white tracking-wide">
+                        Descargar App Oficial
+                      </span>
+                      <span className="bg-emerald-500 text-slate-950 text-[8.5px] font-black px-1.5 py-0.2 rounded-full uppercase">
+                        APK 3.0 MB
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-emerald-300/80 font-medium leading-tight">
+                      Android • Notificaciones y sonido nativo
+                    </p>
+                  </div>
+                </div>
+                <span className="text-sm text-emerald-400 group-hover:translate-y-0.5 transition font-black">
+                  ⬇️
+                </span>
+              </a>
 
 
             </>

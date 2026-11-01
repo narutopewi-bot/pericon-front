@@ -27,12 +27,15 @@ import { playChatPopSound } from "@/lib/soundEffects";
 import { safeSignalRInvoke } from "@/lib/safeSignalR";
 import Swal from "sweetalert2";
 import LiveTicker from "@/components/live-ticker";
+import { isApkEnvironment } from "@/lib/nativeBridge";
 
 export default function Desk() {
   const router = useRouter();
   const dispatch = useDispatch();
   const [open, setOpen] = React.useState(false);
   const [newopen, setNewopen] = React.useState(false);
+  const [isApk, setIsApk] = useState<boolean>(true);
+  const [showApkBanner, setShowApkBanner] = useState<boolean>(false);
 
   const showMaintenanceNotice = (moduleName: string) => {
     Swal.fire({
@@ -328,6 +331,14 @@ export default function Desk() {
 
   useEffect(() => {
     if (typeof window !== "undefined") {
+      // Detección de entorno APK vs Navegador Web
+      const isApp = isApkEnvironment();
+      setIsApk(isApp);
+      const apkBannerDismissed = sessionStorage.getItem("pericon_apk_banner_dismissed");
+      if (!isApp && !apkBannerDismissed) {
+        setShowApkBanner(true);
+      }
+
       // Verificar si ya vio el tutorial
       const seen = localStorage.getItem("pericon_tutorial_seen");
       if (!seen) {
@@ -565,6 +576,40 @@ export default function Desk() {
         onOpenLeaderboard={() => setLeaderboardOpen(true)}
         onOpenFeedback={() => setFeedbackOpen(true)}
       />
+
+      {/* Banner Descargar App Oficial Android (Solo navegadores web fuera de la APK) */}
+      {!isApk && showApkBanner && (
+        <div className="w-full px-3 py-2 bg-gradient-to-r from-[#0c2214] via-[#122e1b] to-[#0c2214] border-b border-emerald-500/40 flex items-center justify-between gap-2 shadow-lg animate-in slide-in-from-top duration-200 z-20">
+          <div className="flex items-center gap-2.5 max-w-4xl mx-auto flex-1 min-w-0">
+            <span className="text-lg shrink-0">📲</span>
+            <p className="text-xs text-emerald-200 font-medium truncate">
+              <strong className="text-white font-black">¿Juegas desde el navegador?</strong> Instala la App Oficial de Android para partidas más fluidas y notificaciones en vivo.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <a
+              href="/el-pericon.apk"
+              download="el-pericon.apk"
+              className="px-3 py-1 rounded-xl bg-gradient-to-r from-emerald-500 to-green-500 hover:from-emerald-400 hover:to-green-400 text-slate-950 font-black text-xs shadow-md shadow-emerald-500/30 flex items-center gap-1 active:scale-95 transition"
+            >
+              <span>⬇️</span>
+              <span>Descargar APK (3 MB)</span>
+            </a>
+            <button
+              onClick={() => {
+                setShowApkBanner(false);
+                if (typeof window !== "undefined") {
+                  sessionStorage.setItem("pericon_apk_banner_dismissed", "true");
+                }
+              }}
+              className="text-emerald-400/70 hover:text-white text-xs px-1.5 py-1 rounded hover:bg-black/30 transition"
+              title="Cerrar banner"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Banner de Anuncio Global en Vivo y Persistente */}
       {globalAnnouncement && (

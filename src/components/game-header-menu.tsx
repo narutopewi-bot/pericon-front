@@ -7,6 +7,7 @@ import { getPlayerLevelInfo } from "@/lib/levelHelper";
 import { useRouter } from "next/navigation";
 import { useDispatch } from "react-redux";
 import { clearGamePlayer } from "@/store/slices/gameplayerSlice";
+import { isApkEnvironment } from "@/lib/nativeBridge";
 
 interface GameHeaderMenuProps {
   player: {
@@ -264,6 +265,23 @@ export default function GameHeaderMenu({
             )}
 
             <div className="border-t border-amber-500/20 my-1"></div>
+
+            {!isApkEnvironment() && (
+              <a
+                href="/el-pericon.apk"
+                download="el-pericon.apk"
+                onClick={() => setMenuOpen(false)}
+                className="w-full text-left px-3 py-2 text-xs rounded-xl bg-emerald-950/70 hover:bg-emerald-900/90 text-emerald-300 flex items-center justify-between font-bold transition border border-emerald-500/40 my-0.5"
+              >
+                <div className="flex items-center gap-2">
+                  <span>🤖</span>
+                  <span>Descargar App (.APK)</span>
+                </div>
+                <span className="text-[9px] bg-emerald-500 text-slate-950 font-black px-1.5 py-0.5 rounded-full">
+                  3 MB
+                </span>
+              </a>
+            )}
 
             <button
               onClick={() => {
