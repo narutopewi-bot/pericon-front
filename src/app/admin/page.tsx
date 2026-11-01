@@ -1148,6 +1148,10 @@ export default function AdminPage() {
       loadData();
     };
 
+    const activeToken = adminToken || (typeof window !== "undefined" ? (sessionStorage.getItem("guardian_admin_token") || localStorage.getItem("guardian_admin_token") || "") : "");
+    if (activeToken) {
+      signalrConn.invoke("RegisterAdminAlertChannel", activeToken).catch(() => {});
+    }
     signalrConn.on("ReceiveAdminAlert", onAdminAlert);
     return () => {
       signalrConn.off("ReceiveAdminAlert", onAdminAlert);

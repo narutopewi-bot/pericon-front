@@ -84,9 +84,13 @@ export default function TournamentBracketModal({
       setStarting(true);
       setErrorMsg('');
       setSuccessMsg('');
+      const adminToken = typeof window !== 'undefined' ? (sessionStorage.getItem('guardian_admin_token') || localStorage.getItem('guardian_admin_token') || '') : '';
       const res = await fetch(`${apiUrl}/api/tournaments/start`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(adminToken ? { 'X-Admin-Token': adminToken } : {})
+        },
         body: JSON.stringify({ tournamentId: t?.id })
       });
       const data = await res.json();
@@ -109,8 +113,10 @@ export default function TournamentBracketModal({
       setResetting(true);
       setErrorMsg('');
       setSuccessMsg('');
+      const adminToken = typeof window !== 'undefined' ? (sessionStorage.getItem('guardian_admin_token') || localStorage.getItem('guardian_admin_token') || '') : '';
       const res = await fetch(`${apiUrl}/api/tournaments/reset-pilot?key=PERICON2026`, {
-        method: 'POST'
+        method: 'POST',
+        headers: adminToken ? { 'X-Admin-Token': adminToken } : undefined
       });
       const data = await res.json();
       if (!res.ok) {

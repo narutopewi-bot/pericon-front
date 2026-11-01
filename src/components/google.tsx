@@ -22,20 +22,44 @@ export default function GoogleButton({ onLoading }: GoogleButtonProps) {
   const router = useRouter();
   const dispatch = useAppDispatch();
   const [loading, setLoading] = useState(false);
+  const [resolvedClientId, setResolvedClientId] = useState<string>(
+    process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || ""
+  );
 
   useEffect(() => {
-    // Cargar SDK oficial de Google Identity Services si hay Client ID configurado
-    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
-    if (clientId && typeof window !== "undefined" && !window.google) {
-      const script = document.createElement("script");
-      script.src = "https://accounts.google.com/gsi/client";
-      script.async = true;
-      script.defer = true;
-      document.body.appendChild(script);
+    // 1. Cargar siempre el SDK oficial de Google Identity Services
+    if (typeof window !== "undefined" && !window.google) {
+      const existingScript = document.querySelector('script[src="https://accounts.google.com/gsi/client"]');
+      if (!existingScript) {
+        const script = document.createElement("script");
+        script.src = "https://accounts.google.com/gsi/client";
+        script.async = true;
+        script.defer = true;
+        document.body.appendChild(script);
+      }
+    }
+
+    // 2. Si no vino en variables de compilación del frontend, consultar al backend si hay GOOGLE_CLIENT_ID configurado en Railway
+    if (!process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID) {
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
+      fetch(`${apiUrl}/api/auth/google-config`)
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (d?.clientId && typeof d.clientId === "string" && d.clientId.trim().length > 10) {
+            setResolvedClientId(d.clientId.trim());
+          }
+        })
+        .catch(() => {});
     }
   }, []);
 
-  const sendGoogleAuth = async (payload: { credential?: string; email?: string; name?: string; picture?: string }) => {
+  const sendGoogleAuth = async (payload: {
+    credential?: string;
+    accessToken?: string;
+    email?: string;
+    name?: string;
+    picture?: string;
+  }) => {
     setLoading(true);
     if (onLoading) onLoading(true);
     try {
@@ -55,7 +79,7 @@ export default function GoogleButton({ onLoading }: GoogleButtonProps) {
       if (!response.ok) {
         Swal.fire({
           icon: "error",
-          title: "Error de autenticación",
+          title: "Aviso de Autenticación",
           text: result.message || "No se pudo autenticar con Google.",
           confirmButtonColor: "#b45309",
         });
@@ -95,9 +119,29 @@ export default function GoogleButton({ onLoading }: GoogleButtonProps) {
   const handleGoogleClick = async () => {
     if (loading) return;
 
-    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    const clientId = resolvedClientId || process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID || "";
 
-    // Si ya existe un Google Client ID real configurado y el SDK está cargado
+    // 1. Flujo Oficial OAuth2 Popup de Google (Selector de Cuentas Real de Google, no bloqueado por el navegador)
+    if (clientId && window.google?.accounts?.oauth2) {
+      try {
+        const tokenClient = window.google.accounts.oauth2.initTokenClient({
+          client_id: clientId,
+          scope: "openid email profile",
+          prompt: "select_account",
+          callback: async (tokenResponse: any) => {
+            if (tokenResponse && tokenResponse.access_token) {
+              await sendGoogleAuth({ accessToken: tokenResponse.access_token });
+            }
+          },
+        });
+        tokenClient.requestAccessToken();
+        return;
+      } catch (e) {
+        console.warn("Fallo initTokenClient, intentando OneTap fallback:", e);
+      }
+    }
+
+    // 2. Respaldo Google ID Token si oauth2 no estuviera listo pero accounts.id sí
     if (clientId && window.google?.accounts?.id) {
       window.google.accounts.id.initialize({
         client_id: clientId,
@@ -111,19 +155,19 @@ export default function GoogleButton({ onLoading }: GoogleButtonProps) {
       return;
     }
 
-    // Modal de prueba rápido para desarrollo mientras se tramita el Google Client ID
+    // 3. Si aún no se ha configurado GOOGLE_CLIENT_ID en el servidor: registro rápido de cuenta nueva (protegido contra cuentas existentes)
     const { value: formValues } = await Swal.fire({
-      title: "Registrarse con Google",
+      title: "Registro Rápido con Gmail",
       html: `
-        <div style="text-align: left; font-size: 13px; color: #666; margin-bottom: 12px;">
-          Ingresa tus datos para registrarte o iniciar sesión con Google:
+        <div style="text-align: left; font-size: 13px; color: #555; margin-bottom: 12px;">
+          Ingresa tu nombre y correo para crear una cuenta nueva (si ya tienes cuenta registrada, inicia sesión con tu contraseña):
         </div>
-        <input id="swal-google-name" class="swal2-input" placeholder="Nombre completo" style="margin-top: 5px; font-size: 14px;" />
-        <input id="swal-google-email" type="email" class="swal2-input" placeholder="correo@gmail.com" style="margin-top: 5px; font-size: 14px;" />
+        <input id="swal-google-name" class="swal2-input" placeholder="Nombre o Apodo" style="margin-top: 5px; font-size: 14px;" />
+        <input id="swal-google-email" type="email" class="swal2-input" placeholder="tucorreo@gmail.com" style="margin-top: 5px; font-size: 14px;" />
       `,
       focusConfirm: false,
       showCancelButton: true,
-      confirmButtonText: "Continuar con Google",
+      confirmButtonText: "Crear Cuenta",
       cancelButtonText: "Cancelar",
       confirmButtonColor: "#b45309",
       preConfirm: () => {
