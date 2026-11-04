@@ -5,7 +5,7 @@ import Image from "next/image";
 import * as fonts from "@/components/fonts";
 import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
-import { showNativeNotification, triggerNativeHaptic, isApkEnvironment } from "@/lib/nativeBridge";
+import { showNativeNotification, triggerNativeHaptic, isApkEnvironment, testNativeSentinelAlert, requestNativeBatteryExemption, isNativeBatteryExempt } from "@/lib/nativeBridge";
 import { useSignalRContext } from "@/lib/signalrcontext";
 
 interface AdminStats {
@@ -3403,6 +3403,26 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
               </div>
 
               <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+                {isApkEnvironment() && (
+                  <button
+                    onClick={testNativeSentinelAlert}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-xs transition shadow"
+                    title="Probar sonido y vibración del centinela en este celular"
+                  >
+                    <span>🔔</span>
+                    <span>Probar Alerta Celular</span>
+                  </button>
+                )}
+                {isApkEnvironment() && !isNativeBatteryExempt() && (
+                  <button
+                    onClick={requestNativeBatteryExemption}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs transition shadow animate-pulse"
+                    title="Permitir ejecución en segundo plano sin restricciones"
+                  >
+                    <span>🔋</span>
+                    <span>Habilitar 24/7 Batería</span>
+                  </button>
+                )}
                 <button
                   onClick={handleResetMatchHistory}
                   className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-950/70 hover:bg-red-900 text-red-300 border border-red-500/40 text-xs font-bold transition shadow"

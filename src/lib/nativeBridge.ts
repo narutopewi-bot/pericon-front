@@ -7,12 +7,16 @@ declare global {
   interface Window {
     AndroidApp?: {
       isApk(): boolean;
+      getVersion?(): string;
       getDeviceId(): string;
       vibrate(milliseconds: number): void;
       vibratePattern(patternCsv: string): void;
       showNotification(title: string, message: string, deepLink?: string): void;
       showToast(msg: string): void;
       keepScreenOn(enable: boolean): void;
+      isBatteryExempt?(): boolean;
+      requestBatteryExemption?(): void;
+      testSentinelAlert?(): void;
     };
   }
 }
@@ -102,4 +106,33 @@ export function showNativeToast(msg: string): void {
       window.AndroidApp.showToast(msg);
     } catch (_) {}
   }
+}
+
+export function testNativeSentinelAlert(): void {
+  if (typeof window !== "undefined" && window.AndroidApp?.testSentinelAlert) {
+    try {
+      window.AndroidApp.testSentinelAlert();
+    } catch (e) {
+      console.warn("[NativeBridge] Error invoking testSentinelAlert", e);
+    }
+  }
+}
+
+export function requestNativeBatteryExemption(): void {
+  if (typeof window !== "undefined" && window.AndroidApp?.requestBatteryExemption) {
+    try {
+      window.AndroidApp.requestBatteryExemption();
+    } catch (e) {
+      console.warn("[NativeBridge] Error invoking requestBatteryExemption", e);
+    }
+  }
+}
+
+export function isNativeBatteryExempt(): boolean {
+  if (typeof window !== "undefined" && window.AndroidApp?.isBatteryExempt) {
+    try {
+      return window.AndroidApp.isBatteryExempt();
+    } catch (_) {}
+  }
+  return true;
 }
