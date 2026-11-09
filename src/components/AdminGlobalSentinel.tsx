@@ -62,6 +62,8 @@ export default function AdminGlobalSentinel() {
   const lastAlertKeyRef = useRef<string>("");
   const lastPendingRechargesRef = useRef<number>(-1);
   const lastPendingWithdrawalsRef = useRef<number>(-1);
+  const lastLatestRechargeIdRef = useRef<number>(-1);
+  const lastLatestWithdrawalIdRef = useRef<number>(-1);
 
   // Si estamos dentro de /admin, la propia página /admin maneja sus alertas y recarga de tablas
   const isInsideAdminPage = pathname?.startsWith("/admin");
@@ -140,19 +142,55 @@ export default function AdminGlobalSentinel() {
         const data = await res.json();
         const curRech = Number(data.pendingRecharges || 0);
         const curWith = Number(data.pendingWithdrawals || 0);
+        const latestRechId = Number(data.latestRechargeId || 0);
+        const latestWithId = Number(data.latestWithdrawalId || 0);
 
-        if (lastPendingRechargesRef.current >= 0 && curRech > lastPendingRechargesRef.current) {
+        // Inicialización en primer sondeo
+        if (lastLatestRechargeIdRef.current === -1 && lastLatestWithdrawalIdRef.current === -1) {
+          lastLatestRechargeIdRef.current = latestRechId;
+          lastLatestWithdrawalIdRef.current = latestWithId;
+          lastPendingRechargesRef.current = curRech;
+          lastPendingWithdrawalsRef.current = curWith;
+          return;
+        }
+
+        // Nueva recarga detectada
+        if (latestRechId > 0 && latestRechId > lastLatestRechargeIdRef.current) {
+          playSentinelChime();
+          triggerNativeHaptic("heavy");
+          const isAuto = data.latestRechargeIsAutoApproved || data.latestRechargeStatus === "APROBADO";
+          const user = data.latestRechargeUser || "Usuario";
+          const amount = Number(data.latestRechargeAmountBs || 0).toFixed(2);
+          showNativeNotification(
+            isAuto ? "✅ ¡Recarga Aprobada!" : "⚠️ ¡Recarga Pendiente (Revisar)!",
+            isAuto
+              ? `${user} hizo una recarga de Bs. ${amount}, ha sido aprobada automáticamente.`
+              : `Hicieron una recarga de Bs. ${amount} (${user}) con datos no validados o pendiente. Revisa manualmente.`,
+            "/admin"
+          );
+        } else if (lastPendingRechargesRef.current >= 0 && curRech > lastPendingRechargesRef.current) {
           playSentinelChime();
           triggerNativeHaptic("heavy");
           showNativeNotification(
-            "🔔 ¡Nueva Recarga Pendiente!",
+            "⚠️ ¡Nueva Recarga Pendiente!",
             `Hay ${curRech} recarga(s) esperando tu aprobación en El Pericón.`,
             "/admin"
           );
         }
-        lastPendingRechargesRef.current = curRech;
 
-        if (lastPendingWithdrawalsRef.current >= 0 && curWith > lastPendingWithdrawalsRef.current) {
+        // Nuevo retiro detectado
+        if (latestWithId > 0 && latestWithId > lastLatestWithdrawalIdRef.current) {
+          playSentinelChime();
+          triggerNativeHaptic("heavy");
+          const user = data.latestWithdrawalUser || "Usuario";
+          const amount = Number(data.latestWithdrawalAmountBs || 0).toFixed(2);
+          const bank = data.latestWithdrawalBank ? ` a ${data.latestWithdrawalBank}` : "";
+          showNativeNotification(
+            "💸 ¡Nueva Solicitud de Retiro!",
+            `${user} solicitó un retiro de Bs. ${amount} por Pago Móvil${bank}.`,
+            "/admin"
+          );
+        } else if (lastPendingWithdrawalsRef.current >= 0 && curWith > lastPendingWithdrawalsRef.current) {
           playSentinelChime();
           triggerNativeHaptic("heavy");
           showNativeNotification(
@@ -161,6 +199,10 @@ export default function AdminGlobalSentinel() {
             "/admin"
           );
         }
+
+        lastLatestRechargeIdRef.current = latestRechId;
+        lastLatestWithdrawalIdRef.current = latestWithId;
+        lastPendingRechargesRef.current = curRech;
         lastPendingWithdrawalsRef.current = curWith;
       } catch {
         // Silencioso
