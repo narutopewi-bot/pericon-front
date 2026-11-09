@@ -16,6 +16,9 @@ declare global {
       keepScreenOn(enable: boolean): void;
       isBatteryExempt?(): boolean;
       requestBatteryExemption?(): void;
+      areNotificationsEnabled?(): boolean;
+      openNotificationSettings?(): void;
+      getSentinelDiagnostics?(): string;
       testSentinelAlert?(): void;
     };
   }
@@ -106,6 +109,51 @@ export function showNativeToast(msg: string): void {
       window.AndroidApp.showToast(msg);
     } catch (_) {}
   }
+}
+
+export function areNativeNotificationsEnabled(): boolean {
+  if (typeof window !== "undefined" && window.AndroidApp?.areNotificationsEnabled) {
+    try {
+      return window.AndroidApp.areNotificationsEnabled();
+    } catch (_) {}
+  }
+  return true;
+}
+
+export function openNativeNotificationSettings(): void {
+  if (typeof window !== "undefined" && window.AndroidApp?.openNotificationSettings) {
+    try {
+      window.AndroidApp.openNotificationSettings();
+    } catch (e) {
+      console.warn("[NativeBridge] Error invoking openNotificationSettings", e);
+    }
+  }
+}
+
+export interface SentinelDiagnostics {
+  running: boolean;
+  lastPollEpoch: number;
+  pollCount: number;
+  consecutiveErrors: number;
+  lastHttpStatus: number;
+  isBatteryExempt: boolean;
+  areNotificationsEnabled: boolean;
+  currentChannel: string;
+  version: string;
+}
+
+export function getNativeSentinelDiagnostics(): SentinelDiagnostics | null {
+  if (typeof window !== "undefined" && window.AndroidApp?.getSentinelDiagnostics) {
+    try {
+      const raw = window.AndroidApp.getSentinelDiagnostics();
+      if (raw) {
+        return JSON.parse(raw);
+      }
+    } catch (e) {
+      console.warn("[NativeBridge] Error reading Sentinel diagnostics", e);
+    }
+  }
+  return null;
 }
 
 export function testNativeSentinelAlert(): void {

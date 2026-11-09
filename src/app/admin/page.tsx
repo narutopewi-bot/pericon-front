@@ -5,7 +5,18 @@ import Image from "next/image";
 import * as fonts from "@/components/fonts";
 import { useRouter } from "next/navigation";
 import Swal from "sweetalert2";
-import { showNativeNotification, triggerNativeHaptic, isApkEnvironment, testNativeSentinelAlert, requestNativeBatteryExemption, isNativeBatteryExempt } from "@/lib/nativeBridge";
+import {
+  showNativeNotification,
+  triggerNativeHaptic,
+  isApkEnvironment,
+  testNativeSentinelAlert,
+  requestNativeBatteryExemption,
+  isNativeBatteryExempt,
+  areNativeNotificationsEnabled,
+  openNativeNotificationSettings,
+  getNativeSentinelDiagnostics,
+  SentinelDiagnostics,
+} from "@/lib/nativeBridge";
 import { useSignalRContext } from "@/lib/signalrcontext";
 
 interface AdminStats {
@@ -316,6 +327,10 @@ export default function AdminPage() {
   const [expenseFormBsReceived, setExpenseFormBsReceived] = useState("");
   const [expenseFormNotes, setExpenseFormNotes] = useState("");
   const [loadingExpense, setLoadingExpense] = useState(false);
+  // Diagnostico Centinela APK
+  const [sentinelDiag, setSentinelDiag] = useState<SentinelDiagnostics | null>(null);
+  const [apkNotificationsAllowed, setApkNotificationsAllowed] = useState<boolean>(true);
+  const [apkBatteryExempt, setApkBatteryExempt] = useState<boolean>(true);
 
 
   // Datos
@@ -828,6 +843,21 @@ export default function AdminPage() {
       setAdminToken("");
       setIsAuthenticated(false);
     }
+  }, []);
+
+  // Polling y diagnostico en vivo para el Centinela Nativo de la APK
+  useEffect(() => {
+    if (typeof window === "undefined" || !isApkEnvironment()) return;
+    const pollSentinel = () => {
+      try {
+        setSentinelDiag(getNativeSentinelDiagnostics());
+        setApkNotificationsAllowed(areNativeNotificationsEnabled());
+        setApkBatteryExempt(isNativeBatteryExempt());
+      } catch (_) {}
+    };
+    pollSentinel();
+    const interval = setInterval(pollSentinel, 4000);
+    return () => clearInterval(interval);
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -3403,9 +3433,28 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
               </div>
 
               <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+                {isApkEnvironment() && !apkNotificationsAllowed && (
+                  <button
+                    onClick={openNativeNotificationSettings}
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-red-600 hover:bg-red-500 text-white font-black text-xs transition shadow animate-bounce"
+                    title="Notificaciones bloqueadas en Android. Toca para activar"
+                  >
+                    <span>⚠️</span>
+                    <span>NOTIFICACIONES BLOQUEADAS (ACTIVAR)</span>
+                  </button>
+                )}
                 {isApkEnvironment() && (
                   <button
-                    onClick={testNativeSentinelAlert}
+                    onClick={() => {
+                      testNativeSentinelAlert();
+                      Swal.fire({
+                        title: "Alerta Sonora Emitida",
+                        text: "Si tu celular no sonó o no vibró, asegúrate de tener el volumen multimedia/alarma encendido y las notificaciones permitidas.",
+                        icon: "info",
+                        confirmButtonText: "Entendido",
+                        confirmButtonColor: "#f59e0b"
+                      });
+                    }}
                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-amber-950 font-black text-xs transition shadow"
                     title="Probar sonido y vibración del centinela en este celular"
                   >
@@ -3413,7 +3462,7 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                     <span>Probar Alerta Celular</span>
                   </button>
                 )}
-                {isApkEnvironment() && !isNativeBatteryExempt() && (
+                {isApkEnvironment() && !apkBatteryExempt && (
                   <button
                     onClick={requestNativeBatteryExemption}
                     className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs transition shadow animate-pulse"
@@ -3433,6 +3482,48 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                 </button>
               </div>
             </div>
+
+            {/* Tarjeta de Estado del Centinela en APK */}
+            {isApkEnvironment() && (
+              <div className="bg-gradient-to-r from-amber-950/60 via-[#1c1008] to-amber-950/60 border border-amber-500/40 rounded-2xl p-3.5 shadow-md flex flex-col md:flex-row items-start md:items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2.5">
+                  <div className={`w-3 h-3 rounded-full ${sentinelDiag?.running ? "bg-emerald-400 animate-ping" : "bg-amber-500"}`} />
+                  <div>
+                    <span className="font-black text-amber-300">CENTINELA ANDROID {sentinelDiag?.version ? `v${sentinelDiag.version}` : "v1.2.0"}:</span>
+                    <span className="ml-1.5 text-amber-100/90 font-medium">
+                      {sentinelDiag?.running
+                        ? `Monitoreo 24/7 Activo • Sondeos: ${sentinelDiag.pollCount} • Canal: ${sentinelDiag.currentChannel || "v4"} • Último HTTP: ${sentinelDiag.lastHttpStatus || 200}`
+                        : "Servicio en ejecución continua"}
+                    </span>
+                  </div>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${apkNotificationsAllowed ? "bg-emerald-950 border border-emerald-500/50 text-emerald-300" : "bg-red-950 border border-red-500/50 text-red-300"}`}>
+                    {apkNotificationsAllowed ? "✅ Notif: Permitidas" : "❌ Notif: Bloqueadas"}
+                  </span>
+                  <span className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider ${apkBatteryExempt ? "bg-emerald-950 border border-emerald-500/50 text-emerald-300" : "bg-amber-950 border border-amber-500/50 text-amber-300"}`}>
+                    {apkBatteryExempt ? "🔋 Batería: Sin Restricción" : "⚠️ Batería: Optimizada"}
+                  </span>
+                  {!apkNotificationsAllowed && (
+                    <button
+                      onClick={openNativeNotificationSettings}
+                      className="px-2.5 py-1 rounded-lg bg-red-600 hover:bg-red-500 text-white font-black text-[10px] shadow"
+                    >
+                      Ajustes Notif
+                    </button>
+                  )}
+                  {!apkBatteryExempt && (
+                    <button
+                      onClick={requestNativeBatteryExemption}
+                      className="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-500 text-white font-black text-[10px] shadow"
+                    >
+                      Quitar Ahorro
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
 
             {/* Monitor de Actividad y Partidas en Juego en Vivo */}
             <div className="bg-gradient-to-r from-[#1c0f08] via-[#241309] to-[#1c0f08] border border-amber-500/40 rounded-2xl p-4 shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
