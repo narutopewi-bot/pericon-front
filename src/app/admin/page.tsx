@@ -18,6 +18,7 @@ import {
   SentinelDiagnostics,
 } from "@/lib/nativeBridge";
 import { useSignalRContext } from "@/lib/signalrcontext";
+import AdminAffiliatesTab from "@/components/AdminAffiliatesTab";
 
 interface AdminStats {
   totalUsers: number;
@@ -280,7 +281,7 @@ interface MatchesDailyActivity {
   prizes: number;
 }
 
-type TabType = "dashboard" | "users" | "whatsapp" | "broadcast" | "recharges" | "withdrawals" | "matches" | "bot-matches" | "reports" | "promos" | "errors" | "feedbacks";
+type TabType = "dashboard" | "users" | "whatsapp" | "broadcast" | "recharges" | "withdrawals" | "matches" | "bot-matches" | "reports" | "promos" | "affiliates" | "errors" | "feedbacks";
 
 export default function AdminPage() {
   const router = useRouter();
@@ -1223,62 +1224,121 @@ export default function AdminPage() {
   }, [signalrConn, isAuthenticated, adminToken]);
 
   // Monitoreo Automático de Respaldo cada 15s para Administrador (APK & Web)
-  const lastPendingCountRef = React.useRef<number>(0);
-  const lastPendingWithdrawalsRef = React.useRef<number>(0);
+  const lastPendingCountRef = React.useRef<number>(-1);
+  const lastPendingWithdrawalsRef = React.useRef<number>(-1);
+  const lastSeenRechargeIdRef = React.useRef<number>(-1);
+  const lastSeenWithdrawalIdRef = React.useRef<number>(-1);
 
   useEffect(() => {
     if (!isAuthenticated) return;
 
     const interval = setInterval(async () => {
       try {
-        let currentPending = 0;
-        let currentWithdrawals = 0;
-        let gotCounts = false;
-
-        const res = await adminFetch(`${apiUrl}/api/admin/stats`);
-        if (res.ok) {
-          const statsData: AdminStats = await res.json();
-          setStats(statsData);
-          currentPending = statsData.pendingRecharges || 0;
-          currentWithdrawals = statsData.pendingWithdrawals || 0;
-          gotCounts = true;
-        } else {
-          const sentinelRes = await fetch(`${apiUrl}/api/payment/sentinel-counts`, { cache: "no-store" });
-          if (sentinelRes.ok) {
-            const sData = await sentinelRes.json();
-            currentPending = Number(sData.pendingRecharges || 0);
-            currentWithdrawals = Number(sData.pendingWithdrawals || 0);
-            gotCounts = true;
+        // 1. Actualizar estadísticas del panel
+        try {
+          const res = await adminFetch(`${apiUrl}/api/admin/stats`);
+          if (res.ok) {
+            const statsData: AdminStats = await res.json();
+            setStats(statsData);
           }
+        } catch {
+          // ignore
         }
 
-        if (gotCounts) {
-          const hasNewRecharge = currentPending > lastPendingCountRef.current && currentPending > 0;
-          const hasNewWithdrawal = currentWithdrawals > lastPendingWithdrawalsRef.current && currentWithdrawals > 0;
+        // 2. Consultar centinela en tiempo real (todas las recargas y retiros)
+        const sentinelRes = await fetch(`${apiUrl}/api/payment/sentinel-counts`, { cache: "no-store" });
+        if (sentinelRes.ok) {
+          const sData = await sentinelRes.json();
+          const currentPending = Number(sData.pendingRecharges || 0);
+          const currentWithdrawals = Number(sData.pendingWithdrawals || 0);
+          const latestRechargeId = Number(sData.latestRechargeId || 0);
+          const latestWithdrawalId = Number(sData.latestWithdrawalId || 0);
+          const latestRechargeAmountBs = Number(sData.latestRechargeAmountBs || 0);
+          const latestRechargeCoins = Number(sData.latestRechargeCoins || 0);
+          const latestRechargeUser = sData.latestRechargeUser || "Un jugador";
+          const latestRechargeStatus = sData.latestRechargeStatus || "";
+          const latestRechargeIsAutoApproved = Boolean(sData.latestRechargeIsAutoApproved);
+          const latestWithdrawalAmountBs = Number(sData.latestWithdrawalAmountBs || 0);
+          const latestWithdrawalCoins = Number(sData.latestWithdrawalCoins || 0);
+          const latestWithdrawalUser = sData.latestWithdrawalUser || "Un jugador";
 
-          if (hasNewRecharge) {
-            playAdminChime();
-            showNativeNotification(
-              "🔔 ¡Nueva Recarga Pendiente!",
-              `Hay ${currentPending} recarga(s) esperando tu aprobación en El Pericón.`,
-              "/admin"
-            );
-            triggerNativeHaptic("heavy");
+          let shouldReload = false;
+
+          // Detección de Recargas (tanto aprobadas automáticamente como pendientes)
+          if (lastSeenRechargeIdRef.current === -1) {
+            lastSeenRechargeIdRef.current = latestRechargeId;
+            lastPendingCountRef.current = currentPending;
+          } else {
+            const hasNewRecharge = latestRechargeId > 0 && latestRechargeId > lastSeenRechargeIdRef.current;
+            const hasPendingIncrease = currentPending > lastPendingCountRef.current && currentPending > 0;
+
+            if (hasNewRecharge) {
+              playAdminChime();
+              triggerNativeHaptic("heavy");
+              const amountFmt = latestRechargeAmountBs.toFixed(2);
+              const coinsFmt = latestRechargeCoins > 0 ? ` (${latestRechargeCoins} fichas)` : "";
+              if (latestRechargeStatus === "APROBADO" || latestRechargeIsAutoApproved) {
+                showNativeNotification(
+                  "✅ ¡Recarga Aprobada!",
+                  `${latestRechargeUser} recargó Bs. ${amountFmt}${coinsFmt}. Aprobada automáticamente.`,
+                  "/admin"
+                );
+              } else {
+                showNativeNotification(
+                  "⚠️ ¡Recarga Pendiente (Revisar)!",
+                  `${latestRechargeUser} reportó Bs. ${amountFmt}${coinsFmt} con datos por verificar. Revisa manualmente.`,
+                  "/admin"
+                );
+              }
+              lastSeenRechargeIdRef.current = latestRechargeId;
+              shouldReload = true;
+            } else if (hasPendingIncrease) {
+              playAdminChime();
+              triggerNativeHaptic("heavy");
+              showNativeNotification(
+                "🔔 ¡Nueva Recarga Pendiente!",
+                `Hay ${currentPending} recarga(s) esperando tu aprobación en El Pericón.`,
+                "/admin"
+              );
+              shouldReload = true;
+            }
+            lastPendingCountRef.current = currentPending;
           }
-          lastPendingCountRef.current = currentPending;
 
-          if (hasNewWithdrawal) {
-            playAdminChime();
-            showNativeNotification(
-              "💸 ¡Nueva Solicitud de Retiro!",
-              `Hay ${currentWithdrawals} solicitud(es) de retiro esperando transferencia bancaria.`,
-              "/admin"
-            );
-            triggerNativeHaptic("heavy");
+          // Detección de Retiros
+          if (lastSeenWithdrawalIdRef.current === -1) {
+            lastSeenWithdrawalIdRef.current = latestWithdrawalId;
+            lastPendingWithdrawalsRef.current = currentWithdrawals;
+          } else {
+            const hasNewWithdrawal = latestWithdrawalId > 0 && latestWithdrawalId > lastSeenWithdrawalIdRef.current;
+            const hasWithdrawalIncrease = currentWithdrawals > lastPendingWithdrawalsRef.current && currentWithdrawals > 0;
+
+            if (hasNewWithdrawal) {
+              playAdminChime();
+              triggerNativeHaptic("heavy");
+              const wAmountFmt = latestWithdrawalAmountBs.toFixed(2);
+              const wCoinsFmt = latestWithdrawalCoins > 0 ? ` (${latestWithdrawalCoins} fichas)` : "";
+              showNativeNotification(
+                "💸 ¡Nueva Solicitud de Retiro!",
+                `${latestWithdrawalUser} solicitó retiro de Bs. ${wAmountFmt}${wCoinsFmt}. Esperando transferencia.`,
+                "/admin"
+              );
+              lastSeenWithdrawalIdRef.current = latestWithdrawalId;
+              shouldReload = true;
+            } else if (hasWithdrawalIncrease) {
+              playAdminChime();
+              triggerNativeHaptic("heavy");
+              showNativeNotification(
+                "💸 ¡Nueva Solicitud de Retiro!",
+                `Hay ${currentWithdrawals} solicitud(es) de retiro esperando transferencia bancaria.`,
+                "/admin"
+              );
+              shouldReload = true;
+            }
+            lastPendingWithdrawalsRef.current = currentWithdrawals;
           }
-          lastPendingWithdrawalsRef.current = currentWithdrawals;
 
-          if (hasNewRecharge || hasNewWithdrawal) {
+          if (shouldReload) {
             loadData();
           }
         }
@@ -2775,6 +2835,7 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
               {activeTab === "bot-matches" && "🤖 Bot IA"}
               {activeTab === "reports" && "📈 Reportes"}
               {activeTab === "promos" && "🎟️ Cupones"}
+              {activeTab === "affiliates" && "🍽️ Restaurantes QR"}
               {activeTab === "errors" && "⚠️ Errores"}
               {activeTab === "feedbacks" && "⭐ Opiniones"}
             </span>
@@ -2875,6 +2936,15 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
           }`}
         >
           <span>📢</span> Avisos
+        </button>
+
+        <button
+          onClick={() => setActiveTab("affiliates")}
+          className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all flex items-center gap-1.5 ${
+            activeTab === "affiliates" ? "bg-amber-500 text-amber-950 shadow" : "bg-[#201007] text-amber-200/70 border border-amber-500/20"
+          }`}
+        >
+          <span>🍽️</span> Restaurantes QR
         </button>
       </div>
 
@@ -3027,6 +3097,15 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
               >
                 <div className="flex items-center gap-2.5"><span>🎟️</span><span>Cupones de Monedas</span></div>
                 <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-amber-950/60 text-amber-300 border border-amber-400/30">{promos.length}</span>
+              </button>
+
+              <button
+                onClick={() => { setActiveTab("affiliates"); setMobileMenuOpen(false); }}
+                className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                  activeTab === "affiliates" ? "bg-amber-500 text-amber-950 shadow-md" : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
+                }`}
+              >
+                <div className="flex items-center gap-2.5"><span>🍽️</span><span>Restaurantes QR (20%)</span></div>
               </button>
 
               <button
@@ -3319,6 +3398,21 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
             </span>
           </button>
 
+          {/* 10b. Restaurantes & Comercios QR */}
+          <button
+            onClick={() => setActiveTab("affiliates")}
+            className={`w-full flex items-center justify-between px-3.5 py-3 rounded-xl text-xs font-bold transition-all ${
+              activeTab === "affiliates"
+                ? "bg-amber-500 text-amber-950 shadow-md shadow-amber-500/20"
+                : "text-amber-100/70 hover:bg-amber-500/10 hover:text-amber-300"
+            }`}
+          >
+            <div className="flex items-center gap-3">
+              <span className="text-base">🍽️</span>
+              <span>Restaurantes QR (20%)</span>
+            </div>
+          </button>
+
           {/* 11. Errores e Incidencias (Telemetría en Vivo) */}
           <button
             onClick={() => setActiveTab("errors")}
@@ -3489,10 +3583,10 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
                 <div className="flex items-center gap-2.5">
                   <div className={`w-3 h-3 rounded-full ${sentinelDiag?.running ? "bg-emerald-400 animate-ping" : "bg-amber-500"}`} />
                   <div>
-                    <span className="font-black text-amber-300">CENTINELA ANDROID {sentinelDiag?.version ? `v${sentinelDiag.version}` : "v1.2.0"}:</span>
+                    <span className="font-black text-amber-300">CENTINELA ANDROID {sentinelDiag?.version ? `v${sentinelDiag.version}` : "v1.3.5"}:</span>
                     <span className="ml-1.5 text-amber-100/90 font-medium">
                       {sentinelDiag?.running
-                        ? `Monitoreo 24/7 Activo • Sondeos: ${sentinelDiag.pollCount} • Canal: ${sentinelDiag.currentChannel || "v4"} • Último HTTP: ${sentinelDiag.lastHttpStatus || 200}`
+                        ? `Monitoreo 24/7 Activo • ${typeof sentinelDiag.secondsSinceLastPoll === "number" && sentinelDiag.secondsSinceLastPoll >= 0 ? `Último sondeo hace ${sentinelDiag.secondsSinceLastPoll}s` : `Sondeos: ${sentinelDiag.pollCount ?? 0}`} • Canal: ${sentinelDiag.currentChannel || "v7"} • Último HTTP: ${sentinelDiag.lastHttpStatus || 200}${sentinelDiag.lastError ? ` • Error: ${sentinelDiag.lastError}` : ""}`
                         : "Servicio en ejecución continua"}
                     </span>
                   </div>
@@ -7098,6 +7192,17 @@ Esta acción acreditará las monedas al monedero del jugador.`)) {
               </div>
             </div>
           </div>
+        )}
+
+        {/* ========================================================================= */}
+        {/* PESTAÑA 6B: RESTAURANTES & COMERCIOS QR */}
+        {/* ========================================================================= */}
+        {activeTab === "affiliates" && (
+          <AdminAffiliatesTab
+            apiUrl={apiUrl}
+            adminToken={adminToken}
+            onActionMessage={(msg) => setActionMessage(msg)}
+          />
         )}
 
         {/* ========================================================================= */}

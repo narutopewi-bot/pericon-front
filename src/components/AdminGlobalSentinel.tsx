@@ -3,7 +3,7 @@
 import { useEffect, useRef } from "react";
 import { usePathname } from "next/navigation";
 import { useSignalRContext } from "@/lib/signalrcontext";
-import { showNativeNotification, triggerNativeHaptic } from "@/lib/nativeBridge";
+import { showNativeNotification, triggerNativeHaptic, isApkEnvironment } from "@/lib/nativeBridge";
 
 interface AdminAlertPayload {
   id?: number;
@@ -125,17 +125,18 @@ export default function AdminGlobalSentinel() {
     };
   }, [signalrConn, isInsideAdminPage]);
 
-  // Respaldo de polling cada 15s en segundo plano cuando el Admin está fuera de /admin (por ejemplo en /desk)
+  // Respaldo de polling cada 15s en segundo plano cuando el Admin está fuera de /admin (por ejemplo en /desk o en la APK)
   useEffect(() => {
     if (isInsideAdminPage) return;
+    const isApk = isApkEnvironment();
     const token = getActiveAdminToken();
-    if (!token) return;
+    if (!token && !isApk) return;
 
     const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
 
     const checkCounts = async () => {
       const activeToken = getActiveAdminToken();
-      if (!activeToken) return;
+      if (!activeToken && !isApk) return;
       try {
         const res = await fetch(`${apiUrl}/api/payment/sentinel-counts`, { cache: "no-store" });
         if (!res.ok) return;

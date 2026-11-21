@@ -132,13 +132,18 @@ export function openNativeNotificationSettings(): void {
 
 export interface SentinelDiagnostics {
   running: boolean;
+  isActive?: boolean;
   lastPollEpoch: number;
-  pollCount: number;
-  consecutiveErrors: number;
+  secondsSinceLastPoll?: number;
+  pollCount?: number;
+  consecutiveErrors?: number;
   lastHttpStatus: number;
-  isBatteryExempt: boolean;
-  areNotificationsEnabled: boolean;
-  currentChannel: string;
+  lastPendingRecharges?: number;
+  lastPendingWithdrawals?: number;
+  lastError?: string;
+  isBatteryExempt?: boolean;
+  areNotificationsEnabled?: boolean;
+  currentChannel?: string;
   version: string;
 }
 
@@ -147,7 +152,14 @@ export function getNativeSentinelDiagnostics(): SentinelDiagnostics | null {
     try {
       const raw = window.AndroidApp.getSentinelDiagnostics();
       if (raw) {
-        return JSON.parse(raw);
+        const parsed = JSON.parse(raw);
+        return {
+          ...parsed,
+          running: Boolean(parsed.running ?? parsed.isActive),
+          lastPollEpoch: Number(parsed.lastPollEpoch ?? parsed.lastPollTimestamp ?? 0),
+          lastHttpStatus: Number(parsed.lastHttpStatus ?? 0),
+          version: parsed.version || "1.3.5",
+        };
       }
     } catch (e) {
       console.warn("[NativeBridge] Error reading Sentinel diagnostics", e);

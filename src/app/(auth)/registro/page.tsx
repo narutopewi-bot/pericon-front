@@ -77,13 +77,34 @@ export default function SignUp() {
   const [loading, setLoading] = React.useState(false);
   const [termsModalOpen, setTermsModalOpen] = React.useState(false);
   const [promoCode, setPromoCode] = React.useState<string>("");
+  const [partnerBadge, setPartnerBadge] = React.useState<{
+    businessName: string;
+    bonusCoinsReward: number;
+  } | null>(null);
 
   React.useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
-      const p = params.get("promo") || params.get("codigo") || params.get("ref");
-      if (p) {
-        setPromoCode(p.trim().toUpperCase());
+      const fromUrl = params.get("promo") || params.get("codigo") || params.get("ref");
+      const resolved = (fromUrl || sessionStorage.getItem("pericon_pending_ref_code") || "")
+        .trim()
+        .toUpperCase();
+
+      if (resolved) {
+        setPromoCode(resolved);
+        sessionStorage.setItem("pericon_pending_ref_code", resolved);
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
+        fetch(`${apiUrl}/api/feed/affiliate-badge/${encodeURIComponent(resolved)}`)
+          .then((r) => (r.ok ? r.json() : null))
+          .then((info) => {
+            if (info?.businessName) {
+              setPartnerBadge({
+                businessName: info.businessName,
+                bonusCoinsReward: Number(info.bonusCoinsReward ?? 100),
+              });
+            }
+          })
+          .catch(() => {});
       }
     }
   }, []);
@@ -145,6 +166,7 @@ export default function SignUp() {
         );
         if (typeof window !== "undefined") {
           localStorage.setItem("pericon_user", JSON.stringify(result));
+          sessionStorage.removeItem("pericon_pending_ref_code");
         }
 
         if (result.coins === 0 || result.isDeviceAlreadyUsed) {
@@ -208,11 +230,17 @@ export default function SignUp() {
                     <span className="text-2xl animate-bounce">🎁</span>
                     <div className="text-left flex-1 min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-[10px] font-black uppercase text-amber-300 tracking-wider">¡CUPÓN DEL FLYER!</span>
+                        <span className="text-[10px] font-black uppercase text-amber-300 tracking-wider">
+                          {partnerBadge ? `INVITADO POR ${partnerBadge.businessName}` : "¡CUPÓN DEL FLYER!"}
+                        </span>
                         <span className="bg-amber-400 text-neutral-950 font-black text-[9px] px-1.5 py-0.5 rounded uppercase tracking-wider">{promoCode}</span>
                       </div>
                       <p className="text-[10px] text-amber-100 font-medium leading-tight mt-0.5">
-                        Recibirás tus 300 monedas + <strong className="text-amber-300">+100 MONEDAS DE REGALO</strong> al completar tu registro.
+                        Recibirás tus 300 monedas +{" "}
+                        <strong className="text-amber-300">
+                          +{partnerBadge ? partnerBadge.bonusCoinsReward : 100} MONEDAS DE REGALO
+                        </strong>{" "}
+                        al completar tu registro.
                       </p>
                     </div>
                   </div>

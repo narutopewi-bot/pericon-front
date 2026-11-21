@@ -64,6 +64,10 @@ export default function GoogleButton({ onLoading }: GoogleButtonProps) {
     if (onLoading) onLoading(true);
     try {
       const deviceFingerprint = await getDeviceFingerprint();
+      const pendingRef =
+        typeof window !== "undefined"
+          ? sessionStorage.getItem("pericon_pending_ref_code") || undefined
+          : undefined;
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || "https://pericon-api-production.up.railway.app";
       const response = await fetch(`${apiUrl}/api/auth/google`, {
         method: "POST",
@@ -71,6 +75,7 @@ export default function GoogleButton({ onLoading }: GoogleButtonProps) {
         body: JSON.stringify({
           ...payload,
           deviceFingerprint,
+          promoCode: pendingRef,
         }),
       });
 
@@ -99,6 +104,7 @@ export default function GoogleButton({ onLoading }: GoogleButtonProps) {
         );
         if (typeof window !== "undefined") {
           localStorage.setItem("pericon_user", JSON.stringify(result));
+          sessionStorage.removeItem("pericon_pending_ref_code");
         }
         router.push("/desk");
       }
